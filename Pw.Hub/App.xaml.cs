@@ -14,6 +14,7 @@ public partial class App
 {
     public NotifyIcon NotifyIcon;
     private AuthService _authService;
+    private UpdateService _updateService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -24,13 +25,18 @@ public partial class App
         };
         
         _authService = new AuthService();
+        _updateService = new UpdateService();
 
         NotifyIcon.AddMenu("Проверить авторизацию", OnClick);
+        NotifyIcon.AddMenu("Проверить обновления…", async (_, _) => await _updateService.CheckForUpdates(true));
 
         NotifyIcon.AddMenu("-");
         NotifyIcon.AddMenu("Закрыть", (_, _) => Current.Shutdown());
 
         NotifyIcon.MouseDoubleClick += NotifyIconOnMouseDoubleClick;
+
+        // Fire-and-forget update check on startup (no UI if up-to-date or failed)
+        _ = _updateService.CheckForUpdates(false);
 
         base.OnStartup(e);
     }
