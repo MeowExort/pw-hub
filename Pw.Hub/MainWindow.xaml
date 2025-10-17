@@ -3,10 +3,78 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Pw.Hub"
+        xmlns:models="clr-namespace:Pw.Hub.Models"
+        xmlns:pages="clr-namespace:Pw.Hub.Pages"
+        Closing="MainWindow_OnClosing"
+        Icon="Assets/icon.jpg"
         mc:Ignorable="d"
-        Title="PW Hub" Height="450" Width="800">
+        WindowState="Maximized"
+        Title="PW Hub" Height="900" Width="1900" WindowStartupLocation="CenterScreen">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
+        <!-- Left navigation -->
+        <DockPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TreeView x:Name="NavigationTree" ItemsSource="{Binding Squads}"
+                          PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp">
+                    <TreeView.ContextMenu>
+                        <ContextMenu x:Name="NavigationContextMenu" Opened="OnContextMenuOpened">
+                            <MenuItem Header="Добавить отряд" Click="OnAddSquadClick" />
+                            <MenuItem x:Name="AddAccountMenuItem" Header="Добавить аккаунт"
+                                      Click="OnAddAccountClick" IsEnabled="False" />
+                            <Separator />
+                            <MenuItem x:Name="EditSquadMenuItem" Header="Редактировать отряд"
+                                      Click="OnEditSquadClick" IsEnabled="False" />
+                            <MenuItem x:Name="EditAccountMenuItem" Header="Редактировать аккаунт"
+                                      Click="OnEditAccountClick" IsEnabled="False" />
+                            <Separator />
+                            <MenuItem x:Name="DeleteMenuItem" Header="Удалить"
+                                      Click="OnDeleteClick" IsEnabled="False" />
+                        </ContextMenu>
+                    </TreeView.ContextMenu>
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate DataType="{x:Type models:Squad}" ItemsSource="{Binding Accounts}">
+                            <StackPanel Orientation="Horizontal">
+                                <Grid MinHeight="30">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Text="{Binding Name}" />
+                                </Grid>
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                        <DataTemplate DataType="{x:Type models:Account}">
+                            <Grid MinHeight="30">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Width="30" Height="30">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{Binding ImageUri}" />
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="8, 0, 0, 0"
+                                    VerticalAlignment="Center"
+                                    Text="{Binding Name}" />
+                            </Grid>
+                        </DataTemplate>
+                    </TreeView.Resources>
+                </TreeView>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!-- Content area -->
+        <Border Grid.Row="0" Grid.Column="1" Margin="8" BorderBrush="#CCC" BorderThickness="0" CornerRadius="6">
+            <pages:AccountPage x:Name="AccountPage" />
+        </Border>
     </Grid>
 </Window>
