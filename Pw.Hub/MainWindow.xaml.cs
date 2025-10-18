@@ -23,10 +23,14 @@ public partial class MainWindow
     private readonly MainViewModel _vm = new();
     private object? _contextMenuTarget;
 
+    private readonly ModuleService _moduleService = new();
+    private List<ModuleDefinition> _modules = new();
+
     public MainWindow()
     {
         InitializeComponent();
         DataContext = _vm;
+        Loaded += (_, _) => LoadModules();
     }
 
     private static void CollapseSiblings(TreeViewItem item)
@@ -361,6 +365,78 @@ public partial class MainWindow
     public async Task<bool> ChangeAccount(Account account)
     {
         return await AccountPage.ChangeAccount(account);
+    }
+
+    private void LoadModules()
+    {
+        try
+        {
+            _modules = _moduleService.LoadModules();
+            ModulesList.ItemsSource = _modules;
+            RunModuleButton.IsEnabled = _modules.Count > 0;
+        }
+        catch { }
+    }
+
+    private void OnReloadModulesClick(object sender, RoutedEventArgs e)
+    {
+        LoadModules();
+    }
+
+    private void OnCreateModuleClick(object sender, RoutedEventArgs e)
+    {
+        var editor = new Windows.ModuleEditorWindow();
+        editor.Owner = this;
+        if (editor.ShowDialog() == true)
+        {
+            _moduleService.AddOrUpdateModule(editor.Module);
+            LoadModules();
+            // select the new/updated module
+            ModulesList.SelectedItem = _modules.FirstOrDefault(m => m.Id == editor.Module.Id);
+        }
+    }
+
+    private void OnEditModuleClick(object sender, RoutedEventArgs e)
+    {
+        if (ModulesList.SelectedItem is not ModuleDefinition selected)
+        {
+            MessageBox.Show("Выберите модуль для редактирования", "Модули");
+            return;
+        }
+        var editor = new Windows.ModuleEditorWindow(selected) { Owner = this };
+        if (editor.ShowDialog() == true)
+        {
+            _moduleService.AddOrUpdateModule(editor.Module);
+            LoadModules();
+            ModulesList.SelectedItem = _modules.FirstOrDefault(m => m.Id == editor.Module.Id);
+        }
+    }
+
+    private async void OnRunModuleClick(object sender, RoutedEventArgs e)
+    {
+        if (ModulesList.SelectedItem is not ModuleDefinition module)
+        {
+            MessageBox.Show("Выберите модуль из списка.");
+            return;
+        }
+
+        var argsWindow = new Windows.ModuleArgsWindow(module) { Owner = this };
+        if (argsWindow.ShowDialog() != true)
+            return;
+
+        var runner = new LuaScriptRunner(AccountPage._accountManager, AccountPage._browser);
+        var result = await runner.RunModuleAsync(module, argsWindow.Values);
+
+        var title = $"Модуль: {module.Name}";
+        var text = string.IsNullOrWhiteSpace(result) ? "Выполнено" : result;
+        if (Application.Current is App app)
+        {
+            app.NotifyIcon.ShowBalloonTip(5, title, text, System.Windows.Forms.ToolTipIcon.Info);
+        }
+        else
+        {
+            MessageBox.Show(text, title);
+        }
     }
 
     private async void Test_Click(object sender, RoutedEventArgs e)

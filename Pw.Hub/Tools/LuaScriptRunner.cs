@@ -3,6 +3,7 @@ using System.Windows;
 using System.IO;
 using NLua;
 using Pw.Hub.Abstractions;
+using Pw.Hub.Models;
 
 namespace Pw.Hub.Tools;
 
@@ -73,5 +74,48 @@ public class LuaScriptRunner
             MessageBox.Show($"Ошибка во время выполнения Lua-скрипта: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         return Task.CompletedTask;
+    }
+
+    public async Task<string?> RunModuleAsync(ModuleDefinition module, Dictionary<string, object?> args)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var scriptPath = module.Script;
+            if (!Path.IsPathRooted(scriptPath))
+            {
+                // try absolute by combining with baseDir first; also support Scripts folder
+                var direct = Path.Combine(baseDir, scriptPath);
+                var inScripts = Path.Combine(baseDir, "Scripts", scriptPath);
+                if (File.Exists(direct)) scriptPath = direct; else scriptPath = inScripts;
+            }
+
+            if (!File.Exists(scriptPath))
+            {
+                MessageBox.Show($"Скрипт модуля не найден: {module.Script}", "Модули", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return null;
+            }
+
+            // Prepare args as global table 'args'
+            _lua.NewTable("args");
+            var tbl = (LuaTable)_lua["args"];
+            foreach (var kv in args)
+            {
+                tbl[kv.Key] = kv.Value;
+            }
+
+            var code = await File.ReadAllTextAsync(scriptPath, Encoding.UTF8);
+            var results = _lua.DoString(code);
+            if (results != null && results.Length > 0)
+            {
+                return results[0]?.ToString();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка при выполнении модуля: {ex.Message}", "Модули", MessageBoxButton.OK, MessageBoxImage.Error);
+            return null;
+        }
     }
 }
