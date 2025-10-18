@@ -1,0 +1,64 @@
+﻿<Window x:Class="Pw.Hub.Windows.ModulesLibraryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        mc:Ignorable="d"
+        Title="Библиотека модулей" Height="700" Width="1100" WindowStartupLocation="CenterOwner">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="3*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Search and filters -->
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBox x:Name="SearchTextBox" Width="260" Margin="0,0,8,0"/>
+            <TextBox x:Name="TagsTextBox" Width="200" Margin="0,0,8,0" ToolTip="Теги через запятую"/>
+            <ComboBox x:Name="SortCombo" Width="160" SelectedIndex="0" Margin="0,0,8,0">
+                <ComboBoxItem Content="Сортировка: имя" Tag="name"/>
+                <ComboBoxItem Content="Сортировка: установки" Tag="installs"/>
+                <ComboBoxItem Content="Сортировка: запуски" Tag="runs"/>
+                <ComboBoxItem Content="Сортировка: популярные (30д)" Tag="popular"/>
+            </ComboBox>
+            <ComboBox x:Name="OrderCombo" Width="120" SelectedIndex="1" Margin="0,0,8,0">
+                <ComboBoxItem Content="По возрастанию" Tag="asc"/>
+                <ComboBoxItem Content="По убыванию" Tag="desc"/>
+            </ComboBox>
+            <Button Content="Найти" Width="100" Click="OnSearchClick"/>
+        </StackPanel>
+
+        <!-- Modules list -->
+        <DockPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0">
+            <ListView x:Name="ModulesList" SelectionChanged="ModulesList_OnSelectionChanged">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Имя" Width="180" DisplayMemberBinding="{Binding Name}"/>
+                        <GridViewColumn Header="Установки" Width="90" DisplayMemberBinding="{Binding InstallCount}"/>
+                        <GridViewColumn Header="Запуски" Width="90" DisplayMemberBinding="{Binding RunCount}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+
+        <!-- Details -->
+        <Grid Grid.Row="1" Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold"/>
+            <wv2:WebView2 x:Name="DescriptionWebView" Grid.Row="1" Margin="0,8,0,8"/>
+            <StackPanel Grid.Row="2" Orientation="Horizontal">
+                <Button x:Name="InstallButton" Content="Установить" Width="120" Margin="0,0,8,0" Click="OnInstallClick"/>
+                <Button x:Name="UninstallButton" Content="Удалить" Width="120" Click="OnUninstallClick"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

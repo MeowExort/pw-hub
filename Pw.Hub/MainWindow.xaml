@@ -96,6 +96,9 @@
                 <StatusBarItem>
                     <Button Margin="5" Padding="5" Click="Test_Click">Test</Button>
                 </StatusBarItem>
+                <StatusBarItem>
+                    <Button Margin="5" Padding="5" Click="OpenModulesLibrary_Click">Библиотека модулей</Button>
+                </StatusBarItem>
             </StatusBar>
         </Grid>
     </Grid>

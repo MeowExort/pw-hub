@@ -490,4 +490,10 @@ public partial class MainWindow
             MessageBox.Show($"Ошибка Lua: {ex.Message}");
         }
     }
+
+    private void OpenModulesLibrary_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new Windows.ModulesLibraryWindow() { Owner = this };
+        win.ShowDialog();
+    }
 }
