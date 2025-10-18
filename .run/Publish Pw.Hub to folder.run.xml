@@ -1,6 +1,6 @@
 ﻿<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Publish Pw.Hub to folder" type="DotNetFolderPublish" factoryName="Publish to folder">
-    <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" produce_single_file="true" target_folder="$PROJECT_DIR$/Pw.Hub/bin/Release/net10.0-windows/win-x64/publish" target_framework="net10.0-windows" uuid_high="-4824086069935256120" uuid_low="-5219232388299264123">
+    <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" produce_single_file="true" self_contained="true" target_folder="$PROJECT_DIR$/Pw.Hub/bin/Release/net10.0-windows/win-x64/publish" target_framework="net10.0-windows" uuid_high="-4824086069935256120" uuid_low="-5219232388299264123">
       <runtimes>
         <item value="win-x64" />
       </runtimes>

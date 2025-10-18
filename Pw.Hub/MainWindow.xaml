@@ -13,6 +13,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="240" />
@@ -76,5 +77,15 @@
         <Border Grid.Row="0" Grid.Column="1" Margin="8" BorderBrush="#CCC" BorderThickness="0" CornerRadius="6">
             <pages:AccountPage x:Name="AccountPage" />
         </Border>
+        <Grid Grid.Column="1" Grid.Row="1">
+            <StatusBar VerticalAlignment="Bottom">
+                <StatusBarItem>
+                    <TextBlock x:Name="StatusTextBlock" Text="Готово" />
+                </StatusBarItem>
+                <StatusBarItem>
+                    <Button Margin="5" Padding="5" Click="Test_Click">Test</Button>
+                </StatusBarItem>
+            </StatusBar>
+        </Grid>
     </Grid>
 </Window>

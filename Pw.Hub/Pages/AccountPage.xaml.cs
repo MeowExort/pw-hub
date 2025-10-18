@@ -1,10 +1,12 @@
-using System.IO;
-using System.Text.Json;
-using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using Pw.Hub.Abstractions;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
+using Pw.Hub.Services;
 using Pw.Hub.Tools;
+using System.Windows;
+using Microsoft.EntityFrameworkCore;
+using Pw.Hub.Windows;
 
 namespace Pw.Hub.Pages;
 
@@ -12,10 +14,9 @@ public partial class AccountPage
 {
     public Account Account { get; set; }
 
-    private const string CookieFileExtension = ".json";
-    private const string CookieFolder = "Cookies";
-
-    private SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
+    public readonly IAccountManager _accountManager;
+    public readonly IBrowser _browser;
+    private LuaScriptRunner _luaRunner;
 
     public bool IsCoreInitialized => Wv?.CoreWebView2?.CookieManager != null;
 
@@ -24,17 +25,20 @@ public partial class AccountPage
         InitializeComponent();
         Wv.Source = new Uri("https://pwonline.ru/promo_items.php");
         Wv.NavigationCompleted += WvOnNavigationCompleted;
+        _browser = new WebCoreBrowser(Wv);
+        _accountManager = new AccountManager(_browser);
+        _luaRunner = new LuaScriptRunner(_accountManager, _browser);
     }
 
     private void WvOnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        Wv.ExecuteScriptAsync(
+        _browser.ExecuteScriptAsync(
             """
             $('.items_container input[type=checkbox]').unbind('click');
             """);
-        if (Wv.Source.AbsoluteUri.Contains("promo_items.php"))
+        if (_browser.Source.AbsoluteUri.Contains("promo_items.php"))
         {
-            Wv.ExecuteScriptAsync(
+            _browser.ExecuteScriptAsync(
                 """
                 var element = document.createElement('div');
                 element.innerHTML = '&nbsp;';
@@ -46,7 +50,7 @@ public partial class AccountPage
                 $('.promo_container_content_body')[0].after(element);
                 $('.promo_container_content_body')[0].after(breakLine);
                 """);
-            Wv.ExecuteScriptAsync(
+            _browser.ExecuteScriptAsync(
                 """
                 var container = document.createElement('div');
                 container.className = 'promo_container_content_body';
@@ -174,108 +178,12 @@ public partial class AccountPage
         }
     }
 
-    private string GetCookieFilePath()
-    {
-        var path = Path.Combine(CookieFolder, $"{Account.Id:N}{CookieFileExtension}");
-        if (!Directory.Exists(CookieFolder))
-            Directory.CreateDirectory(CookieFolder);
-        return path;
-    }
-
-    private async void Wv_OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        await SaveCookies();
-    }
-
     private void Wv_OnCoreWebView2InitializationCompleted(object sender,
         CoreWebView2InitializationCompletedEventArgs e)
     {
-        if (Wv?.CoreWebView2?.CookieManager is not { } cm)
-            return;
-
-        cm.DeleteAllCookies();
+        _browser.SetCookieAsync([]);
     }
 
-    private async Task ResetCookies()
-    {
-        try
-        {
-            if (Wv?.CoreWebView2?.CookieManager is not { } cm)
-                return;
-
-            cm.DeleteAllCookies();
-
-            if (Account == null)
-                return;
-
-            if (!File.Exists(GetCookieFilePath()))
-                return;
-
-            var json = await File.ReadAllTextAsync(GetCookieFilePath());
-            var cookies = JsonSerializer.Deserialize<Cookie[]>(json, JsonSerializerOptions.Web);
-            if (cookies == null)
-                return;
-
-            foreach (var cookie in cookies)
-            {
-                var coreCookie = cm.CreateCookie(cookie.Name, cookie.Value, cookie.Domain, cookie.Path);
-                coreCookie.Expires = cookie.Expires;
-                coreCookie.IsHttpOnly = cookie.IsHttpOnly;
-                coreCookie.IsSecure = cookie.IsSecure;
-                coreCookie.SameSite = cookie.SameSite;
-                cm.AddOrUpdateCookie(coreCookie);
-            }
-        }
-        finally
-        {
-            if (Wv?.CoreWebView2 != null)
-            {
-                Wv.Reload();
-                await WaitForElementAsync();
-            }
-        }
-    }
-
-    private async Task SaveCookies()
-    {
-        if (Account == null)
-            return;
-        var coreCookies = await Wv.CoreWebView2.CookieManager.GetCookiesAsync("");
-        var cookies = coreCookies.Select(Cookie.FromCoreWebView2Cookie).ToList();
-        var json = JsonSerializer.Serialize(cookies, JsonSerializerOptions.Web);
-        await File.WriteAllTextAsync(GetCookieFilePath(), json);
-    }
-
-    public async Task<bool> ChangeAccount(Account account)
-    {
-        await _semaphoreSlim.WaitAsync();
-        await SaveCookies();
-        Account = account;
-        DataContext = account;
-        await ResetCookies();
-        var result = await CheckAuth();
-        await using var db = new AppDbContext();
-        account.LastVisit = DateTime.UtcNow;
-        db.Update(account);
-        await db.SaveChangesAsync();
-        _semaphoreSlim.Release();
-        return result;
-    }
-    
-    public async Task<bool> CheckPageLoaded()
-    {
-        if (Wv?.CoreWebView2 == null)
-            return false;
-        var result = await Wv.ExecuteScriptAsync("$('. > h2')[0].innerText");
-        result = result.Trim('"').Replace("null", "");
-        return !string.IsNullOrEmpty(result);
-    }
-
-    public async Task<bool> CheckAuth()
-    {
-        var result = await GetAccount();
-        return !string.IsNullOrEmpty(result);
-    }
 
     private async void Wv_OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
@@ -283,10 +191,11 @@ public partial class AccountPage
             return;
         if (!string.IsNullOrEmpty(Account.ImageSource))
             return;
-        var isAuth = await CheckAuth();
+        var isAuth = await _accountManager.IsAuthorizedAsync();
         if (!isAuth)
             return;
-        var imgSrc = await Wv.ExecuteScriptAsync("document.querySelector(\"div.user_photo > span > a > img\").src");
+        var imgSrc =
+            await _browser.ExecuteScriptAsync("document.querySelector(\"div.user_photo > span > a > img\").src");
         if (string.IsNullOrEmpty(imgSrc))
             return;
         if (imgSrc.Contains("null"))
@@ -298,24 +207,51 @@ public partial class AccountPage
         await db.SaveChangesAsync();
     }
 
-    public async Task<string> GetAccount()
+    public async Task<bool> ChangeAccount(Account account)
     {
-        var result = await Wv.ExecuteScriptAsync("$('.auth_h > h2 > a > strong')[0].innerText");
-        return result.Trim('"').Replace("null", "");
+        Account = account;
+        await _accountManager.ChangeAccountAsync(account.Id);
+        return await _accountManager.IsAuthorizedAsync();
     }
 
-    private async Task WaitForElementAsync()
+    // LUA buttons handlers
+    private async void OnLuaBrowserNavigate(object sender, RoutedEventArgs e)
     {
-        var length = 0;
-        do
-        {
-            await Task.Delay(50);
-            var result = await Wv.ExecuteScriptAsync("$('.main_menu').length");
-            result = result.Trim('"').Replace("null", "");
-            if (int.TryParse(result, out var len) && len != length)
-            {
-                length = len;
-            }
-        } while (length == 0);
+        await _luaRunner.RunAsync("browser_navigate.lua");
+    }
+    private async void OnLuaBrowserExecJs(object sender, RoutedEventArgs e)
+    {
+        await _luaRunner.RunAsync("browser_exec_js.lua");
+    }
+    private async void OnLuaBrowserReload(object sender, RoutedEventArgs e)
+    {
+        await _luaRunner.RunAsync("browser_reload.lua");
+    }
+    private async void OnLuaAccountGet(object sender, RoutedEventArgs e)
+    {
+        await _luaRunner.RunAsync("account_get_account.lua");
+    }
+    private async void OnLuaAccountIsAuthorized(object sender, RoutedEventArgs e)
+    {
+        await _luaRunner.RunAsync("account_is_authorized.lua");
+    }
+    private async void OnLuaAccountGetAccounts(object sender, RoutedEventArgs e)
+    {
+        await _luaRunner.RunAsync("account_get_accounts.lua");
+    }
+    private async void OnLuaAccountChange(object sender, RoutedEventArgs e)
+    {
+        await using var db = new AppDbContext();
+        var accounts = await db.Accounts.ToArrayAsync();
+        var id = accounts[0].Id.ToString();
+        await _luaRunner.RunAsync("account_change_account.lua", id);
+    }
+
+    private void OnOpenLuaEditor(object sender, RoutedEventArgs e)
+    {
+        var selectedId = Account?.Id.ToString();
+        var wnd = new LuaEditorWindow(_luaRunner, selectedId);
+        wnd.Show();
+        wnd.Activate();
     }
 }

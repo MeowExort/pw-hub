@@ -1,0 +1,50 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lua Editor</title>
+  <style>
+    html, body, #container { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; }
+    #container { border-top: 1px solid #ddd; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs/loader.min.js" integrity="sha512-6nBfZ8jP3u0r0FQv9rS+Yhv34J34CbxF4uq1m5bWz4iY8m8t99cHDfQb0n1YfY3SxgPZcM2xqgS8pCz2rVnY7g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+<div id="container"></div>
+<script>
+  const apiSymbols = [
+    'Account_GetAccountCb','Account_IsAuthorizedCb','Account_GetAccountsJsonCb','Account_ChangeAccountCb',
+    'Browser_NavigateCb','Browser_ReloadCb','Browser_ExecuteScriptCb','Browser_ElementExistsCb','Browser_WaitForElementCb','Browser_GetCookiesJsonCb','Browser_SetCookiesJsonCb',
+    'Account_GetAccount','Account_IsAuthorized','Account_GetAccountsJson','Account_ChangeAccount',
+    'Browser_Navigate','Browser_Reload','Browser_ExecuteScript','Browser_ElementExists','Browser_WaitForElement','Browser_GetCookiesJson','Browser_SetCookiesJson',
+    'Print','Sleep','selectedAccountId'
+  ];
+  const initialCode = `-- Введите Lua-скрипт здесь\nPrint('Hello from editor')\n`;
+
+  window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs' } });
+  window.require(['vs/editor/editor.main'], function () {
+    window.editor = monaco.editor.create(document.getElementById('container'), {
+      value: initialCode,
+      language: 'lua',
+      theme: 'vs',
+      automaticLayout: true,
+      fontFamily: 'Consolas, Menlo, monospace',
+      fontSize: 14
+    });
+
+    monaco.languages.registerCompletionItemProvider('lua', {
+      provideCompletionItems: function(model, position) {
+        const suggestions = apiSymbols.map(s => ({
+          label: s,
+          kind: monaco.languages.CompletionItemKind.Function,
+          insertText: s,
+        }));
+        return { suggestions: suggestions };
+      }
+    });
+  });
+</script>
+</body>
+</html>

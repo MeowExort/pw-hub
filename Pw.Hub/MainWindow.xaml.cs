@@ -1,14 +1,16 @@
 ﻿using System.ComponentModel;
-using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using NLua;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
 using Pw.Hub.Pages;
 using Pw.Hub.Services;
+using Pw.Hub.Tools;
 using Pw.Hub.ViewModels;
 
 namespace Pw.Hub;
@@ -359,5 +361,41 @@ public partial class MainWindow
     public async Task<bool> ChangeAccount(Account account)
     {
         return await AccountPage.ChangeAccount(account);
+    }
+
+    private async void Test_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            using var lua = new Lua();
+            lua.State.Encoding = Encoding.UTF8;
+
+            var tcs = new TaskCompletionSource<string>();
+            var luaIntegration = new LuaIntegration(AccountPage._accountManager, tcs);
+
+            // Register overload that accepts NLua.LuaFunction
+            var mi = typeof(LuaIntegration).GetMethod("GetAccountAsyncCallback", new[] { typeof(LuaFunction) });
+            if (mi == null)
+            {
+                MessageBox.Show("Не удалось найти метод интеграции Lua.");
+                return;
+            }
+            lua.RegisterFunction("GetAccountAsyncCallback", luaIntegration, mi);
+
+            // Start script; it will call our C# function with a Lua callback.
+            lua.DoString(@"
+                GetAccountAsyncCallback(function(accountName)
+                    return 'Hello from Lua, ' .. accountName .. '!'
+                end)
+            ");
+
+            // Wait until C# receives the result from Lua callback
+            var text = await tcs.Task.ConfigureAwait(true);
+            MessageBox.Show(text);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка Lua: {ex.Message}");
+        }
     }
 }

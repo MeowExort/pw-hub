@@ -6,9 +6,24 @@
       xmlns:wpf="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
       mc:Ignorable="d">
     <Grid>
-        <wpf:WebView2
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <WrapPanel Margin="8" ItemHeight="32" ItemWidth="160">
+                <Button Margin="4" Padding="8,4" Click="OnLuaBrowserNavigate">Lua: Navigate</Button>
+                <Button Margin="4" Padding="8,4" Click="OnLuaBrowserExecJs">Lua: Exec JS</Button>
+                <Button Margin="4" Padding="8,4" Click="OnLuaBrowserReload">Lua: Reload</Button>
+                <Button Margin="4" Padding="8,4" Click="OnLuaAccountGet">Lua: Get Account</Button>
+                <Button Margin="4" Padding="8,4" Click="OnLuaAccountIsAuthorized">Lua: Is Authorized</Button>
+                <Button Margin="4" Padding="8,4" Click="OnLuaAccountGetAccounts">Lua: Get Accounts</Button>
+                <Button Margin="4" Padding="8,4" Click="OnLuaAccountChange">Lua: Change Account</Button>
+                <Button Margin="4" Padding="8,4" Click="OnOpenLuaEditor">Lua Editor…</Button>
+            </WrapPanel>
+        </ScrollViewer>
+        <wpf:WebView2 Grid.Row="1"
             x:Name="Wv"
-            Unloaded="Wv_OnUnloaded"
             NavigationCompleted="Wv_OnNavigationCompleted"
             CoreWebView2InitializationCompleted="Wv_OnCoreWebView2InitializationCompleted" />
     </Grid>

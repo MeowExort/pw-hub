@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="Lua" extensions=".lua" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Comment" foreground="#6A9955"/>
+  <Color name="String" foreground="#CE9178"/>
+  <Color name="Number" foreground="#B5CEA8"/>
+  <Color name="Keyword" foreground="#569CD6" fontWeight="bold"/>
+  <Color name="Builtin" foreground="#4FC1FF"/>
+
+  <Keywords name="Keywords">
+    <Word>and</Word><Word>break</Word><Word>do</Word><Word>else</Word><Word>elseif</Word>
+    <Word>end</Word><Word>false</Word><Word>for</Word><Word>function</Word><Word>goto</Word>
+    <Word>if</Word><Word>in</Word><Word>local</Word><Word>nil</Word><Word>not</Word>
+    <Word>or</Word><Word>repeat</Word><Word>return</Word><Word>then</Word><Word>true</Word>
+    <Word>until</Word><Word>while</Word>
+  </Keywords>
+
+  <Keywords name="Builtins">
+    <Word>pairs</Word><Word>ipairs</Word><Word>next</Word><Word>type</Word><Word>tostring</Word>
+    <Word>tonumber</Word><Word>print</Word><Word>require</Word><Word>string</Word><Word>table</Word>
+    <Word>math</Word><Word>os</Word>
+  </Keywords>
+
+  <RuleSet>
+    <!-- Comments -->
+    <Span color="Comment" begin="--\[\[" end="\]\]"/>
+    <Span color="Comment" begin="--" end="$"/>
+
+    <!-- Strings -->
+    <Span color="String" begin="&quot;" end="&quot;" escapeCharacter="\\"/>
+    <Span color="String" begin="'" end="'" escapeCharacter="\\"/>
+
+    <!-- Numbers -->
+    <Regex color="Number">\b0x[0-9a-fA-F]+\b</Regex>
+    <Regex color="Number">\b\d+(\.\d+)?\b</Regex>
+
+    <!-- Keywords -->
+    <Keywords color="Keyword" fontWeight="bold" name="Keywords"/>
+    <Keywords color="Builtin" fontWeight="normal" name="Builtins"/>
+  </RuleSet>
+</SyntaxDefinition>
