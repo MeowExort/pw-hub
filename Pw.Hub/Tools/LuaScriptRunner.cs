@@ -31,6 +31,11 @@ public class LuaScriptRunner
         _integration.SetPrintSink(sink);
     }
 
+    public void SetProgressSink(Action<int, string?>? sink)
+    {
+        _integration.SetProgressSink(sink);
+    }
+
     public async Task RunAsync(string scriptFileName, string? selectedAccountId = null)
     {
         // Load script text from embedded Scripts folder in output directory
@@ -104,18 +109,39 @@ public class LuaScriptRunner
                 tbl[kv.Key] = kv.Value;
             }
 
+            // Register completion bridge for async/callback-based scripts
+            var tcs = new TaskCompletionSource<string?>();
+            var bridge = new LuaCompleteBridge(tcs);
+            var mi = typeof(LuaCompleteBridge).GetMethod(nameof(LuaCompleteBridge.Complete), new[] { typeof(object) });
+            if (mi != null)
+            {
+                _lua.RegisterFunction("Complete", bridge, mi);
+            }
+
             var code = await File.ReadAllTextAsync(scriptPath, Encoding.UTF8);
             var results = _lua.DoString(code);
-            if (results != null && results.Length > 0)
+            if (results != null && results.Length > 0 && results[0] != null)
             {
                 return results[0]?.ToString();
             }
-            return null;
+
+            // Await until script calls Complete(result)
+            return await tcs.Task.ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Ошибка при выполнении модуля: {ex.Message}", "Модули", MessageBoxButton.OK, MessageBoxImage.Error);
             return null;
+        }
+    }
+
+    private class LuaCompleteBridge
+    {
+        private readonly TaskCompletionSource<string?> _tcs;
+        public LuaCompleteBridge(TaskCompletionSource<string?> tcs) { _tcs = tcs; }
+        public void Complete(object value)
+        {
+            try { _tcs.TrySetResult(value?.ToString()); } catch { _tcs.TrySetResult(null); }
         }
     }
 }

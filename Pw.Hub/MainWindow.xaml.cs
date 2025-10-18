@@ -412,7 +412,7 @@ public partial class MainWindow
         }
     }
 
-    private async void OnRunModuleClick(object sender, RoutedEventArgs e)
+    private void OnRunModuleClick(object sender, RoutedEventArgs e)
     {
         if (ModulesList.SelectedItem is not ModuleDefinition module)
         {
@@ -425,18 +425,34 @@ public partial class MainWindow
             return;
 
         var runner = new LuaScriptRunner(AccountPage._accountManager, AccountPage._browser);
-        var result = await runner.RunModuleAsync(module, argsWindow.Values);
+        var logWindow = new Windows.ScriptLogWindow(module.Name) { Owner = this };
 
-        var title = $"Модуль: {module.Name}";
-        var text = string.IsNullOrWhiteSpace(result) ? "Выполнено" : result;
-        if (Application.Current is App app)
+        // Wire sinks
+        runner.SetPrintSink(text => logWindow.AppendLog(text));
+        runner.SetProgressSink((percent, message) => logWindow.ReportProgress(percent, message));
+
+        logWindow.SetRunning(true);
+
+        string? result = null;
+        // Start execution and update UI on completion
+        var task = runner.RunModuleAsync(module, argsWindow.Values).ContinueWith(t =>
         {
-            app.NotifyIcon.ShowBalloonTip(5, title, text, System.Windows.Forms.ToolTipIcon.Info);
-        }
-        else
-        {
-            MessageBox.Show(text, title);
-        }
+            try
+            {
+                result = t.IsCompletedSuccessfully ? t.Result : null;
+                logWindow.MarkCompleted(result);
+                var title = $"Модуль: {module.Name}";
+                var text = string.IsNullOrWhiteSpace(result) ? "Выполнено" : result;
+                if (Application.Current is App app)
+                {
+                    app.NotifyIcon.ShowBalloonTip(5, title, text, System.Windows.Forms.ToolTipIcon.Info);
+                }
+            }
+            catch { }
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+
+        // Show modal log window while running; Close becomes available when finished
+        logWindow.ShowDialog();
     }
 
     private async void Test_Click(object sender, RoutedEventArgs e)

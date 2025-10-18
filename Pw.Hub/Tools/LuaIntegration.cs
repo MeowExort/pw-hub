@@ -13,6 +13,7 @@ public class LuaIntegration
     private readonly TaskCompletionSource<string>? _tcs;
     private Lua? _lua; // keep reference to current Lua state for creating tables
     private Action<string>? _printSink; // optional sink for Print routing
+    private Action<int, string?>? _progressSink; // optional sink for progress reporting
 
     public LuaIntegration(IAccountManager accountManager)
     {
@@ -76,11 +77,21 @@ public class LuaIntegration
         // Helpers
         lua.RegisterFunction("Sleep", this, GetType().GetMethod(nameof(Sleep)));
         lua.RegisterFunction("Print", this, GetType().GetMethod(nameof(Print)));
+        lua.RegisterFunction("DelayCb", this, GetType().GetMethod(nameof(DelayCb), new[] { typeof(int), typeof(LuaFunction) }));
+
+        // Progress reporting helpers
+        lua.RegisterFunction("ReportProgress", this, GetType().GetMethod(nameof(ReportProgress), new[] { typeof(int) }));
+        lua.RegisterFunction("ReportProgressMsg", this, GetType().GetMethod(nameof(ReportProgressMsg), new[] { typeof(int), typeof(string) }));
     }
 
     public void SetPrintSink(Action<string>? sink)
     {
         _printSink = sink;
+    }
+
+    public void SetProgressSink(Action<int, string?>? sink)
+    {
+        _progressSink = sink;
     }
 
     // Helpers
@@ -109,6 +120,64 @@ public class LuaIntegration
         catch { }
         // Fallback UI
         MessageBox.Show($"[Lua] {text}");
+    }
+
+    // Non-blocking delay helper: schedules callback after ms without freezing UI
+    public void DelayCb(int ms, LuaFunction callback)
+    {
+        try
+        {
+            Task.Delay(ms).ContinueWith(_ =>
+            {
+                try { CallLuaVoid(callback); } catch { }
+            });
+        }
+        catch { }
+    }
+
+    // Progress reporters
+    public void ReportProgress(int percent)
+    {
+        try
+        {
+            var sink = _progressSink;
+            if (sink == null) return;
+            var app = Application.Current;
+            if (app?.Dispatcher != null)
+            {
+                app.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { sink(percent, null); } catch { }
+                }));
+            }
+            else
+            {
+                try { sink(percent, null); } catch { }
+            }
+        }
+        catch { }
+    }
+
+    public void ReportProgressMsg(int percent, string message)
+    {
+        try
+        {
+            var sink = _progressSink;
+            if (sink == null) return;
+            var app = Application.Current;
+            if (app?.Dispatcher != null)
+            {
+                app.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { sink(percent, message); } catch { }
+                }));
+            }
+            else
+            {
+                try { sink(percent, message); } catch { }
+            }
+        }
+        catch { }
     }
 
     // Internal helper: ensure Lua callback is executed on UI thread (no return expected)

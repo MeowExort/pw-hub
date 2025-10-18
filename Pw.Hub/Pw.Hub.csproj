@@ -37,6 +37,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="modules.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ICSharpCode.AvalonEdit" Version="4.3.0-alpha-00000000" />
   </ItemGroup>
 

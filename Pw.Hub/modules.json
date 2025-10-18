@@ -1,0 +1,18 @@
+﻿{
+  "modules": [
+    {
+      "id": "apply_promocode",
+      "name": "Ввод промокода",
+      "description": "Вводит указанный промокод для каждого аккаунта на странице pin.php и собирает результаты.",
+      "script": "apply_promocode.lua",
+      "inputs": [
+        {
+          "name": "промокод",
+          "label": "Промокод",
+          "type": "string",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
