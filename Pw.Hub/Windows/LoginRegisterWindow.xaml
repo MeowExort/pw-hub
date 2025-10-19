@@ -1,29 +1,101 @@
 ﻿<Window x:Class="Pw.Hub.Windows.LoginRegisterWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Вход в PW Modules" Height="260" Width="420" WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize">
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        Title="Вход в PW Modules" Height="340" Width="480" WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Style="{StaticResource ModernWindowChrome}">
+    <Border Style="{StaticResource Card}" Margin="24">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Vertical" Margin="0,0,0,10">
-            <TextBlock Text="Подключение к библиотеке модулей" FontWeight="SemiBold" Margin="0,0,0,8"/>
-            <TextBlock Text="Имя пользователя"/>
-            <TextBox x:Name="UsernameText" Margin="0,2,0,8"/>
-            <TextBlock Text="Пароль"/>
-            <PasswordBox x:Name="PasswordBox" Margin="0,2,0,8"/>
-            <CheckBox x:Name="RememberCheck" Content="Запомнить меня" IsChecked="True" Margin="0,0,0,4"/>
-            <CheckBox x:Name="DeveloperCheck" Content="Я разработчик (публикация модулей)"/>
-            <TextBlock x:Name="ErrorText" Foreground="Red" Visibility="Collapsed" Margin="0,8,0,0"/>
-        </StackPanel>
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock Text="🔐 Авторизация"
+                          Style="{StaticResource HeaderMedium}"
+                          HorizontalAlignment="Center"
+                          Margin="0,0,0,8"/>
+                <TextBlock Text="Подключение к библиотеке модулей"
+                          Style="{StaticResource ModernTextBlock}"
+                          Foreground="{StaticResource TextSecondaryBrush}"
+                          HorizontalAlignment="Center"
+                          FontSize="12"/>
+            </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Отмена" Width="100" Margin="0,0,8,0" IsCancel="True" Click="CancelClick"/>
-            <Button Content="Регистрация" Width="120" Margin="0,0,8,0" Click="RegisterClick"/>
-            <Button Content="Войти" Width="100" IsDefault="True" Click="LoginClick"/>
-        </StackPanel>
-    </Grid>
+            <!-- Form -->
+            <StackPanel Grid.Row="1" Margin="0,0,0,20">
+                <TextBlock Text="Имя пользователя"
+                          Style="{StaticResource ModernTextBlock}"
+                          Margin="0,0,0,6"/>
+                <TextBox x:Name="UsernameText"
+                        Style="{StaticResource ModernTextBox}"
+                        Padding="12,10"
+                        Margin="0,0,0,16"/>
+
+                <TextBlock Text="Пароль"
+                          Style="{StaticResource ModernTextBlock}"
+                          Margin="0,0,0,6"/>
+                <PasswordBox x:Name="PasswordBox"
+                            Style="{StaticResource ModernPasswordBox}"
+                            Padding="12,10"
+                            Margin="0,0,0,16"/>
+
+                <CheckBox x:Name="RememberCheck"
+                         Style="{StaticResource ModernCheckBox}"
+                         Content="Запомнить меня"
+                         IsChecked="True"
+                         Margin="0,0,0,8"/>
+                <CheckBox x:Name="DeveloperCheck"
+                         Style="{StaticResource ModernCheckBox}"
+                         Content="Я разработчик (публикация модулей)"
+                         Margin="0,0,0,8"/>
+
+                <Border x:Name="ErrorBorder"
+                       Background="{StaticResource BackgroundTertiaryBrush}"
+                       BorderBrush="{StaticResource ErrorBrush}"
+                       BorderThickness="1"
+                       CornerRadius="3"
+                       Padding="12,8"
+                       Margin="0,12,0,0"
+                       Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚠"
+                                  Foreground="{StaticResource ErrorBrush}"
+                                  FontSize="16"
+                                  Margin="0,0,8,0"/>
+                        <TextBlock x:Name="ErrorText"
+                                  Style="{StaticResource ModernTextBlock}"
+                                  Foreground="{StaticResource ErrorBrush}"
+                                  TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Actions -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Отмена"
+                       Style="{StaticResource ModernButton}"
+                       MinWidth="100"
+                       Padding="16,10"
+                       Margin="0,0,8,0"
+                       IsCancel="True"
+                       Click="CancelClick"/>
+                <Button Content="Регистрация"
+                       Style="{StaticResource ModernButton}"
+                       MinWidth="120"
+                       Padding="16,10"
+                       Margin="0,0,8,0"
+                       Click="RegisterClick"/>
+                <Button Content="Войти"
+                       Style="{StaticResource PrimaryButton}"
+                       MinWidth="100"
+                       Padding="16,10"
+                       IsDefault="True"
+                       Click="LoginClick"/>
+            </StackPanel>
+        </Grid>
+    </Border>
 </Window>

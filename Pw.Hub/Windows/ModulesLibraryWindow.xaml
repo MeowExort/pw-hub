@@ -5,71 +5,197 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="Библиотека модулей" Height="700" Width="1100" WindowStartupLocation="CenterOwner">
-    <Grid Margin="10">
+        Title="Библиотека модулей" Height="900" Width="1500" WindowStartupLocation="CenterOwner"
+        Style="{StaticResource ModernWindowChrome}">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="450"/>
+            <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
+        <!-- Header -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2"
+                Style="{StaticResource Panel}"
+                Margin="0,0,0,16">
+            <TextBlock Text="📚 Библиотека модулей"
+                      Style="{StaticResource HeaderMedium}"
+                      Margin="0"/>
+        </Border>
+
         <!-- Search and filters -->
-        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBox x:Name="SearchTextBox" Width="260" Margin="0,0,8,0"/>
-            <TextBox x:Name="TagsTextBox" Width="200" Margin="0,0,8,0" ToolTip="Теги через запятую"/>
-            <ComboBox x:Name="SortCombo" Width="160" SelectedIndex="0" Margin="0,0,8,0">
-                <ComboBoxItem Content="Сортировка: имя" Tag="name"/>
-                <ComboBoxItem Content="Сортировка: установки" Tag="installs"/>
-                <ComboBoxItem Content="Сортировка: запуски" Tag="runs"/>
-                <ComboBoxItem Content="Сортировка: популярные (30д)" Tag="popular"/>
-            </ComboBox>
-            <ComboBox x:Name="OrderCombo" Width="120" SelectedIndex="1" Margin="0,0,8,0">
-                <ComboBoxItem Content="По возрастанию" Tag="asc"/>
-                <ComboBoxItem Content="По убыванию" Tag="desc"/>
-            </ComboBox>
-            <Button Content="Найти" Width="100" Click="OnSearchClick"/>
-            <Button x:Name="UpdateAllButton" Content="Обновить все" Width="130" Margin="8,0,0,0" Click="OnUpdateAllClick" IsEnabled="False"/>
-        </StackPanel>
+        <Border Grid.Row="1" Grid.ColumnSpan="2"
+                Style="{StaticResource Card}"
+                Margin="0,0,0,12"
+                Padding="16">
+            <StackPanel>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchTextBox"
+                            Style="{StaticResource ModernTextBox}"
+                            Padding="12,10"
+                            Grid.Column="0"
+                            Margin="0,0,12,0"/>
+                    <Button Content="🔍 Найти"
+                           Style="{StaticResource PrimaryButton}"
+                           Grid.Column="1"
+                           MinWidth="120"
+                           Padding="16,10"
+                           Click="OnSearchClick"/>
+                </Grid>
+                <WrapPanel>
+                    <TextBox x:Name="TagsTextBox"
+                            Style="{StaticResource ModernTextBox}"
+                            Width="220"
+                            Padding="10,8"
+                            Margin="0,0,8,8"
+                            ToolTip="Теги через запятую"/>
+                    <ComboBox x:Name="SortCombo"
+                             Style="{StaticResource ModernComboBox}"
+                             Width="180"
+                             SelectedIndex="0"
+                             Margin="0,0,8,8">
+                        <ComboBoxItem Content="Сортировка: имя" Tag="name"/>
+                        <ComboBoxItem Content="Сортировка: установки" Tag="installs"/>
+                        <ComboBoxItem Content="Сортировка: запуски" Tag="runs"/>
+                        <ComboBoxItem Content="Сортировка: популярные (30д)" Tag="popular"/>
+                    </ComboBox>
+                    <ComboBox x:Name="OrderCombo"
+                             Style="{StaticResource ModernComboBox}"
+                             Width="140"
+                             SelectedIndex="1"
+                             Margin="0,0,8,8">
+                        <ComboBoxItem Content="По возрастанию" Tag="asc"/>
+                        <ComboBoxItem Content="По убыванию" Tag="desc"/>
+                    </ComboBox>
+                    <Button x:Name="UpdateAllButton"
+                           Style="{StaticResource ModernButton}"
+                           Content="⟳ Обновить все"
+                           MinWidth="130"
+                           Padding="12,8"
+                           Margin="0,0,0,8"
+                           Click="OnUpdateAllClick"
+                           IsEnabled="False"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
 
         <!-- Modules list -->
-        <DockPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,0">
-            <ListView x:Name="ModulesList" SelectionChanged="ModulesList_OnSelectionChanged">
+        <Border Grid.Row="2" Grid.Column="0"
+                Style="{StaticResource Card}"
+                Margin="0,0,12,0"
+                Padding="0">
+            <ListView x:Name="ModulesList"
+                     Style="{StaticResource ModernListView}"
+                     SelectionChanged="ModulesList_OnSelectionChanged"
+                     BorderThickness="0">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Имя" Width="180" DisplayMemberBinding="{Binding Name}"/>
-                        <GridViewColumn Header="Версия" Width="80" DisplayMemberBinding="{Binding Version}"/>
-                        <GridViewColumn Header="Установки" Width="90" DisplayMemberBinding="{Binding InstallCount}"/>
-                        <GridViewColumn Header="Запуски" Width="90" DisplayMemberBinding="{Binding RunCount}"/>
+                        <GridViewColumn Header="Модуль" Width="180" DisplayMemberBinding="{Binding Name}"/>
+                        <GridViewColumn Header="v" Width="60" DisplayMemberBinding="{Binding Version}"/>
+                        <GridViewColumn Header="⬇" Width="80" DisplayMemberBinding="{Binding InstallCount}"/>
+                        <GridViewColumn Header="▶" Width="80" DisplayMemberBinding="{Binding RunCount}"/>
                     </GridView>
                 </ListView.View>
             </ListView>
-        </DockPanel>
+        </Border>
 
         <!-- Details -->
-        <Grid Grid.Row="2" Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold"/>
-            <wv2:WebView2 x:Name="DescriptionWebView" Grid.Row="1" Margin="0,8,0,8"/>
-            <StackPanel Grid.Row="2" Orientation="Horizontal">
-                <Button x:Name="InstallButton" Content="Установить" Width="120" Margin="0,0,8,0" Click="OnInstallClick"/>
-                <Button x:Name="UninstallButton" Content="Удалить" Width="120" Margin="0,0,8,0" Click="OnUninstallClick"/>
-                <Button x:Name="UpdateButton" Content="Обновить" Width="120" Click="OnUpdateSelectedClick" IsEnabled="False"/>
-            </StackPanel>
-            <!-- Developer panel -->
-            <StackPanel x:Name="DevPanel" Grid.Row="3" Orientation="Horizontal" Visibility="Collapsed" Margin="0,8,0,0">
-                <TextBlock Text="Режим разработчика" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <Button Content="Создать" Width="100" Margin="0,0,6,0" Click="OnDevCreateClick"/>
-                <Button Content="Редактировать" Width="120" Margin="0,0,6,0" Click="OnDevEditClick"/>
-                <Button Content="Удалить" Width="100" Click="OnDevDeleteClick"/>
-            </StackPanel>
-        </Grid>
+        <Border Grid.Row="2" Grid.Column="1"
+                Style="{StaticResource Card}"
+                Padding="20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="TitleText"
+                          Style="{StaticResource HeaderMedium}"
+                          Margin="0,0,0,12"/>
+
+                <Border Grid.Row="1"
+                       Background="{StaticResource BackgroundTertiaryBrush}"
+                       BorderBrush="{StaticResource BorderBrush}"
+                       BorderThickness="1"
+                       CornerRadius="4"
+                       Margin="0,0,0,16">
+                    <wv2:WebView2 x:Name="DescriptionWebView"/>
+                </Border>
+
+                <StackPanel Grid.Row="2"
+                           Orientation="Horizontal"
+                           Margin="0,0,0,12">
+                    <Button x:Name="InstallButton"
+                           Style="{StaticResource PrimaryButton}"
+                           Content="⬇ Установить"
+                           MinWidth="130"
+                           Padding="16,10"
+                           Margin="0,0,8,0"
+                           Click="OnInstallClick"/>
+                    <Button x:Name="UninstallButton"
+                           Style="{StaticResource ModernButton}"
+                           Content="🗑 Удалить"
+                           MinWidth="120"
+                           Padding="16,10"
+                           Margin="0,0,8,0"
+                           Click="OnUninstallClick"/>
+                    <Button x:Name="UpdateButton"
+                           Style="{StaticResource ModernButton}"
+                           Content="⟳ Обновить"
+                           MinWidth="120"
+                           Padding="16,10"
+                           Click="OnUpdateSelectedClick"
+                           IsEnabled="False"/>
+                </StackPanel>
+
+                <!-- Developer panel -->
+                <Border x:Name="DevPanel"
+                       Grid.Row="3"
+                       Background="{StaticResource AccentBlueBrush}"
+                       BorderBrush="{StaticResource BorderAccentBrush}"
+                       BorderThickness="1"
+                       CornerRadius="4"
+                       Padding="12"
+                       Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="👨‍💻 Режим разработчика"
+                                  Style="{StaticResource ModernTextBlock}"
+                                  FontWeight="SemiBold"
+                                  Foreground="{StaticResource AccentHighlightBrush}"
+                                  Margin="0,0,0,12"/>
+                        <WrapPanel>
+                            <Button Content="➕ Создать"
+                                   Style="{StaticResource ModernButton}"
+                                   MinWidth="110"
+                                   Padding="12,8"
+                                   Margin="0,0,8,8"
+                                   Click="OnDevCreateClick"/>
+                            <Button Content="✏ Редактировать"
+                                   Style="{StaticResource ModernButton}"
+                                   MinWidth="140"
+                                   Padding="12,8"
+                                   Margin="0,0,8,8"
+                                   Click="OnDevEditClick"/>
+                            <Button Content="🗑 Удалить"
+                                   Style="{StaticResource ModernButton}"
+                                   MinWidth="110"
+                                   Padding="12,8"
+                                   Margin="0,0,0,8"
+                                   Click="OnDevDeleteClick"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

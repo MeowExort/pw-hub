@@ -4,36 +4,53 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Редактировать отряд" Height="200" Width="400" 
+        Title="Редактировать отряд" Height="240" Width="460"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize">
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        ResizeMode="NoResize"
+        Style="{StaticResource ModernWindowChrome}">
+    <Border Style="{StaticResource Card}" Margin="20">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0">
-            <Label Content="Название отряда:" FontWeight="SemiBold"/>
-            <TextBox x:Name="SquadNameTextBox" 
-                     Padding="8,6" 
-                     FontSize="14"
-                     MaxLength="50"/>
-        </StackPanel>
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock Text="✏ Редактирование отряда"
+                          Style="{StaticResource HeaderMedium}"
+                          HorizontalAlignment="Center"/>
+            </StackPanel>
 
-        <StackPanel Grid.Row="2" 
-                    Orientation="Horizontal" 
-                    HorizontalAlignment="Right" 
-                    Margin="0,16,0,0">
-            <Button Content="Отмена" 
-                    Padding="24,8" 
-                    Margin="0,0,8,0"
-                    Click="OnCancelClick"/>
-            <Button Content="Сохранить" 
-                    Padding="24,8"
-                    IsDefault="True"
-                    Click="OnSaveClick"/>
-        </StackPanel>
-    </Grid>
+            <!-- Form -->
+            <StackPanel Grid.Row="1" Margin="0,0,0,20">
+                <TextBlock Text="Название отряда"
+                          Style="{StaticResource ModernTextBlock}"
+                          Margin="0,0,0,6"/>
+                <TextBox x:Name="SquadNameTextBox"
+                        Style="{StaticResource ModernTextBox}"
+                        Padding="12,10"
+                        MaxLength="50"/>
+            </StackPanel>
+
+            <!-- Actions -->
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="Отмена"
+                       Style="{StaticResource ModernButton}"
+                       MinWidth="100"
+                       Padding="16,10"
+                       Margin="0,0,8,0"
+                       Click="OnCancelClick"/>
+                <Button Content="Сохранить"
+                       Style="{StaticResource PrimaryButton}"
+                       MinWidth="100"
+                       Padding="16,10"
+                       IsDefault="True"
+                       Click="OnSaveClick"/>
+            </StackPanel>
+        </Grid>
+    </Border>
 </Window>

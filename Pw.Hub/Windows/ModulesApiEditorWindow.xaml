@@ -3,106 +3,339 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="Редактор модуля (API)" Height="640" Width="900" WindowStartupLocation="CenterOwner">
-    <Grid Margin="10">
+        Title="Редактор модуля (API)" Height="900" Width="1450" WindowStartupLocation="CenterOwner"
+        Style="{StaticResource ModernWindowChrome}">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header fields -->
-        <Grid Grid.Row="0" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="180"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock VerticalAlignment="Center" Text="Имя:"/>
-            <TextBox x:Name="NameText" Grid.Column="1" Margin="8,0,0,0"/>
-            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="Версия:"/>
-            <TextBox x:Name="VersionText" Grid.Column="4" Margin="8,0,0,0"/>
-        </Grid>
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Style="{StaticResource Panel}"
+                Margin="0,0,0,16">
+            <TextBlock Text="📦 Редактор модуля (API)"
+                      Style="{StaticResource HeaderMedium}"
+                      Margin="0"/>
+        </Border>
 
-        <!-- Markdown editor with preview -->
-        <GroupBox Grid.Row="1" Header="Описание (Markdown)">
-            <DockPanel>
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,6">
-                    <CheckBox x:Name="ShowPreviewCheck" Content="Показывать превью" IsChecked="True" Margin="0,0,12,0" Checked="ShowPreviewCheck_OnChanged" Unchecked="ShowPreviewCheck_OnChanged"/>
-                    <Separator Width="8"/>
-                    <TextBlock VerticalAlignment="Center" Text="Форматирование:" Margin="0,0,6,0"/>
-                    <Button Content="B" Width="28" Margin="0,0,4,0" ToolTip="Жирный" Click="Bold_Click"/>
-                    <Button Content="I" Width="28" Margin="0,0,4,0" ToolTip="Курсив" Click="Italic_Click"/>
-                    <Button Content="#" Width="28" Margin="0,0,4,0" ToolTip="Заголовок" Click="Header_Click"/>
-                    <Button Content="•" Width="28" Margin="0,0,4,0" ToolTip="Список" Click="List_Click"/>
-                    <Button Content="{}" Width="36" Margin="0,0,4,0" ToolTip="Код" Click="Code_Click"/>
-                </StackPanel>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="5"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1"
+                     VerticalScrollBarVisibility="Auto"
+                     Margin="0,0,0,16">
+            <StackPanel>
+                <!-- Basic info -->
+                <Border Style="{StaticResource Card}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                    <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <TextBox x:Name="DescriptionEditor" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" FontFamily="Consolas" MinHeight="120" TextChanged="DescriptionEditor_OnTextChanged"/>
-                        </ScrollViewer>
-                    </Border>
+                        <TextBlock Text="Основная информация"
+                                  Style="{StaticResource HeaderSmall}"/>
 
-                    <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext" Background="#EEE"/>
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="200"/>
+                            </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="2" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" x:Name="PreviewContainer">
-                        <wv2:WebView2 x:Name="PreviewWebView"/>
-                    </Border>
-                </Grid>
-            </DockPanel>
-        </GroupBox>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Название"
+                                          Style="{StaticResource ModernTextBlock}"
+                                          Margin="0,0,0,6"/>
+                                <TextBox x:Name="NameText"
+                                        Style="{StaticResource ModernTextBox}"
+                                        Padding="12,10"/>
+                            </StackPanel>
 
-        <!-- Script editor -->
-        <Grid Grid.Row="2" Margin="0,8,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock VerticalAlignment="Top" Text="Скрипт:"/>
-            <TextBox x:Name="ScriptText" Grid.Column="1" Margin="8,0,0,0" Height="120" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"/>
-        </Grid>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Версия"
+                                          Style="{StaticResource ModernTextBlock}"
+                                          Margin="0,0,0,6"/>
+                                <TextBox x:Name="VersionText"
+                                        Style="{StaticResource ModernTextBox}"
+                                        Padding="12,10"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
 
-        <!-- Inputs -->
-        <GroupBox Grid.Row="3" Header="Входные параметры">
-            <DockPanel>
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,6">
-                    <Button x:Name="AddInputButton" Content="Добавить" Width="110" Margin="0,0,6,0" Click="AddInput_Click"/>
-                    <Button x:Name="RemoveInputButton" Content="Удалить" Width="110" Click="RemoveInput_Click"/>
-                </StackPanel>
-                <DataGrid x:Name="InputsGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                        <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*"/>
-                        <DataGridComboBoxColumn Header="Type" SelectedItemBinding="{Binding Type}" Width="120">
-                            <DataGridComboBoxColumn.ItemsSource>
-                                <x:Array Type="{x:Type sys:String}">
-                                    <sys:String>string</sys:String>
-                                    <sys:String>number</sys:String>
-                                    <sys:String>bool</sys:String>
-                                </x:Array>
-                            </DataGridComboBoxColumn.ItemsSource>
-                        </DataGridComboBoxColumn>
-                        <DataGridTextColumn Header="Default" Binding="{Binding Default}" Width="*"/>
-                        <DataGridCheckBoxColumn Header="Required" Binding="{Binding Required}" Width="90"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </DockPanel>
-        </GroupBox>
+                <!-- Description editor -->
+                <Border Style="{StaticResource Card}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <TextBlock Text="Описание (Markdown)"
+                                      Style="{StaticResource HeaderSmall}"/>
+                        </StackPanel>
+
+                        <StackPanel DockPanel.Dock="Top"
+                                   Orientation="Horizontal"
+                                   Margin="0,0,0,12">
+                            <CheckBox x:Name="ShowPreviewCheck"
+                                     Style="{StaticResource ModernCheckBox}"
+                                     Content="Показывать превью"
+                                     IsChecked="True"
+                                     Margin="0,0,16,0"
+                                     Checked="ShowPreviewCheck_OnChanged"
+                                     Unchecked="ShowPreviewCheck_OnChanged"/>
+                            <Separator Style="{StaticResource ModernSeparator}" Width="2" Height="20" Margin="0,0,16,0"/>
+                            <TextBlock Text="Форматирование:"
+                                      Style="{StaticResource ModernTextBlock}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <Button Content="B"
+                                   Style="{StaticResource ModernButton}"
+                                   Width="32"
+                                   Padding="8,6"
+                                   Margin="0,0,4,0"
+                                   ToolTip="Жирный"
+                                   FontWeight="Bold"
+                                   Click="Bold_Click"/>
+                            <Button Content="I"
+                                   Style="{StaticResource ModernButton}"
+                                   Width="32"
+                                   Padding="8,6"
+                                   Margin="0,0,4,0"
+                                   ToolTip="Курсив"
+                                   FontStyle="Italic"
+                                   Click="Italic_Click"/>
+                            <Button Content="#"
+                                   Style="{StaticResource ModernButton}"
+                                   Width="32"
+                                   Padding="8,6"
+                                   Margin="0,0,4,0"
+                                   ToolTip="Заголовок"
+                                   Click="Header_Click"/>
+                            <Button Content="•"
+                                   Style="{StaticResource ModernButton}"
+                                   Width="32"
+                                   Padding="8,6"
+                                   Margin="0,0,4,0"
+                                   ToolTip="Список"
+                                   Click="List_Click"/>
+                            <Button Content="{}"
+                                   Style="{StaticResource ModernButton}"
+                                   Width="40"
+                                   Padding="8,6"
+                                   ToolTip="Код"
+                                   FontFamily="{StaticResource MonospaceFont}"
+                                   Click="Code_Click"/>
+                        </StackPanel>
+
+                        <Grid MinHeight="250">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                   Background="{StaticResource BackgroundTertiaryBrush}"
+                                   BorderBrush="{StaticResource BorderBrush}"
+                                   BorderThickness="1"
+                                   CornerRadius="4">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top"
+                                           Background="{StaticResource BackgroundSecondaryBrush}"
+                                           BorderBrush="{StaticResource BorderBrush}"
+                                           BorderThickness="0,0,0,1"
+                                           Padding="8,6">
+                                        <TextBlock Text="✏ Редактор"
+                                                  Style="{StaticResource ModernTextBlock}"
+                                                  FontSize="11"
+                                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </Border>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                                        <TextBox x:Name="DescriptionEditor"
+                                                Style="{StaticResource ModernTextBox}"
+                                                AcceptsReturn="True"
+                                                AcceptsTab="True"
+                                                TextWrapping="Wrap"
+                                                BorderThickness="0"
+                                                Background="Transparent"
+                                                FontFamily="{StaticResource MonospaceFont}"
+                                                FontSize="13"
+                                                MinHeight="200"
+                                                TextChanged="DescriptionEditor_OnTextChanged"/>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </Border>
+
+                            <GridSplitter Grid.Column="1"
+                                         Width="8"
+                                         HorizontalAlignment="Stretch"
+                                         ResizeBehavior="PreviousAndNext"
+                                         Background="Transparent"/>
+
+                            <Border Grid.Column="2"
+                                   x:Name="PreviewContainer"
+                                   Background="{StaticResource BackgroundTertiaryBrush}"
+                                   BorderBrush="{StaticResource BorderBrush}"
+                                   BorderThickness="1"
+                                   CornerRadius="4">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top"
+                                           Background="{StaticResource BackgroundSecondaryBrush}"
+                                           BorderBrush="{StaticResource BorderBrush}"
+                                           BorderThickness="0,0,0,1"
+                                           Padding="8,6">
+                                        <TextBlock Text="👁 Превью"
+                                                  Style="{StaticResource ModernTextBlock}"
+                                                  FontSize="11"
+                                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </Border>
+                                    <wv2:WebView2 x:Name="PreviewWebView"/>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+                </Border>
+
+                <!-- Script -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Lua скрипт"
+                                  Style="{StaticResource HeaderSmall}"/>
+                        <TextBox x:Name="ScriptText"
+                                Style="{StaticResource ModernTextBox}"
+                                AcceptsReturn="True"
+                                TextWrapping="NoWrap"
+                                FontFamily="{StaticResource MonospaceFont}"
+                                FontSize="13"
+                                Padding="12"
+                                Height="150"
+                                VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Auto"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Parameters -->
+                <Border Style="{StaticResource Card}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <TextBlock Text="Входные параметры"
+                                      Style="{StaticResource HeaderSmall}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                   DockPanel.Dock="Top"
+                                   HorizontalAlignment="Right"
+                                   Margin="0,0,0,12">
+                            <Button x:Name="AddInputButton"
+                                   Style="{StaticResource PrimaryButton}"
+                                   Content="➕ Добавить"
+                                   MinWidth="120"
+                                   Padding="12,8"
+                                   Margin="0,0,8,0"
+                                   Click="AddInput_Click"/>
+                            <Button x:Name="RemoveInputButton"
+                                   Style="{StaticResource ModernButton}"
+                                   Content="🗑 Удалить"
+                                   MinWidth="120"
+                                   Padding="12,8"
+                                   Click="RemoveInput_Click"/>
+                        </StackPanel>
+                        <DataGrid x:Name="InputsGrid"
+                                 Style="{StaticResource ModernDataGrid}"
+                                 AutoGenerateColumns="False"
+                                 CanUserAddRows="False"
+                                 SelectionMode="Single"
+                                 MinHeight="150">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*">
+                                    <DataGridTextColumn.EditingElementStyle>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
+                                            <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="Padding" Value="8,6"/>
+                                            <Setter Property="MinHeight" Value="32"/>
+                                        </Style>
+                                    </DataGridTextColumn.EditingElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*">
+                                    <DataGridTextColumn.EditingElementStyle>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
+                                            <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="Padding" Value="8,6"/>
+                                            <Setter Property="MinHeight" Value="32"/>
+                                        </Style>
+                                    </DataGridTextColumn.EditingElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridComboBoxColumn Header="Type" SelectedItemBinding="{Binding Type}" Width="120">
+                                    <DataGridComboBoxColumn.ItemsSource>
+                                        <x:Array Type="{x:Type sys:String}">
+                                            <sys:String>string</sys:String>
+                                            <sys:String>number</sys:String>
+                                            <sys:String>bool</sys:String>
+                                        </x:Array>
+                                    </DataGridComboBoxColumn.ItemsSource>
+                                    <DataGridComboBoxColumn.EditingElementStyle>
+                                        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}">
+                                            <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                        </Style>
+                                    </DataGridComboBoxColumn.EditingElementStyle>
+                                    <DataGridComboBoxColumn.ElementStyle>
+                                        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                        </Style>
+                                    </DataGridComboBoxColumn.ElementStyle>
+                                </DataGridComboBoxColumn>
+                                <DataGridTextColumn Header="Default" Binding="{Binding Default}" Width="*">
+                                    <DataGridTextColumn.EditingElementStyle>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
+                                            <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="Padding" Value="8,6"/>
+                                            <Setter Property="MinHeight" Value="32"/>
+                                        </Style>
+                                    </DataGridTextColumn.EditingElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridCheckBoxColumn Header="Required" Binding="{Binding Required}" Width="90">
+                                    <DataGridCheckBoxColumn.ElementStyle>
+                                        <Style TargetType="CheckBox">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        </Style>
+                                    </DataGridCheckBoxColumn.ElementStyle>
+                                </DataGridCheckBoxColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- Actions -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Отмена" Width="100" Margin="0,0,8,0" IsCancel="True"/>
-            <Button Content="Сохранить" Width="120" IsDefault="True" Click="OnSaveClick"/>
+        <StackPanel Grid.Row="2"
+                   Orientation="Horizontal"
+                   HorizontalAlignment="Right">
+            <Button Content="Отмена"
+                   Style="{StaticResource ModernButton}"
+                   MinWidth="120"
+                   Padding="16,10"
+                   Margin="0,0,8,0"
+                   IsCancel="True"/>
+            <Button Content="Сохранить"
+                   Style="{StaticResource PrimaryButton}"
+                   MinWidth="120"
+                   Padding="16,10"
+                   IsDefault="True"
+                   Click="OnSaveClick"/>
         </StackPanel>
     </Grid>
 </Window>

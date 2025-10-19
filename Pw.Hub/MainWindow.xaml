@@ -9,90 +9,193 @@
         Icon="Assets/icon.jpg"
         mc:Ignorable="d"
         WindowState="Maximized"
-        Title="PW Hub" Height="900" Width="1900" WindowStartupLocation="CenterScreen">
+        Title="PW Hub" Height="900" Width="1900" WindowStartupLocation="CenterScreen"
+        Style="{StaticResource ModernWindowChrome}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="280" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- Left navigation + modules -->
-        <DockPanel>
-            <Expander DockPanel.Dock="Bottom" Header="Модули" IsExpanded="True">
-                <StackPanel Margin="8">
-                    <ListBox x:Name="ModulesList" DisplayMemberPath="Name" Height="180"/>
-                    <WrapPanel HorizontalAlignment="Left" Margin="0,8,0,0">
-                        <Button Content="Создать" Width="100" Margin="0,0,8,8" Click="OnCreateModuleClick" Visibility="Collapsed"/>
-                        <Button Content="Редактировать" Width="120" Margin="0,0,8,8" Click="OnEditModuleClick" Visibility="Collapsed"/>
-                        <Button x:Name="RunModuleButton" Content="Запустить" Width="120" Margin="0,0,8,8" Click="OnRunModuleClick"/>
-                    </WrapPanel>
-                </StackPanel>
-            </Expander>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <TreeView x:Name="NavigationTree" ItemsSource="{Binding Squads}"
-                          PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp">
-                    <TreeView.ContextMenu>
-                        <ContextMenu x:Name="NavigationContextMenu" Opened="OnContextMenuOpened">
-                            <MenuItem Header="Добавить отряд" Click="OnAddSquadClick" />
-                            <MenuItem x:Name="AddAccountMenuItem" Header="Добавить аккаунт"
-                                      Click="OnAddAccountClick" IsEnabled="False" />
-                            <Separator />
-                            <MenuItem x:Name="EditSquadMenuItem" Header="Редактировать отряд"
-                                      Click="OnEditSquadClick" IsEnabled="False" />
-                            <MenuItem x:Name="EditAccountMenuItem" Header="Редактировать аккаунт"
-                                      Click="OnEditAccountClick" IsEnabled="False" />
-                            <Separator />
-                            <MenuItem x:Name="DeleteMenuItem" Header="Удалить"
-                                      Click="OnDeleteClick" IsEnabled="False" />
-                        </ContextMenu>
-                    </TreeView.ContextMenu>
-                    <TreeView.Resources>
-                        <HierarchicalDataTemplate DataType="{x:Type models:Squad}" ItemsSource="{Binding Accounts}">
-                            <StackPanel Orientation="Horizontal">
-                                <Grid MinHeight="30">
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        Text="{Binding Name}" />
-                                </Grid>
-                            </StackPanel>
-                        </HierarchicalDataTemplate>
-                        <DataTemplate DataType="{x:Type models:Account}">
-                            <Grid MinHeight="30">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Ellipse Width="30" Height="30">
-                                    <Ellipse.Fill>
-                                        <ImageBrush ImageSource="{Binding ImageUri}" />
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <TextBlock
-                                    Grid.Column="1"
-                                    Margin="8, 0, 0, 0"
-                                    VerticalAlignment="Center"
-                                    Text="{Binding Name}" />
-                            </Grid>
-                        </DataTemplate>
-                    </TreeView.Resources>
-                </TreeView>
-            </ScrollViewer>
-        </DockPanel>
+        <!-- Left Sidebar -->
+        <Border Grid.Row="0" Grid.RowSpan="2"
+                Background="{StaticResource AccentSteamBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <DockPanel>
+                <!-- Top Navigation Menu -->
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <!-- Modules Library Button -->
+                    <Button Style="{StaticResource ModernButton}"
+                            Background="{StaticResource AccentBlueBrush}"
+                            BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,14"
+                            Margin="8,8,8,4"
+                            Click="OpenModulesLibrary_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📚"
+                                      FontSize="16"
+                                      Margin="0,0,10,0"
+                                      VerticalAlignment="Center"/>
+                            <TextBlock Text="Библиотека модулей"
+                                      Style="{StaticResource ModernTextBlock}"
+                                      FontWeight="SemiBold"
+                                      VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
 
-        <!-- Content area -->
-        <Border Grid.Row="0" Grid.Column="1" Margin="8" BorderBrush="#CCC" BorderThickness="0" CornerRadius="6">
+                    <!-- Quick Run Module Section -->
+                    <Border Background="{StaticResource AccentBlueBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,1,0,1"
+                            Margin="0,8,0,0"
+                            Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="БЫСТРЫЙ ЗАПУСК"
+                                      Style="{StaticResource ModernTextBlock}"
+                                      FontWeight="SemiBold"
+                                      FontSize="11"
+                                      Foreground="{StaticResource TextSecondaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            <ComboBox x:Name="ModulesList"
+                                     Style="{StaticResource ModernComboBox}"
+                                     DisplayMemberPath="Name"
+                                     Margin="0,0,0,8"/>
+                            <Button x:Name="RunModuleButton"
+                                   Style="{StaticResource PrimaryButton}"
+                                   Content="▶ Запустить"
+                                   HorizontalAlignment="Stretch"
+                                   Padding="12,8"
+                                   Click="OnRunModuleClick"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Squad/Account Tree -->
+                <DockPanel Margin="0">
+                    <Border DockPanel.Dock="Top"
+                            Background="{StaticResource AccentBlueBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,16">
+                        <TextBlock Text="ОТРЯДЫ И АККАУНТЫ"
+                                   Style="{StaticResource ModernTextBlock}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Foreground="{StaticResource AccentHighlightBrush}"/>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                        <TreeView x:Name="NavigationTree"
+                                  Style="{StaticResource ModernTreeView}"
+                                  ItemsSource="{Binding Squads}"
+                                  Background="Transparent"
+                                  PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp">
+                            <TreeView.ContextMenu>
+                                <ContextMenu x:Name="NavigationContextMenu"
+                                           Opened="OnContextMenuOpened"
+                                           Background="{StaticResource BackgroundSecondaryBrush}"
+                                           BorderBrush="{StaticResource BorderBrush}"
+                                           Foreground="{StaticResource TextPrimaryBrush}">
+                                    <MenuItem Header="➕ Добавить отряд" Click="OnAddSquadClick" />
+                                    <MenuItem x:Name="AddAccountMenuItem" Header="👤 Добавить аккаунт"
+                                              Click="OnAddAccountClick" IsEnabled="False" />
+                                    <Separator Style="{StaticResource ModernSeparator}"/>
+                                    <MenuItem x:Name="EditSquadMenuItem" Header="✏ Редактировать отряд"
+                                              Click="OnEditSquadClick" IsEnabled="False" />
+                                    <MenuItem x:Name="EditAccountMenuItem" Header="✏ Редактировать аккаунт"
+                                              Click="OnEditAccountClick" IsEnabled="False" />
+                                    <Separator Style="{StaticResource ModernSeparator}"/>
+                                    <MenuItem x:Name="DeleteMenuItem" Header="🗑 Удалить"
+                                              Click="OnDeleteClick" IsEnabled="False" />
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                            <TreeView.Resources>
+                                <HierarchicalDataTemplate DataType="{x:Type models:Squad}" ItemsSource="{Binding Accounts}">
+                                    <Border Padding="8,6" Margin="0,2" CornerRadius="3"
+                                            Background="Transparent">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="📁"
+                                                      VerticalAlignment="Center"
+                                                      FontSize="14"
+                                                      Margin="0,0,8,0"/>
+                                            <TextBlock VerticalAlignment="Center"
+                                                      Text="{Binding Name}"
+                                                      FontWeight="SemiBold"
+                                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </HierarchicalDataTemplate>
+                                <DataTemplate DataType="{x:Type models:Account}">
+                                    <Border Padding="8,6" Margin="0,1" CornerRadius="3"
+                                            Background="Transparent">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="32" Height="32"
+                                                   CornerRadius="16"
+                                                   Margin="0,0,10,0"
+                                                   BorderBrush="{StaticResource BorderBrush}"
+                                                   BorderThickness="1">
+                                                <Ellipse Width="30" Height="30">
+                                                    <Ellipse.Fill>
+                                                        <ImageBrush ImageSource="{Binding ImageUri}" />
+                                                    </Ellipse.Fill>
+                                                </Ellipse>
+                                            </Border>
+                                            <TextBlock Grid.Column="1"
+                                                      VerticalAlignment="Center"
+                                                      Text="{Binding Name}"
+                                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </TreeView.Resources>
+                        </TreeView>
+                    </ScrollViewer>
+                </DockPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Border Grid.Row="0" Grid.Column="1"
+                Background="{StaticResource BackgroundPrimaryBrush}"
+                Padding="0">
             <pages:AccountPage x:Name="AccountPage" />
         </Border>
-        <Grid Grid.Column="1" Grid.Row="1">
-            <StatusBar VerticalAlignment="Bottom">
-                <StatusBarItem>
-                    <Button Margin="5" Padding="5" Click="OpenModulesLibrary_Click">Библиотека модулей</Button>
-                </StatusBarItem>
-            </StatusBar>
-        </Grid>
+
+        <!-- Status Bar -->
+        <StatusBar Grid.Column="1" Grid.Row="1"
+                   Style="{StaticResource ModernStatusBar}"
+                   Height="28">
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="●"
+                              Foreground="{StaticResource SuccessBrush}"
+                              FontSize="12"
+                              Margin="0,0,6,0"
+                              VerticalAlignment="Center"/>
+                    <TextBlock Text="Готово"
+                              Style="{StaticResource ModernTextBlock}"
+                              FontSize="12"
+                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </StatusBarItem>
+            <Separator Style="{StaticResource ModernSeparator}"/>
+            <StatusBarItem>
+                <TextBlock x:Name="StatusBarText"
+                          Text=""
+                          Style="{StaticResource ModernTextBlock}"
+                          FontSize="12"
+                          Foreground="{StaticResource TextSecondaryBrush}"/>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>

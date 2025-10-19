@@ -45,10 +45,10 @@ public partial class LoginRegisterWindow : Window
             if (resp == null)
             {
                 ErrorText.Text = "Регистрация не удалась";
-                ErrorText.Visibility = Visibility.Visible;
+                ErrorBorder.Visibility = Visibility.Visible;
                 return;
             }
-            ErrorText.Visibility = Visibility.Collapsed;
+            ErrorBorder.Visibility = Visibility.Collapsed;
 
             // Remember me handling for registration
             var remember = RememberCheck.IsChecked == true;
@@ -67,7 +67,7 @@ public partial class LoginRegisterWindow : Window
         catch (Exception ex)
         {
             ErrorText.Text = ex.Message;
-            ErrorText.Visibility = Visibility.Visible;
+            ErrorBorder.Visibility = Visibility.Visible;
         }
     }
 
@@ -81,10 +81,10 @@ public partial class LoginRegisterWindow : Window
             if (resp == null)
             {
                 ErrorText.Text = "Вход не удался";
-                ErrorText.Visibility = Visibility.Visible;
+                ErrorBorder.Visibility = Visibility.Visible;
                 return;
             }
-            ErrorText.Visibility = Visibility.Collapsed;
+            ErrorBorder.Visibility = Visibility.Collapsed;
 
             // Remember me handling for login
             var remember = RememberCheck.IsChecked == true;
@@ -103,7 +103,7 @@ public partial class LoginRegisterWindow : Window
         catch (Exception ex)
         {
             ErrorText.Text = ex.Message;
-            ErrorText.Visibility = Visibility.Visible;
+            ErrorBorder.Visibility = Visibility.Visible;
         }
     }
 
