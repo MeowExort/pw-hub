@@ -22,6 +22,7 @@ public static class ModuleMapper
         {
             Id = m.Id,
             Name = m.Name,
+            Version = m.Version,
             Description = m.Description,
             DescriptionHtml = Markdown.ToHtml(m.Description ?? string.Empty),
             Script = m.Script,
@@ -29,7 +30,8 @@ public static class ModuleMapper
             RunCount = m.RunCount,
             CreatedAt = m.CreatedAt,
             UpdatedAt = m.UpdatedAt,
-            InstallCount = installCount
+            InstallCount = installCount,
+            OwnerUserId = m.OwnerUserId
         };
     }
 

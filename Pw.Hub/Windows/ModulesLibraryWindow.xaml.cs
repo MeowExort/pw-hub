@@ -6,6 +6,8 @@ using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
 using Pw.Hub.Services;
 using Markdig;
+using System.IO;
+using Pw.Hub.Models;
 
 namespace Pw.Hub.Windows
 {
@@ -14,6 +16,7 @@ namespace Pw.Hub.Windows
         private readonly ModulesApiClient _api;
         private ModuleDto? _selected;
         private readonly string _userId;
+        private readonly ModuleService _moduleService = new();
 
         public ModulesLibraryWindow(string? apiBaseUrl = null, string? userId = null)
         {
@@ -38,7 +41,24 @@ namespace Pw.Hub.Windows
                 // ignore, we'll try to load anyway
             }
 
+            await UpdateDevPanelAsync();
             await SearchAndBindAsync();
+        }
+
+        private async Task UpdateDevPanelAsync()
+        {
+            try
+            {
+                if (_api.CurrentUser == null)
+                {
+                    await _api.MeAsync();
+                }
+                DevPanel.Visibility = (_api.CurrentUser?.Developer == true) ? Visibility.Visible : Visibility.Collapsed;
+            }
+            catch
+            {
+                DevPanel.Visibility = Visibility.Collapsed;
+            }
         }
 
         private async Task SearchAndBindAsync()
@@ -49,6 +69,10 @@ namespace Pw.Hub.Windows
                 var order = (OrderCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString();
                 var resp = await _api.SearchAsync(SearchTextBox.Text, TagsTextBox.Text, sort, order, 1, 50);
                 ModulesList.ItemsSource = resp.Items;
+
+                // compute updates availability
+                UpdateAllButton.IsEnabled = ComputeAndSetUpdateIndicators(resp.Items) > 0;
+
                 if (resp.Items.Count > 0)
                 {
                     ModulesList.SelectedIndex = 0;
@@ -68,10 +92,92 @@ namespace Pw.Hub.Windows
         private void ModulesList_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _selected = ModulesList.SelectedItem as ModuleDto;
-            TitleText.Text = _selected?.Name ?? string.Empty;
+            if (_selected != null)
+            {
+                // Determine local version and update availability
+                var localVer = GetLocalVersion(_selected.Id);
+                var serverVer = _selected.Version ?? "1.0.0";
+                var title = string.IsNullOrWhiteSpace(serverVer) ? _selected.Name : _selected.Name + "  v" + serverVer;
+                if (!string.IsNullOrWhiteSpace(localVer))
+                {
+                    var lv = localVer ?? string.Empty;
+                    var sv = serverVer ?? string.Empty;
+                    if (IsUpdateAvailable(lv, sv))
+                    {
+                        title = title + "  (локально v" + lv + " — доступно v" + sv + ")";
+                        UpdateButton.IsEnabled = true;
+                    }
+                    else
+                    {
+                        title = title + "  (локально v" + lv + ")";
+                        UpdateButton.IsEnabled = false;
+                    }
+                }
+                else
+                {
+                    UpdateButton.IsEnabled = false;
+                }
+                TitleText.Text = title;
+            }
+            else
+            {
+                TitleText.Text = string.Empty;
+                UpdateButton.IsEnabled = false;
+            }
             var md = _selected?.Description ?? string.Empty;
             var html = string.IsNullOrWhiteSpace(md) ? "<i>Нет описания</i>" : Markdown.ToHtml(md);
             TrySetHtml(html);
+        }
+
+        private int ComputeAndSetUpdateIndicators(IList<ModuleDto> items)
+        {
+            try
+            {
+                var locals = _moduleService.LoadModules();
+                var count = 0;
+                foreach (var m in items)
+                {
+                    var local = locals.FirstOrDefault(x => string.Equals(x.Id, m.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+                    if (local != null && IsUpdateAvailable(local.Version ?? "1.0.0", m.Version ?? "1.0.0"))
+                        count++;
+                }
+                return count;
+            }
+            catch { return 0; }
+        }
+
+        private static string NormalizeSemVer(string? v)
+        {
+            if (string.IsNullOrWhiteSpace(v)) return "0.0.0";
+            var core = v.Split('+')[0];
+            core = core.Split('-')[0];
+            return core.Trim();
+        }
+
+        private static bool TryParseVersion(string v, out Version ver)
+        {
+            return Version.TryParse(NormalizeSemVer(v), out ver);
+        }
+
+        private string? GetLocalVersion(Guid id)
+        {
+            try
+            {
+                var locals = _moduleService.LoadModules();
+                var local = locals.FirstOrDefault(x => string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
+                return local?.Version;
+            }
+            catch { return null; }
+        }
+
+        private static bool IsUpdateAvailable(string local, string server)
+        {
+            if (TryParseVersion(local, out var lv) && TryParseVersion(server, out var sv))
+            {
+                return sv > lv;
+            }
+            // fallback string compare if parsing fails
+            return !string.Equals(local, server, StringComparison.Ordinal);
         }
 
         private async void TrySetHtml(string html)
@@ -90,6 +196,61 @@ namespace Pw.Hub.Windows
             }
         }
 
+        private async void OnUpdateSelectedClick(object sender, RoutedEventArgs e)
+        {
+            if (_selected == null) return;
+            try
+            {
+                var localVer = GetLocalVersion(_selected.Id);
+                if (string.IsNullOrWhiteSpace(localVer) || !IsUpdateAvailable(localVer!, _selected.Version ?? "1.0.0"))
+                {
+                    MessageBox.Show(this, "Обновление не требуется", "Модули", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                InstallModuleLocally(_selected);
+                MessageBox.Show(this, $"Модуль обновлён до версии {_selected.Version}", "Обновлено", MessageBoxButton.OK, MessageBoxImage.Information);
+                RefreshOwnerModules();
+                await SearchAndBindAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Не удалось обновить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void OnUpdateAllClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var items = ModulesList.Items.Cast<object>().OfType<ModuleDto>().ToList();
+                var locals = _moduleService.LoadModules();
+                int updated = 0;
+                foreach (var m in items)
+                {
+                    var local = locals.FirstOrDefault(x => string.Equals(x.Id, m.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+                    if (local != null && IsUpdateAvailable(local.Version ?? "1.0.0", m.Version ?? "1.0.0"))
+                    {
+                        InstallModuleLocally(m);
+                        updated++;
+                    }
+                }
+                if (updated > 0)
+                {
+                    MessageBox.Show(this, $"Обновлено модулей: {updated}", "Обновление модулей", MessageBoxButton.OK, MessageBoxImage.Information);
+                    RefreshOwnerModules();
+                    await SearchAndBindAsync();
+                }
+                else
+                {
+                    MessageBox.Show(this, "Нет модулей, требующих обновления", "Обновление модулей", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Ошибка при обновлении модулей: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private async void OnInstallClick(object sender, RoutedEventArgs e)
         {
             if (_selected == null) return;
@@ -98,8 +259,14 @@ namespace Pw.Hub.Windows
                 var res = await _api.InstallAsync(_selected.Id, _userId);
                 if (res != null)
                 {
+                    // Update counts from API
                     _selected.InstallCount = res.InstallCount;
                     ModulesList.Items.Refresh();
+
+                    // Save locally: write script file and add to modules.json
+                    InstallModuleLocally(res);
+                    MessageBox.Show(this, "Модуль установлен локально и доступен для запуска в разделе 'Модули'", "Установлено", MessageBoxButton.OK, MessageBoxImage.Information);
+                    RefreshOwnerModules();
                 }
             }
             catch (Exception ex)
@@ -118,11 +285,154 @@ namespace Pw.Hub.Windows
                 {
                     _selected.InstallCount = res.InstallCount;
                     ModulesList.Items.Refresh();
+
+                    // Remove locally
+                    RemoveModuleLocally(_selected.Id);
+                    MessageBox.Show(this, "Модуль удалён локально", "Удалено", MessageBoxButton.OK, MessageBoxImage.Information);
+                    RefreshOwnerModules();
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show(this, $"Не удалось удалить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void InstallModuleLocally(ModuleDto module)
+        {
+            try
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var scriptsDir = Path.Combine(baseDir, "Scripts");
+                Directory.CreateDirectory(scriptsDir);
+                var fileName = module.Id.ToString() + ".lua";
+                var scriptPath = Path.Combine(scriptsDir, fileName);
+                File.WriteAllText(scriptPath, module.Script ?? string.Empty);
+
+                var def = new ModuleDefinition
+                {
+                    Id = module.Id.ToString(),
+                    Name = module.Name,
+                    Version = string.IsNullOrWhiteSpace(module.Version) ? "1.0.0" : module.Version,
+                    Description = module.Description ?? string.Empty,
+                    Script = fileName,
+                    Inputs = module.Inputs?.Select(i => new ModuleInput
+                    {
+                        Name = i.Name,
+                        Label = string.IsNullOrWhiteSpace(i.Label) ? i.Name : i.Label,
+                        Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                        Required = i.Required
+                    }).ToList() ?? new List<ModuleInput>()
+                };
+
+                var svc = new ModuleService();
+                svc.AddOrUpdateModule(def);
+            }
+            catch
+            {
+                // ignore local install errors to not break API flow; user will get message if needed elsewhere
+            }
+        }
+
+        private void RemoveModuleLocally(Guid id)
+        {
+            try
+            {
+                var svc = new ModuleService();
+                var list = svc.LoadModules();
+                var existing = list.FirstOrDefault(m => string.Equals(m.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    // Try delete script file if under Scripts
+                    try
+                    {
+                        var baseDir = AppContext.BaseDirectory;
+                        var candidate1 = Path.Combine(baseDir, existing.Script);
+                        var candidate2 = Path.Combine(baseDir, "Scripts", existing.Script);
+                        if (File.Exists(candidate1)) File.Delete(candidate1);
+                        else if (File.Exists(candidate2)) File.Delete(candidate2);
+                    }
+                    catch { }
+
+                    list.Remove(existing);
+                    svc.SaveModules(list);
+                }
+            }
+            catch
+            {
+                // ignore local removal errors
+            }
+        }
+
+        private void RefreshOwnerModules()
+        {
+            try
+            {
+                if (Owner is Pw.Hub.MainWindow mw)
+                {
+                    mw.LoadModules();
+                }
+            }
+            catch { }
+        }
+
+
+        private async void OnDevCreateClick(object sender, RoutedEventArgs e)
+        {
+            var editor = new ModulesApiEditorWindow();
+            editor.Owner = this;
+            if (editor.ShowDialog() == true)
+            {
+                var req = editor.GetRequest();
+                var created = await _api.CreateModuleAsync(req);
+                if (created != null)
+                {
+                    await SearchAndBindAsync();
+                    ModulesList.SelectedItem = created;
+                }
+            }
+        }
+
+        private async void OnDevEditClick(object sender, RoutedEventArgs e)
+        {
+            if (_selected == null)
+            {
+                MessageBox.Show("Выберите модуль");
+                return;
+            }
+            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId, StringComparison.Ordinal))
+            {
+                MessageBox.Show("Можно редактировать только свои модули");
+                return;
+            }
+            var editor = new ModulesApiEditorWindow(_selected);
+            editor.Owner = this;
+            if (editor.ShowDialog() == true)
+            {
+                var req = editor.GetRequest();
+                var updated = await _api.UpdateModuleAsync(_selected.Id, req);
+                if (updated != null)
+                {
+                    await SearchAndBindAsync();
+                    ModulesList.SelectedItem = updated;
+                }
+            }
+        }
+
+        private async void OnDevDeleteClick(object sender, RoutedEventArgs e)
+        {
+            if (_selected == null) return;
+            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId, StringComparison.Ordinal))
+            {
+                MessageBox.Show("Можно удалять только свои модули");
+                return;
+            }
+            if (MessageBox.Show("Удалить модуль?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            {
+                if (await _api.DeleteModuleAsync(_selected.Id))
+                {
+                    await SearchAndBindAsync();
+                }
             }
         }
     }

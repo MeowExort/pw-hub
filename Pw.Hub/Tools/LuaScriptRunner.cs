@@ -12,18 +12,15 @@ public class LuaScriptRunner
     private readonly IAccountManager _accountManager;
     private readonly IBrowser _browser;
 
-    // Persist a single Lua state for the lifetime of the runner to keep callbacks alive
-    private readonly Lua _lua;
+    private Lua? _currentLua;
+    private TaskCompletionSource<string?>? _currentTcs;
     private readonly LuaIntegration _integration;
 
     public LuaScriptRunner(IAccountManager accountManager, IBrowser browser)
     {
         _accountManager = accountManager;
         _browser = browser;
-        _lua = new Lua();
-        _lua.State.Encoding = Encoding.UTF8;
         _integration = new LuaIntegration(_accountManager, _browser);
-        _integration.Register(_lua);
     }
 
     public void SetPrintSink(Action<string>? sink)
@@ -62,17 +59,16 @@ public class LuaScriptRunner
     {
         try
         {
-            // Provide a few globals per run
-            if (!string.IsNullOrWhiteSpace(selectedAccountId))
-            {
-                _lua["selectedAccountId"] = selectedAccountId;
-            }
-            else
-            {
-                _lua["selectedAccountId"] = null;
-            }
+            using var lua = new Lua();
+            lua.State.Encoding = Encoding.UTF8;
+            _integration.Register(lua);
 
-            _lua.DoString(code);
+            if (!string.IsNullOrWhiteSpace(selectedAccountId))
+                lua["selectedAccountId"] = selectedAccountId;
+            else
+                lua["selectedAccountId"] = null;
+
+            lua.DoString(code);
         }
         catch (Exception ex)
         {
@@ -89,7 +85,6 @@ public class LuaScriptRunner
             var scriptPath = module.Script;
             if (!Path.IsPathRooted(scriptPath))
             {
-                // try absolute by combining with baseDir first; also support Scripts folder
                 var direct = Path.Combine(baseDir, scriptPath);
                 var inScripts = Path.Combine(baseDir, "Scripts", scriptPath);
                 if (File.Exists(direct)) scriptPath = direct; else scriptPath = inScripts;
@@ -101,38 +96,66 @@ public class LuaScriptRunner
                 return null;
             }
 
+            _currentLua = new Lua();
+            _currentLua.State.Encoding = Encoding.UTF8;
+            _integration.Register(_currentLua);
+
             // Prepare args as global table 'args'
-            _lua.NewTable("args");
-            var tbl = (LuaTable)_lua["args"];
+            _currentLua.NewTable("args");
+            var tbl = (LuaTable)_currentLua["args"];
             foreach (var kv in args)
             {
                 tbl[kv.Key] = kv.Value;
             }
 
             // Register completion bridge for async/callback-based scripts
-            var tcs = new TaskCompletionSource<string?>();
-            var bridge = new LuaCompleteBridge(tcs);
+            _currentTcs = new TaskCompletionSource<string?>();
+            var bridge = new LuaCompleteBridge(_currentTcs);
             var mi = typeof(LuaCompleteBridge).GetMethod(nameof(LuaCompleteBridge.Complete), new[] { typeof(object) });
             if (mi != null)
             {
-                _lua.RegisterFunction("Complete", bridge, mi);
+                _currentLua.RegisterFunction("Complete", bridge, mi);
             }
 
             var code = await File.ReadAllTextAsync(scriptPath, Encoding.UTF8);
-            var results = _lua.DoString(code);
-            if (results != null && results.Length > 0 && results[0] != null)
+
+            try
             {
-                return results[0]?.ToString();
+                var results = await Task.Run(() => _currentLua!.DoString(code));
+                if (results != null && results.Length > 0 && results[0] != null)
+                {
+                    return results[0]?.ToString();
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                return null; // stopped
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при выполнении модуля: {ex.Message}", "Модули", MessageBoxButton.OK, MessageBoxImage.Error);
+                return null;
             }
 
-            // Await until script calls Complete(result)
-            return await tcs.Task.ConfigureAwait(true);
+            // Await until script calls Complete(result) or stop
+            return await _currentTcs.Task.ConfigureAwait(true);
         }
-        catch (Exception ex)
+        finally
         {
-            MessageBox.Show($"Ошибка при выполнении модуля: {ex.Message}", "Модули", MessageBoxButton.OK, MessageBoxImage.Error);
-            return null;
+            try { _currentLua?.Dispose(); } catch { }
+            _currentLua = null;
+            _currentTcs = null;
         }
+    }
+
+    public void Stop()
+    {
+        try
+        {
+            _currentTcs?.TrySetResult(null);
+            _currentLua?.Dispose();
+        }
+        catch { }
     }
 
     private class LuaCompleteBridge

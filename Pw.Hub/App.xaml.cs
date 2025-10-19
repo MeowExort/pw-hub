@@ -18,6 +18,8 @@ public partial class App
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        base.OnStartup(e);
+
         NotifyIcon = new NotifyIcon()
         {
             Text = "PW Hub",
@@ -38,7 +40,26 @@ public partial class App
         // Fire-and-forget update check on startup (no UI if up-to-date or failed)
         _ = _updateService.CheckForUpdates(false);
 
-        base.OnStartup(e);
+        // Prevent auto-shutdown when the login dialog (the only window) closes
+        Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        // Show login/register window before main window
+        var loginWindow = new Windows.LoginRegisterWindow();
+        var result = loginWindow.ShowDialog();
+        if (result != true)
+        {
+            // User cancelled or failed to login
+            Current.Shutdown();
+            return;
+        }
+
+        // Start main window
+        var main = new MainWindow();
+        Current.MainWindow = main;
+        main.Show();
+
+        // Restore default shutdown behavior after main window is shown
+        Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
     }
 
     private void NotifyIconOnMouseDoubleClick(object sender, MouseEventArgs e)

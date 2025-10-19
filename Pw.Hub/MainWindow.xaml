@@ -26,10 +26,9 @@
                 <StackPanel Margin="8">
                     <ListBox x:Name="ModulesList" DisplayMemberPath="Name" Height="180"/>
                     <WrapPanel HorizontalAlignment="Left" Margin="0,8,0,0">
-                        <Button Content="Создать" Width="100" Margin="0,0,8,8" Click="OnCreateModuleClick"/>
-                        <Button Content="Редактировать" Width="120" Margin="0,0,8,8" Click="OnEditModuleClick"/>
+                        <Button Content="Создать" Width="100" Margin="0,0,8,8" Click="OnCreateModuleClick" Visibility="Collapsed"/>
+                        <Button Content="Редактировать" Width="120" Margin="0,0,8,8" Click="OnEditModuleClick" Visibility="Collapsed"/>
                         <Button x:Name="RunModuleButton" Content="Запустить" Width="120" Margin="0,0,8,8" Click="OnRunModuleClick"/>
-                        <Button Content="Обновить" Width="100" Margin="0,0,8,8" Click="OnReloadModulesClick"/>
                     </WrapPanel>
                 </StackPanel>
             </Expander>
@@ -90,12 +89,6 @@
         </Border>
         <Grid Grid.Column="1" Grid.Row="1">
             <StatusBar VerticalAlignment="Bottom">
-                <StatusBarItem>
-                    <TextBlock x:Name="StatusTextBlock" Text="Готово" />
-                </StatusBarItem>
-                <StatusBarItem>
-                    <Button Margin="5" Padding="5" Click="Test_Click">Test</Button>
-                </StatusBarItem>
                 <StatusBarItem>
                     <Button Margin="5" Padding="5" Click="OpenModulesLibrary_Click">Библиотека модулей</Button>
                 </StatusBarItem>

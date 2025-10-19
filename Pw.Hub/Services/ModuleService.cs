@@ -78,6 +78,7 @@ public class ModuleService
         {
             // replace properties
             existing.Name = module.Name;
+            existing.Version = string.IsNullOrWhiteSpace(module.Version) ? existing.Version : module.Version;
             existing.Description = module.Description;
             existing.Script = module.Script;
             existing.Inputs = module.Inputs ?? new List<ModuleInput>();

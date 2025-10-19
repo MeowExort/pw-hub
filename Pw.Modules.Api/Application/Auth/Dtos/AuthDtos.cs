@@ -1,0 +1,29 @@
+﻿namespace Pw.Modules.Api.Application.Auth.Dtos;
+
+public sealed class RegisterRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public bool Developer { get; set; }
+}
+
+public sealed class LoginRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+public sealed class AuthResponse
+{
+    public string UserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public bool Developer { get; set; }
+    public string Token { get; set; } = string.Empty;
+}
+
+public sealed class UserDto
+{
+    public string UserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public bool Developer { get; set; }
+}

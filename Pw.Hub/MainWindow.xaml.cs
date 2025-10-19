@@ -367,7 +367,7 @@ public partial class MainWindow
         return await AccountPage.ChangeAccount(account);
     }
 
-    private void LoadModules()
+    public void LoadModules()
     {
         try
         {
@@ -431,7 +431,21 @@ public partial class MainWindow
         runner.SetPrintSink(text => logWindow.AppendLog(text));
         runner.SetProgressSink((percent, message) => logWindow.ReportProgress(percent, message));
 
+        // Wire stop action
+        logWindow.SetStopAction(() =>
+        {
+            try
+            {
+                runner.Stop();
+                logWindow.AppendLog("[Остановлено пользователем]");
+            }
+            catch { }
+        });
+
         logWindow.SetRunning(true);
+
+        // Fire-and-forget API run increment so the library reflects usage
+        _ = IncrementRunIfApiModuleAsync(module);
 
         string? result = null;
         // Start execution and update UI on completion
@@ -496,4 +510,18 @@ public partial class MainWindow
         var win = new Windows.ModulesLibraryWindow() { Owner = this };
         win.ShowDialog();
     }
+
+    private async Task IncrementRunIfApiModuleAsync(ModuleDefinition module)
+    {
+        try
+        {
+            if (Guid.TryParse(module.Id, out var id))
+            {
+                var client = new ModulesApiClient();
+                await client.IncrementRunAsync(id);
+            }
+        }
+        catch { }
+    }
+
 }

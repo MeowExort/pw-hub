@@ -31,14 +31,16 @@
                 <ComboBoxItem Content="По убыванию" Tag="desc"/>
             </ComboBox>
             <Button Content="Найти" Width="100" Click="OnSearchClick"/>
+            <Button x:Name="UpdateAllButton" Content="Обновить все" Width="130" Margin="8,0,0,0" Click="OnUpdateAllClick" IsEnabled="False"/>
         </StackPanel>
 
         <!-- Modules list -->
-        <DockPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0">
+        <DockPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,0">
             <ListView x:Name="ModulesList" SelectionChanged="ModulesList_OnSelectionChanged">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Имя" Width="180" DisplayMemberBinding="{Binding Name}"/>
+                        <GridViewColumn Header="Версия" Width="80" DisplayMemberBinding="{Binding Version}"/>
                         <GridViewColumn Header="Установки" Width="90" DisplayMemberBinding="{Binding InstallCount}"/>
                         <GridViewColumn Header="Запуски" Width="90" DisplayMemberBinding="{Binding RunCount}"/>
                     </GridView>
@@ -47,17 +49,26 @@
         </DockPanel>
 
         <!-- Details -->
-        <Grid Grid.Row="1" Grid.Column="1">
+        <Grid Grid.Row="2" Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold"/>
             <wv2:WebView2 x:Name="DescriptionWebView" Grid.Row="1" Margin="0,8,0,8"/>
             <StackPanel Grid.Row="2" Orientation="Horizontal">
                 <Button x:Name="InstallButton" Content="Установить" Width="120" Margin="0,0,8,0" Click="OnInstallClick"/>
-                <Button x:Name="UninstallButton" Content="Удалить" Width="120" Click="OnUninstallClick"/>
+                <Button x:Name="UninstallButton" Content="Удалить" Width="120" Margin="0,0,8,0" Click="OnUninstallClick"/>
+                <Button x:Name="UpdateButton" Content="Обновить" Width="120" Click="OnUpdateSelectedClick" IsEnabled="False"/>
+            </StackPanel>
+            <!-- Developer panel -->
+            <StackPanel x:Name="DevPanel" Grid.Row="3" Orientation="Horizontal" Visibility="Collapsed" Margin="0,8,0,0">
+                <TextBlock Text="Режим разработчика" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <Button Content="Создать" Width="100" Margin="0,0,6,0" Click="OnDevCreateClick"/>
+                <Button Content="Редактировать" Width="120" Margin="0,0,6,0" Click="OnDevEditClick"/>
+                <Button Content="Удалить" Width="100" Click="OnDevDeleteClick"/>
             </StackPanel>
         </Grid>
     </Grid>

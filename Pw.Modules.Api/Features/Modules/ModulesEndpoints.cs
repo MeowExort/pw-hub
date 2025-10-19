@@ -10,6 +10,8 @@ public static class ModulesEndpoints
         // Map per-slice endpoints
         Search.SearchModulesEndpoint.Map(group);
         Create.CreateModuleEndpoint.Map(group);
+        Update.UpdateModuleEndpoint.Map(group);
+        Delete.DeleteModuleEndpoint.Map(group);
         Install.InstallModuleEndpoint.Map(group);
         Uninstall.UninstallModuleEndpoint.Map(group);
         Run.IncrementRunEndpoint.Map(group);

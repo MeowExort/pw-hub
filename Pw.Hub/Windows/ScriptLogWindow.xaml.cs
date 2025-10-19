@@ -8,18 +8,26 @@ namespace Pw.Hub.Windows;
 public partial class ScriptLogWindow : Window
 {
     private bool _running = true;
+    private Action? _onStop;
 
     public ScriptLogWindow(string? moduleTitle = null)
     {
         InitializeComponent();
         TitleText.Text = string.IsNullOrWhiteSpace(moduleTitle) ? "Логи выполнения" : $"Модуль — {moduleTitle}";
         CloseButton.IsEnabled = false;
+        StopButton.IsEnabled = true;
+    }
+
+    public void SetStopAction(Action onStop)
+    {
+        _onStop = onStop;
     }
 
     public void SetRunning(bool running)
     {
         _running = running;
         CloseButton.IsEnabled = !running;
+        StopButton.IsEnabled = running;
     }
 
     public void AppendLog(string line)
@@ -96,5 +104,14 @@ public partial class ScriptLogWindow : Window
         if (_running) return;
         DialogResult = true;
         Close();
+    }
+
+    private void StopButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _onStop?.Invoke();
+        }
+        catch { }
     }
 }
