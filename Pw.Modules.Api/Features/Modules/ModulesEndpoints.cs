@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
-
-namespace Pw.Modules.Api.Features.Modules;
+﻿namespace Pw.Modules.Api.Features.Modules;
 
 public static class ModulesEndpoints
 {

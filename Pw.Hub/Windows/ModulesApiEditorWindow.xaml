@@ -246,7 +246,13 @@
                                  SelectionMode="Single"
                                  MinHeight="150">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*">
+                                <DataGridTextColumn Header="Name" Width="*" MinWidth="180" Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
                                     <DataGridTextColumn.EditingElementStyle>
                                         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
                                             <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
@@ -257,7 +263,13 @@
                                         </Style>
                                     </DataGridTextColumn.EditingElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*">
+                                <DataGridTextColumn Header="Label" Width="*" MinWidth="200" Binding="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
                                     <DataGridTextColumn.EditingElementStyle>
                                         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
                                             <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
@@ -268,7 +280,7 @@
                                         </Style>
                                     </DataGridTextColumn.EditingElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridComboBoxColumn Header="Type" SelectedItemBinding="{Binding Type}" Width="120">
+                                <DataGridComboBoxColumn Header="Type" SelectedItemBinding="{Binding Type}" Width="140" MinWidth="140">
                                     <DataGridComboBoxColumn.ItemsSource>
                                         <x:Array Type="{x:Type sys:String}">
                                             <sys:String>string</sys:String>
@@ -291,7 +303,13 @@
                                         </Style>
                                     </DataGridComboBoxColumn.ElementStyle>
                                 </DataGridComboBoxColumn>
-                                <DataGridTextColumn Header="Default" Binding="{Binding Default}" Width="*">
+                                <DataGridTextColumn Header="Default" Width="*" MinWidth="160" Binding="{Binding Default, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
                                     <DataGridTextColumn.EditingElementStyle>
                                         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
                                             <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>

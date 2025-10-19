@@ -524,4 +524,10 @@ public partial class MainWindow
         catch { }
     }
 
+    private void OpenLuaEditor_Click(object sender, RoutedEventArgs e)
+    {
+        var runner = new LuaScriptRunner(AccountPage._accountManager, AccountPage._browser);
+        var win = new Windows.LuaEditorWindow(runner);
+        win.Show();
+    }
 }

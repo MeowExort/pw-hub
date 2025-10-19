@@ -1,6 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using ICSharpCode.AvalonEdit.CodeCompletion;
@@ -16,7 +14,6 @@ namespace Pw.Hub.Windows;
 public partial class LuaEditorWindow : Window
 {
     private readonly LuaScriptRunner _runner;
-    private readonly string? _selectedAccountId;
     private CompletionWindow? _completionWindow;
     private readonly string[] _apiSymbols = new[]
     {
@@ -30,10 +27,9 @@ public partial class LuaEditorWindow : Window
         "Print","Sleep","selectedAccountId"
     };
 
-    public LuaEditorWindow(LuaScriptRunner runner, string? selectedAccountId)
+    public LuaEditorWindow(LuaScriptRunner runner)
     {
         _runner = runner;
-        _selectedAccountId = selectedAccountId;
         InitializeComponent();
         Loaded += OnLoaded;
         Closed += OnClosed;
@@ -142,7 +138,7 @@ public partial class LuaEditorWindow : Window
         {
             AppendLog("Запуск скрипта...");
             var code = Editor?.Text ?? string.Empty;
-            await _runner.RunCodeAsync(code, _selectedAccountId);
+            await _runner.RunCodeAsync(code);
         }
         catch (Exception ex)
         {

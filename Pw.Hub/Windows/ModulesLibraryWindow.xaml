@@ -95,13 +95,15 @@
             <ListView x:Name="ModulesList"
                      Style="{StaticResource ModernListView}"
                      SelectionChanged="ModulesList_OnSelectionChanged"
-                     BorderThickness="0">
+                     BorderThickness="0"
+                     Margin="0 3 0 0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Модуль" Width="180" DisplayMemberBinding="{Binding Name}"/>
-                        <GridViewColumn Header="v" Width="60" DisplayMemberBinding="{Binding Version}"/>
-                        <GridViewColumn Header="⬇" Width="80" DisplayMemberBinding="{Binding InstallCount}"/>
-                        <GridViewColumn Header="▶" Width="80" DisplayMemberBinding="{Binding RunCount}"/>
+                        <GridViewColumn Header="Модуль" Width="200" DisplayMemberBinding="{Binding Name}"/>
+                        <GridViewColumn Header="v" Width="90" DisplayMemberBinding="{Binding Version}"/>
+                        <GridViewColumn Header="⬇" Width="60" DisplayMemberBinding="{Binding InstallCount}"/>
+                        <GridViewColumn Header="▶" Width="60" DisplayMemberBinding="{Binding RunCount}"/>
                     </GridView>
                 </ListView.View>
             </ListView>

@@ -250,7 +250,7 @@ public partial class AccountPage
     private void OnOpenLuaEditor(object sender, RoutedEventArgs e)
     {
         var selectedId = Account?.Id.ToString();
-        var wnd = new LuaEditorWindow(_luaRunner, selectedId);
+        var wnd = new LuaEditorWindow(_luaRunner);
         wnd.Show();
         wnd.Activate();
     }

@@ -40,13 +40,34 @@
                             Click="OpenModulesLibrary_Click">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📚"
-                                      FontSize="16"
-                                      Margin="0,0,10,0"
-                                      VerticalAlignment="Center"/>
+                                       FontSize="16"
+                                       Margin="0,0,10,0"
+                                       VerticalAlignment="Center"/>
                             <TextBlock Text="Библиотека модулей"
-                                      Style="{StaticResource ModernTextBlock}"
-                                      FontWeight="SemiBold"
-                                      VerticalAlignment="Center"/>
+                                       Style="{StaticResource ModernTextBlock}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    
+                    <!-- Lua Editor Button -->
+                    <Button Style="{StaticResource ModernButton}"
+                            Background="{StaticResource AccentBlueBrush}"
+                            BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,14"
+                            Margin="8,8,8,4"
+                            Click="OpenLuaEditor_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📚"
+                                       FontSize="16"
+                                       Margin="0,0,10,0"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="Lua Редактор"
+                                       Style="{StaticResource ModernTextBlock}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 

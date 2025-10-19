@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Pw.Modules.Api.Application.Modules.Dtos
+﻿namespace Pw.Modules.Api.Application.Modules.Dtos
 {
     public sealed class InputDefinitionDto
     {

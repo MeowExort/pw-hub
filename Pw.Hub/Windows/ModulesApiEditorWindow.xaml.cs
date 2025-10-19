@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using Markdig;
-using Microsoft.Web.WebView2.Core;
 using Pw.Hub.Services;
 
 namespace Pw.Hub.Windows
@@ -165,7 +160,16 @@ namespace Pw.Hub.Windows
                 {
                     await PreviewWebView.EnsureCoreWebView2Async();
                 }
-                var doc = "<!DOCTYPE html><html><head><meta charset='utf-8'><style>body{font-family:Segoe UI,Arial,sans-serif;padding:12px} pre{background:#f6f8fa;padding:8px;border-radius:6px;overflow:auto} code{background:#f6f8fa;padding:2px 4px;border-radius:4px}</style></head><body>" + html + "</body></html>";
+                var css = @"body{font-family:Segoe UI,Arial,sans-serif;padding:12px;background:#171A21;color:#C7D5E0;}
+                    h1,h2,h3,h4,h5,h6{color:#C7D5E0}
+                    a{color:#66C0F4}
+                    pre{background:#1B2838;padding:8px;border-radius:6px;overflow:auto;border:1px solid #2A475E}
+                    code{background:#1B2838;padding:2px 4px;border-radius:4px;border:1px solid #2A475E}
+                    blockquote{border-left:3px solid #2A475E;margin:8px 0;padding:4px 12px;color:#B8C6D1}
+                    table{border-collapse:collapse}
+                    th,td{border:1px solid #2A475E;padding:6px}
+                    ul,ol{padding-left:22px}";
+                var doc = $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
                 PreviewWebView.NavigateToString(doc);
             }
             catch { }

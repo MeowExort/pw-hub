@@ -102,7 +102,7 @@
                                  SelectionMode="Single"
                                  MinHeight="200">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*">
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="180">
                                     <DataGridTextColumn.EditingElementStyle>
                                         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
                                             <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
@@ -113,7 +113,7 @@
                                         </Style>
                                     </DataGridTextColumn.EditingElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*">
+                                <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*" MinWidth="200">
                                     <DataGridTextColumn.EditingElementStyle>
                                         <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
                                             <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>

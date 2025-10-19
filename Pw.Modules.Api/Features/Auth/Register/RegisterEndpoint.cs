@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Pw.Modules.Api.Application.Auth.Dtos;
 using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Domain;

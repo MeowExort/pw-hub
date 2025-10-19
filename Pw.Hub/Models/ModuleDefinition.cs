@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Pw.Hub.Models;
+﻿namespace Pw.Hub.Models;
 
 public class ModuleManifest
 {

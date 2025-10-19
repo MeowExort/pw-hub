@@ -1,9 +1,5 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
-using Microsoft.Web.WebView2.Core;
 using Pw.Hub.Services;
 using Markdig;
 using System.IO;
@@ -127,6 +123,7 @@ namespace Pw.Hub.Windows
             var md = _selected?.Description ?? string.Empty;
             var html = string.IsNullOrWhiteSpace(md) ? "<i>Нет описания</i>" : Markdown.ToHtml(md);
             TrySetHtml(html);
+            UpdateActionButtons();
         }
 
         private int ComputeAndSetUpdateIndicators(IList<ModuleDto> items)
@@ -187,13 +184,47 @@ namespace Pw.Hub.Windows
                 if (DescriptionWebView.CoreWebView2 == null)
                     await DescriptionWebView.EnsureCoreWebView2Async();
 
-                var doc = "<!DOCTYPE html><html><head><meta charset='utf-8'><style>body{font-family:Segoe UI,Arial,sans-serif;padding:12px} pre{background:#f6f8fa;padding:8px;border-radius:6px;overflow:auto} code{background:#f6f8fa;padding:2px 4px;border-radius:4px}</style></head><body>" + html + "</body></html>";
+                var css = @"body{font-family:Segoe UI,Arial,sans-serif;padding:12px;background:#171A21;color:#C7D5E0;}
+                    h1,h2,h3,h4,h5,h6{color:#C7D5E0}
+                    a{color:#66C0F4}
+                    pre{background:#1B2838;padding:8px;border-radius:6px;overflow:auto;border:1px solid #2A475E}
+                    code{background:#1B2838;padding:2px 4px;border-radius:4px;border:1px solid #2A475E}
+                    blockquote{border-left:3px solid #2A475E;margin:8px 0;padding:4px 12px;color:#B8C6D1}
+                    table{border-collapse:collapse}
+                    th,td{border:1px solid #2A475E;padding:6px}
+                    ul,ol{padding-left:22px}";
+                var doc = $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
                 DescriptionWebView.NavigateToString(doc);
             }
             catch
             {
                 // ignore rendering issues
             }
+        }
+
+        private void UpdateActionButtons()
+        {
+            try
+            {
+                if (_selected == null)
+                {
+                    InstallButton.Visibility = Visibility.Collapsed;
+                    UninstallButton.Visibility = Visibility.Collapsed;
+                    UpdateButton.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                var localVer = GetLocalVersion(_selected.Id);
+                var installed = !string.IsNullOrWhiteSpace(localVer);
+                InstallButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
+                UninstallButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
+
+                var serverVer = _selected.Version ?? "1.0.0";
+                var canUpdate = installed && IsUpdateAvailable(localVer!, serverVer);
+                UpdateButton.Visibility = canUpdate ? Visibility.Visible : Visibility.Collapsed;
+                UpdateButton.IsEnabled = canUpdate;
+            }
+            catch { }
         }
 
         private async void OnUpdateSelectedClick(object sender, RoutedEventArgs e)
@@ -267,6 +298,7 @@ namespace Pw.Hub.Windows
                     InstallModuleLocally(res);
                     MessageBox.Show(this, "Модуль установлен локально и доступен для запуска в разделе 'Модули'", "Установлено", MessageBoxButton.OK, MessageBoxImage.Information);
                     RefreshOwnerModules();
+                    UpdateActionButtons();
                 }
             }
             catch (Exception ex)
@@ -290,6 +322,7 @@ namespace Pw.Hub.Windows
                     RemoveModuleLocally(_selected.Id);
                     MessageBox.Show(this, "Модуль удалён локально", "Удалено", MessageBoxButton.OK, MessageBoxImage.Information);
                     RefreshOwnerModules();
+                    UpdateActionButtons();
                 }
             }
             catch (Exception ex)

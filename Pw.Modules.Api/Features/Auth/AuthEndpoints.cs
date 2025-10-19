@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
-
-namespace Pw.Modules.Api.Features.Auth;
+﻿namespace Pw.Modules.Api.Features.Auth;
 
 public static class AuthEndpoints
 {

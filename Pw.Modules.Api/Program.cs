@@ -1,9 +1,6 @@
-﻿using Markdig;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Pw.Modules.Api.Data;
-using Pw.Modules.Api.Domain;
-using Pw.Modules.Api.Application.Modules.Dtos;
 using Pw.Modules.Api.Features.Modules;
 using Pw.Modules.Api.Features.Auth;
 

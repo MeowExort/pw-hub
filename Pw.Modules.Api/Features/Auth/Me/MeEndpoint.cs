@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Pw.Modules.Api.Application.Auth.Dtos;
+﻿using Pw.Modules.Api.Application.Auth.Dtos;
 using Pw.Modules.Api.Data;
 
 namespace Pw.Modules.Api.Features.Auth.Me;

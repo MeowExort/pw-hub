@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Pw.Modules.Api.Application.Modules.Dtos;
+﻿using Pw.Modules.Api.Application.Modules.Dtos;
 using Pw.Modules.Api.Application.Modules.Mapping;
 using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Domain;

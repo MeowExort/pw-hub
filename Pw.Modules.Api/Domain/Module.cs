@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Pw.Modules.Api.Domain
+﻿namespace Pw.Modules.Api.Domain
 {
     public sealed class Module
     {
