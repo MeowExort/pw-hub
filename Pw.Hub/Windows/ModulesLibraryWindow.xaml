@@ -189,11 +189,17 @@
                                    Margin="0,0,8,8"
                                    Click="OnDevEditClick"/>
                             <Button Content="🗑 Удалить"
-                                   Style="{StaticResource ModernButton}"
-                                   MinWidth="110"
-                                   Padding="12,8"
-                                   Margin="0,0,0,8"
-                                   Click="OnDevDeleteClick"/>
+                                    Style="{StaticResource ModernButton}"
+                                    MinWidth="110"
+                                    Padding="12,8"
+                                    Margin="0,0,8,8"
+                                    Click="OnDevDeleteClick"/>
+                            <Button Content=" Редактор Lua"
+                                    Style="{StaticResource ModernButton}"
+                                    MinWidth="110"
+                                    Padding="12,8"
+                                    Margin="0,0,0,8"
+                                    Click="OnOpenLuaEditorClick"/>
                         </WrapPanel>
                     </StackPanel>
                 </Border>

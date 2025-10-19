@@ -14,9 +14,9 @@ public partial class AccountPage
 {
     public Account Account { get; set; }
 
-    public readonly IAccountManager _accountManager;
-    public readonly IBrowser _browser;
-    private LuaScriptRunner _luaRunner;
+    public readonly IAccountManager AccountManager;
+    public readonly IBrowser Browser;
+    public LuaScriptRunner LuaRunner;
 
     public bool IsCoreInitialized => Wv?.CoreWebView2?.CookieManager != null;
 
@@ -25,20 +25,20 @@ public partial class AccountPage
         InitializeComponent();
         Wv.Source = new Uri("https://pwonline.ru/promo_items.php");
         Wv.NavigationCompleted += WvOnNavigationCompleted;
-        _browser = new WebCoreBrowser(Wv);
-        _accountManager = new AccountManager(_browser);
-        _luaRunner = new LuaScriptRunner(_accountManager, _browser);
+        Browser = new WebCoreBrowser(Wv);
+        AccountManager = new AccountManager(Browser);
+        LuaRunner = new LuaScriptRunner(AccountManager, Browser);
     }
 
     private void WvOnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        _browser.ExecuteScriptAsync(
+        Browser.ExecuteScriptAsync(
             """
             $('.items_container input[type=checkbox]').unbind('click');
             """);
-        if (_browser.Source.AbsoluteUri.Contains("promo_items.php"))
+        if (Browser.Source.AbsoluteUri.Contains("promo_items.php"))
         {
-            _browser.ExecuteScriptAsync(
+            Browser.ExecuteScriptAsync(
                 """
                 var element = document.createElement('div');
                 element.innerHTML = '&nbsp;';
@@ -50,7 +50,7 @@ public partial class AccountPage
                 $('.promo_container_content_body')[0].after(element);
                 $('.promo_container_content_body')[0].after(breakLine);
                 """);
-            _browser.ExecuteScriptAsync(
+            Browser.ExecuteScriptAsync(
                 """
                 var container = document.createElement('div');
                 container.className = 'promo_container_content_body';
@@ -181,7 +181,7 @@ public partial class AccountPage
     private void Wv_OnCoreWebView2InitializationCompleted(object sender,
         CoreWebView2InitializationCompletedEventArgs e)
     {
-        _browser.SetCookieAsync([]);
+        Browser.SetCookieAsync([]);
     }
 
 
@@ -191,11 +191,11 @@ public partial class AccountPage
             return;
         if (!string.IsNullOrEmpty(Account.ImageSource))
             return;
-        var isAuth = await _accountManager.IsAuthorizedAsync();
+        var isAuth = await AccountManager.IsAuthorizedAsync();
         if (!isAuth)
             return;
         var imgSrc =
-            await _browser.ExecuteScriptAsync("document.querySelector(\"div.user_photo > span > a > img\").src");
+            await Browser.ExecuteScriptAsync("document.querySelector(\"div.user_photo > span > a > img\").src");
         if (string.IsNullOrEmpty(imgSrc))
             return;
         if (imgSrc.Contains("null"))
@@ -210,47 +210,47 @@ public partial class AccountPage
     public async Task<bool> ChangeAccount(Account account)
     {
         Account = account;
-        await _accountManager.ChangeAccountAsync(account.Id);
-        return await _accountManager.IsAuthorizedAsync();
+        await AccountManager.ChangeAccountAsync(account.Id);
+        return await AccountManager.IsAuthorizedAsync();
     }
 
     // LUA buttons handlers
     private async void OnLuaBrowserNavigate(object sender, RoutedEventArgs e)
     {
-        await _luaRunner.RunAsync("browser_navigate.lua");
+        await LuaRunner.RunAsync("browser_navigate.lua");
     }
     private async void OnLuaBrowserExecJs(object sender, RoutedEventArgs e)
     {
-        await _luaRunner.RunAsync("browser_exec_js.lua");
+        await LuaRunner.RunAsync("browser_exec_js.lua");
     }
     private async void OnLuaBrowserReload(object sender, RoutedEventArgs e)
     {
-        await _luaRunner.RunAsync("browser_reload.lua");
+        await LuaRunner.RunAsync("browser_reload.lua");
     }
     private async void OnLuaAccountGet(object sender, RoutedEventArgs e)
     {
-        await _luaRunner.RunAsync("account_get_account.lua");
+        await LuaRunner.RunAsync("account_get_account.lua");
     }
     private async void OnLuaAccountIsAuthorized(object sender, RoutedEventArgs e)
     {
-        await _luaRunner.RunAsync("account_is_authorized.lua");
+        await LuaRunner.RunAsync("account_is_authorized.lua");
     }
     private async void OnLuaAccountGetAccounts(object sender, RoutedEventArgs e)
     {
-        await _luaRunner.RunAsync("account_get_accounts.lua");
+        await LuaRunner.RunAsync("account_get_accounts.lua");
     }
     private async void OnLuaAccountChange(object sender, RoutedEventArgs e)
     {
         await using var db = new AppDbContext();
         var accounts = await db.Accounts.ToArrayAsync();
         var id = accounts[0].Id.ToString();
-        await _luaRunner.RunAsync("account_change_account.lua", id);
+        await LuaRunner.RunAsync("account_change_account.lua", id);
     }
 
     private void OnOpenLuaEditor(object sender, RoutedEventArgs e)
     {
         var selectedId = Account?.Id.ToString();
-        var wnd = new LuaEditorWindow(_luaRunner);
+        var wnd = new LuaEditorWindow(LuaRunner);
         wnd.Show();
         wnd.Activate();
     }

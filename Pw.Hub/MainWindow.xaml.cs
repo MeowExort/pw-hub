@@ -424,7 +424,7 @@ public partial class MainWindow
         if (argsWindow.ShowDialog() != true)
             return;
 
-        var runner = new LuaScriptRunner(AccountPage._accountManager, AccountPage._browser);
+        var runner = new LuaScriptRunner(AccountPage.AccountManager, AccountPage.Browser);
         var logWindow = new Windows.ScriptLogWindow(module.Name) { Owner = this };
 
         // Wire sinks
@@ -477,7 +477,7 @@ public partial class MainWindow
             lua.State.Encoding = Encoding.UTF8;
 
             var tcs = new TaskCompletionSource<string>();
-            var luaIntegration = new LuaIntegration(AccountPage._accountManager, tcs);
+            var luaIntegration = new LuaIntegration(AccountPage.AccountManager, tcs);
 
             // Register overload that accepts NLua.LuaFunction
             var mi = typeof(LuaIntegration).GetMethod("GetAccountAsyncCallback", new[] { typeof(LuaFunction) });
@@ -522,12 +522,5 @@ public partial class MainWindow
             }
         }
         catch { }
-    }
-
-    private void OpenLuaEditor_Click(object sender, RoutedEventArgs e)
-    {
-        var runner = new LuaScriptRunner(AccountPage._accountManager, AccountPage._browser);
-        var win = new Windows.LuaEditorWindow(runner);
-        win.Show();
     }
 }

@@ -4,6 +4,8 @@ using Pw.Hub.Services;
 using Markdig;
 using System.IO;
 using Pw.Hub.Models;
+using Pw.Hub.Pages;
+using Pw.Hub.Tools;
 
 namespace Pw.Hub.Windows
 {
@@ -49,6 +51,7 @@ namespace Pw.Hub.Windows
                 {
                     await _api.MeAsync();
                 }
+
                 DevPanel.Visibility = (_api.CurrentUser?.Developer == true) ? Visibility.Visible : Visibility.Collapsed;
             }
             catch
@@ -76,7 +79,8 @@ namespace Pw.Hub.Windows
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Ошибка загрузки библиотеки: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, $"Ошибка загрузки библиотеки: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -100,19 +104,22 @@ namespace Pw.Hub.Windows
                     var sv = serverVer ?? string.Empty;
                     if (IsUpdateAvailable(lv, sv))
                     {
-                        title = title + "  (локально v" + lv + " — доступно v" + sv + ")";
+                        title += "  (локально v" + lv + " — доступно v" + sv + ")";
                         UpdateButton.IsEnabled = true;
                     }
                     else
                     {
-                        title = title + "  (локально v" + lv + ")";
+                        title += "  (локально v" + lv + ")";
                         UpdateButton.IsEnabled = false;
                     }
+                    title += $"  — Установок: {_selected.InstallCount}";
+                    title += $"  — Автор: {_selected.OwnerUserId}";
                 }
                 else
                 {
                     UpdateButton.IsEnabled = false;
                 }
+
                 TitleText.Text = title;
             }
             else
@@ -120,6 +127,7 @@ namespace Pw.Hub.Windows
                 TitleText.Text = string.Empty;
                 UpdateButton.IsEnabled = false;
             }
+
             var md = _selected?.Description ?? string.Empty;
             var html = string.IsNullOrWhiteSpace(md) ? "<i>Нет описания</i>" : Markdown.ToHtml(md);
             TrySetHtml(html);
@@ -134,13 +142,18 @@ namespace Pw.Hub.Windows
                 var count = 0;
                 foreach (var m in items)
                 {
-                    var local = locals.FirstOrDefault(x => string.Equals(x.Id, m.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+                    var local = locals.FirstOrDefault(x =>
+                        string.Equals(x.Id, m.Id.ToString(), StringComparison.OrdinalIgnoreCase));
                     if (local != null && IsUpdateAvailable(local.Version ?? "1.0.0", m.Version ?? "1.0.0"))
                         count++;
                 }
+
                 return count;
             }
-            catch { return 0; }
+            catch
+            {
+                return 0;
+            }
         }
 
         private static string NormalizeSemVer(string? v)
@@ -161,10 +174,14 @@ namespace Pw.Hub.Windows
             try
             {
                 var locals = _moduleService.LoadModules();
-                var local = locals.FirstOrDefault(x => string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
+                var local = locals.FirstOrDefault(x =>
+                    string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
                 return local?.Version;
             }
-            catch { return null; }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool IsUpdateAvailable(string local, string server)
@@ -173,6 +190,7 @@ namespace Pw.Hub.Windows
             {
                 return sv > lv;
             }
+
             // fallback string compare if parsing fails
             return !string.Equals(local, server, StringComparison.Ordinal);
         }
@@ -193,7 +211,8 @@ namespace Pw.Hub.Windows
                     table{border-collapse:collapse}
                     th,td{border:1px solid #2A475E;padding:6px}
                     ul,ol{padding-left:22px}";
-                var doc = $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
+                var doc =
+                    $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
                 DescriptionWebView.NavigateToString(doc);
             }
             catch
@@ -224,7 +243,9 @@ namespace Pw.Hub.Windows
                 UpdateButton.Visibility = canUpdate ? Visibility.Visible : Visibility.Collapsed;
                 UpdateButton.IsEnabled = canUpdate;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private async void OnUpdateSelectedClick(object sender, RoutedEventArgs e)
@@ -235,17 +256,19 @@ namespace Pw.Hub.Windows
                 var localVer = GetLocalVersion(_selected.Id);
                 if (string.IsNullOrWhiteSpace(localVer) || !IsUpdateAvailable(localVer!, _selected.Version ?? "1.0.0"))
                 {
-                    MessageBox.Show(this, "Обновление не требуется", "Модули", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, "Обновление не требуется", "Модули", MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                     return;
                 }
+
                 InstallModuleLocally(_selected);
-                MessageBox.Show(this, $"Модуль обновлён до версии {_selected.Version}", "Обновлено", MessageBoxButton.OK, MessageBoxImage.Information);
                 RefreshOwnerModules();
                 await SearchAndBindAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Не удалось обновить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, $"Не удалось обновить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -258,27 +281,32 @@ namespace Pw.Hub.Windows
                 int updated = 0;
                 foreach (var m in items)
                 {
-                    var local = locals.FirstOrDefault(x => string.Equals(x.Id, m.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+                    var local = locals.FirstOrDefault(x =>
+                        string.Equals(x.Id, m.Id.ToString(), StringComparison.OrdinalIgnoreCase));
                     if (local != null && IsUpdateAvailable(local.Version ?? "1.0.0", m.Version ?? "1.0.0"))
                     {
                         InstallModuleLocally(m);
                         updated++;
                     }
                 }
+
                 if (updated > 0)
                 {
-                    MessageBox.Show(this, $"Обновлено модулей: {updated}", "Обновление модулей", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, $"Обновлено модулей: {updated}", "Обновление модулей", MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                     RefreshOwnerModules();
                     await SearchAndBindAsync();
                 }
                 else
                 {
-                    MessageBox.Show(this, "Нет модулей, требующих обновления", "Обновление модулей", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, "Нет модулей, требующих обновления", "Обновление модулей",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Ошибка при обновлении модулей: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, $"Ошибка при обновлении модулей: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -296,14 +324,14 @@ namespace Pw.Hub.Windows
 
                     // Save locally: write script file and add to modules.json
                     InstallModuleLocally(res);
-                    MessageBox.Show(this, "Модуль установлен локально и доступен для запуска в разделе 'Модули'", "Установлено", MessageBoxButton.OK, MessageBoxImage.Information);
                     RefreshOwnerModules();
                     UpdateActionButtons();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Не удалось установить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, $"Не удалось установить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -320,14 +348,14 @@ namespace Pw.Hub.Windows
 
                     // Remove locally
                     RemoveModuleLocally(_selected.Id);
-                    MessageBox.Show(this, "Модуль удалён локально", "Удалено", MessageBoxButton.OK, MessageBoxImage.Information);
                     RefreshOwnerModules();
                     UpdateActionButtons();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Не удалось удалить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, $"Не удалось удалить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -373,7 +401,8 @@ namespace Pw.Hub.Windows
             {
                 var svc = new ModuleService();
                 var list = svc.LoadModules();
-                var existing = list.FirstOrDefault(m => string.Equals(m.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
+                var existing = list.FirstOrDefault(m =>
+                    string.Equals(m.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
                     // Try delete script file if under Scripts
@@ -385,7 +414,9 @@ namespace Pw.Hub.Windows
                         if (File.Exists(candidate1)) File.Delete(candidate1);
                         else if (File.Exists(candidate2)) File.Delete(candidate2);
                     }
-                    catch { }
+                    catch
+                    {
+                    }
 
                     list.Remove(existing);
                     svc.SaveModules(list);
@@ -406,7 +437,9 @@ namespace Pw.Hub.Windows
                     mw.LoadModules();
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
 
@@ -433,11 +466,14 @@ namespace Pw.Hub.Windows
                 MessageBox.Show("Выберите модуль");
                 return;
             }
-            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId, StringComparison.Ordinal))
+
+            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId,
+                    StringComparison.Ordinal))
             {
                 MessageBox.Show("Можно редактировать только свои модули");
                 return;
             }
+
             var editor = new ModulesApiEditorWindow(_selected);
             editor.Owner = this;
             if (editor.ShowDialog() == true)
@@ -455,18 +491,29 @@ namespace Pw.Hub.Windows
         private async void OnDevDeleteClick(object sender, RoutedEventArgs e)
         {
             if (_selected == null) return;
-            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId, StringComparison.Ordinal))
+            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId,
+                    StringComparison.Ordinal))
             {
                 MessageBox.Show("Можно удалять только свои модули");
                 return;
             }
-            if (MessageBox.Show("Удалить модуль?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+
+            if (MessageBox.Show("Удалить модуль?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) ==
+                MessageBoxResult.Yes)
             {
                 if (await _api.DeleteModuleAsync(_selected.Id))
                 {
                     await SearchAndBindAsync();
                 }
             }
+        }
+
+        private void OnOpenLuaEditorClick(object sender, RoutedEventArgs e)
+        {
+            // var runner = new LuaScriptRunner(mainWindow.AccountPage.AccountManager, mainWindow.AccountPage.Browser);
+            if (Application.Current.MainWindow is not MainWindow mainWindow) return;
+            var win = new LuaEditorWindow(mainWindow.AccountPage.LuaRunner);
+            win.Show();
         }
     }
 }
