@@ -21,7 +21,7 @@ namespace Pw.Hub.Services
 
         public ModulesApiClient(string? baseUrl = null, HttpMessageHandler? handler = null)
         {
-            BaseUrl = baseUrl?.TrimEnd('/') ?? Environment.GetEnvironmentVariable("PW_MODULES_API")?.TrimEnd('/') ?? "http://localhost:5000";
+            BaseUrl = baseUrl?.TrimEnd('/') ?? Environment.GetEnvironmentVariable("PW_MODULES_API")?.TrimEnd('/') ?? "https://api.pw-hub.ru";
             _http = handler == null ? new HttpClient() : new HttpClient(handler);
             _http.Timeout = TimeSpan.FromSeconds(15);
             try
