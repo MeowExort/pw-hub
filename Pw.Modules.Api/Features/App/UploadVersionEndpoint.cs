@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.AspNetCore.Http;
 using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Features.Auth;
 

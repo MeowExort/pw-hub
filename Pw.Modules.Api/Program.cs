@@ -1,11 +1,19 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Http.Features;
 using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Features.Modules;
 using Pw.Modules.Api.Features.Auth;
 using Pw.Modules.Api.Features.App;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Set global request size limits to 200 MB
+const long MaxRequestSizeBytes = 200L * 1024 * 1024;
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = MaxRequestSizeBytes;
+});
 
 // Add services
 builder.Services.AddEndpointsApiExplorer();
@@ -23,6 +31,12 @@ builder.Services.AddDbContext<ModulesDbContext>(options =>
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+});
+
+// Increase multipart/form-data body length limit (for file uploads)
+builder.Services.Configure<FormOptions>(o =>
+{
+    o.MultipartBodyLengthLimit = MaxRequestSizeBytes;
 });
 
 var app = builder.Build();
