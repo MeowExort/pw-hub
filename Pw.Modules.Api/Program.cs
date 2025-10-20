@@ -52,4 +52,3 @@ app.MapModules();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
-
