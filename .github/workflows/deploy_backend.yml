@@ -66,7 +66,7 @@ jobs:
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
                
   deploy:
-    needs: build-and-push
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server
