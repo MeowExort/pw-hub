@@ -389,8 +389,10 @@ namespace Pw.Hub.Windows
                 var svc = new ModuleService();
                 svc.AddOrUpdateModule(def);
             }
-            catch
+            catch (Exception ex)
             {
+                MessageBox.Show(ex.Message);
+
                 // ignore local install errors to not break API flow; user will get message if needed elsewhere
             }
         }
