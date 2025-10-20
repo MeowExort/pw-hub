@@ -13,9 +13,8 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Pw Modules API", Version = "v1" });
 });
 
-var connString = builder.Configuration.GetConnectionString("Postgres")
-                 ?? Environment.GetEnvironmentVariable("PW_MODULES_PG")
-                 ?? "Host=localhost;Port=5432;Database=pw_modules;Username=postgres;Password=postgres";
+var connString = Environment.GetEnvironmentVariable("PW_MODULES_PG")
+                 ?? builder.Configuration.GetConnectionString("Postgres");
 
 builder.Services.AddDbContext<ModulesDbContext>(options =>
     options.UseNpgsql(connString));
