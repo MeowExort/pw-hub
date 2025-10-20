@@ -49,7 +49,7 @@ jobs:
           
       - name: Set lowercase image name
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pwh-hub" >> $GITHUB_ENV
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pw-hub" >> $GITHUB_ENV
           
       - name: Build and push Docker image
         id: build-and-push
