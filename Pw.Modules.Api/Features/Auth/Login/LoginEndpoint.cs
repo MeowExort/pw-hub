@@ -35,7 +35,8 @@ public static class LoginEndpoint
         });
         await db.SaveChangesAsync();
 
-        var resp = new AuthResponse { UserId = user.Id, Username = user.Username, Developer = user.Developer, Token = token };
+        var resp = new AuthResponse
+            { UserId = user.Id, Username = user.Username, Developer = user.Developer, Token = token };
         return Results.Ok(resp);
     }
 }
