@@ -7,7 +7,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["Pw.Modules.Api/Pw.Modules.Api.csproj", "Pw.Modules.Api/"]
+COPY ["Pw.Modules.Api.csproj", "./"]
 RUN dotnet restore "Pw.Modules.Api/Pw.Modules.Api.csproj"
 COPY . .
 WORKDIR "/src/Pw.Modules.Api"
