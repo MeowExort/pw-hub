@@ -54,7 +54,7 @@ public static class UploadVersionEndpoint
             contentType = "application/octet-stream";
 
         // Build public URL
-        var baseUrl = $"https://api.pw-hub.com";
+        var baseUrl = $"https://api.pw-hub.ru";
         var fileUrl = $"{baseUrl}/app-updates/{Uri.EscapeDataString(storedName)}";
 
         // Write manifest file
