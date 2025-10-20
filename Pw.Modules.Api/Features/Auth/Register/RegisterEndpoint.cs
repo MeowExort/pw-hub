@@ -46,7 +46,8 @@ public static class RegisterEndpoint
         db.Sessions.Add(session);
         await db.SaveChangesAsync();
 
-        var resp = new AuthResponse { UserId = user.Id, Username = user.Username, Developer = user.Developer, Token = token };
+        var resp = new AuthResponse
+            { UserId = user.Id, Username = user.Username, Developer = user.Developer, Token = token };
         return Results.Ok(resp);
     }
 }
