@@ -19,10 +19,15 @@ public class UpdateManifest
 
 public class UpdateService
 {
-    // TODO: Replace with your real manifest URL (e.g., GitHub raw link)
-    private const string ManifestUrl = "https://example.com/pw-hub/updates/manifest.json";
+    private readonly string _manifestUrl;
 
     private readonly HttpClient _http = new();
+
+    public UpdateService()
+    {
+        var baseUrl = Environment.GetEnvironmentVariable("PW_MODULES_API")?.TrimEnd('/') ?? "https://api.pw-hub.ru";
+        _manifestUrl = baseUrl + "/api/app/manifest";
+    }
 
     public Version GetCurrentVersion()
     {
@@ -45,7 +50,7 @@ public class UpdateService
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-            using var resp = await _http.GetAsync(ManifestUrl, cts.Token);
+            using var resp = await _http.GetAsync(_manifestUrl, cts.Token);
             resp.EnsureSuccessStatusCode();
             await using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
             manifest = await JsonSerializer.DeserializeAsync<UpdateManifest>(stream, new JsonSerializerOptions

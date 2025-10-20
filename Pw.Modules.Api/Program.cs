@@ -3,6 +3,7 @@ using Microsoft.OpenApi.Models;
 using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Features.Modules;
 using Pw.Modules.Api.Features.Auth;
+using Pw.Modules.Api.Features.App;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,10 +43,12 @@ app.UseSwaggerUI(options =>
 });
 
 app.UseCors();
+app.UseStaticFiles(); // serve files from wwwroot (for app-updates)
 
 // Map endpoints using Vertical Slice Architecture
 app.MapAuth();
 app.MapModules();
+app.MapApp();
 
 // Optional health endpoint
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
