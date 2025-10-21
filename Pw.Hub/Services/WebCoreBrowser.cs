@@ -14,6 +14,9 @@ public class WebCoreBrowser(WebView2 webView) : IBrowser
 
     public async Task NavigateAsync(string url)
     {
+        var uri = new Uri(url);
+        if (uri.Host != "pwonline.ru")
+            return;
         await webView.EnsureCoreWebView2Async();
         webView.CoreWebView2.Navigate(url);
     }

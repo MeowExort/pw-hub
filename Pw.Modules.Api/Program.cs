@@ -5,6 +5,11 @@ using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Features.Modules;
 using Pw.Modules.Api.Features.Auth;
 using Pw.Modules.Api.Features.App;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Microsoft.AspNetCore.HttpLogging;
+using Prometheus;
+using Prometheus.DotNetRuntime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +25,38 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Pw Modules API", Version = "v1" });
+});
+
+// Observability: OpenTelemetry Tracing & Metrics
+var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "Pw.Modules.Api";
+var serviceVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]; // e.g., http://otel-collector:4317 or 4318
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService(serviceName: serviceName, serviceVersion: serviceVersion))
+    .WithTracing(t =>
+    {
+        t.AddAspNetCoreInstrumentation(o =>
+        {
+            o.RecordException = true;
+            o.Filter = httpContext => httpContext.Request.Path != "/metrics"; // skip metrics scraping
+        })
+        .AddHttpClientInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation();
+
+        // Export to OTLP if endpoint is provided
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            t.AddOtlpExporter();
+        }
+    });
+
+// Built-in health checks and HTTP logging
+builder.Services.AddHealthChecks();
+builder.Services.AddHttpLogging(logging =>
+{
+    logging.LoggingFields = HttpLoggingFields.RequestPropertiesAndHeaders | HttpLoggingFields.ResponsePropertiesAndHeaders;
+    logging.RequestHeaders.Add("User-Agent");
 });
 
 var connString = Environment.GetEnvironmentVariable("PW_MODULES_PG")
@@ -56,15 +93,22 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = string.Empty; // serve Swagger UI at application root
 });
 
+// Enable HTTP logging and metrics
+app.UseHttpLogging();
 app.UseCors();
 app.UseStaticFiles(); // serve files from wwwroot (for app-updates)
+
+// Prometheus metrics (HTTP + runtime)
+app.UseHttpMetrics();
+DotNetRuntimeStatsBuilder.Default().StartCollecting();
+app.MapMetrics(); // exposes /metrics
 
 // Map endpoints using Vertical Slice Architecture
 app.MapAuth();
 app.MapModules();
 app.MapApp();
 
-// Optional health endpoint
-app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+// Health endpoints
+app.MapHealthChecks("/healthz");
 
 app.Run();
