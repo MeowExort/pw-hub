@@ -8,6 +8,7 @@ using Pw.Modules.Api.Features.App;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.AspNetCore.HttpLogging;
+using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using Prometheus;
 using Prometheus.DotNetRuntime;
@@ -41,12 +42,12 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(t =>
     {
         t.AddAspNetCoreInstrumentation(o =>
-        {
-            o.RecordException = true;
-            o.Filter = httpContext => httpContext.Request.Path != "/metrics"; // skip metrics scraping
-        })
-        .AddHttpClientInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation();
+            {
+                o.RecordException = true;
+                o.Filter = httpContext => httpContext.Request.Path != "/metrics"; // skip metrics scraping
+            })
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation();
 
         // Export to OTLP if endpoint is provided
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
@@ -57,7 +58,8 @@ builder.Services.AddOpenTelemetry()
                 options.Protocol = OtlpExportProtocol.HttpProtobuf;
             });
         }
-    });
+    })
+    .UseOtlpExporter();
 
 // Built-in health checks and HTTP logging
 builder.Services.AddHealthChecks();
