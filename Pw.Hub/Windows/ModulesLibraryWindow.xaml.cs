@@ -96,7 +96,7 @@ namespace Pw.Hub.Windows
                 var localVer = GetLocalVersion(_selected.Id);
                 var serverVer = _selected.Version ?? "1.0.0";
                 var title = string.IsNullOrWhiteSpace(serverVer) ? _selected.Name : _selected.Name + "  v" + serverVer;
-                title += $"Автор: {_selected.AuthorUsername}";
+                title += $" Автор: {_selected.AuthorUsername}";
                 if (!string.IsNullOrWhiteSpace(localVer))
                 {
                     var lv = localVer ?? string.Empty;

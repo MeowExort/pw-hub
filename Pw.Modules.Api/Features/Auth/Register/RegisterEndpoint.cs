@@ -29,7 +29,7 @@ public static class RegisterEndpoint
             Username = username,
             PasswordHash = hash,
             PasswordSalt = salt,
-            Developer = req.Developer,
+            Developer = false,
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.Users.Add(user);
