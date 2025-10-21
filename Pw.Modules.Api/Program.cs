@@ -8,6 +8,7 @@ using Pw.Modules.Api.Features.App;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.AspNetCore.HttpLogging;
+using OpenTelemetry.Exporter;
 using Prometheus;
 using Prometheus.DotNetRuntime;
 
@@ -32,6 +33,9 @@ var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "Pw.Modules.Api"
 var serviceVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
 var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]; // e.g., http://otel-collector:4317 or 4318
 
+Console.WriteLine("OTLP endpoint: " + otlpEndpoint);
+
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService(serviceName: serviceName, serviceVersion: serviceVersion))
     .WithTracing(t =>
@@ -47,7 +51,11 @@ builder.Services.AddOpenTelemetry()
         // Export to OTLP if endpoint is provided
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
-            t.AddOtlpExporter();
+            t.AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(otlpEndpoint);
+                options.Protocol = OtlpExportProtocol.HttpProtobuf;
+            });
         }
     });
 
