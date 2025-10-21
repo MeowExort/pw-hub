@@ -86,8 +86,11 @@ otel.WithTracing(tracing =>
 
 // Export OpenTelemetry data via OTLP, using env vars for the configuration
 var OtlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+var OtlpService = builder.Configuration["OTEL_SERVICE_NAME"];
 if (OtlpEndpoint != null)
 {
+    Console.WriteLine($"OtlpEndpoint: {OtlpEndpoint}");
+    Console.WriteLine($"OtlpService: {OtlpService}");
     otel.UseOtlpExporter();
 }
 
