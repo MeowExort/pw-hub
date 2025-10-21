@@ -1,17 +1,16 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Http.Features;
 using Pw.Modules.Api.Data;
 using Pw.Modules.Api.Features.Modules;
 using Pw.Modules.Api.Features.Auth;
 using Pw.Modules.Api.Features.App;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 using Microsoft.AspNetCore.HttpLogging;
 using OpenTelemetry;
-using OpenTelemetry.Exporter;
-using Prometheus;
-using Prometheus.DotNetRuntime;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,28 +27,6 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Pw Modules API", Version = "v1" });
 });
-
-// Observability: OpenTelemetry Tracing & Metrics
-var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "Pw.Modules.Api";
-var serviceVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
-var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]; // e.g., http://otel-collector:4317 or 4318
-
-Console.WriteLine("OTLP endpoint: " + otlpEndpoint);
-
-
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(r => r.AddService(serviceName: serviceName, serviceVersion: serviceVersion))
-    .WithTracing(t =>
-    {
-        t.AddAspNetCoreInstrumentation(o =>
-            {
-                o.RecordException = true;
-                o.Filter = httpContext => httpContext.Request.Path != "/metrics"; // skip metrics scraping
-            })
-            .AddHttpClientInstrumentation()
-            .AddEntityFrameworkCoreInstrumentation();
-    })
-    .UseOtlpExporter();
 
 // Built-in health checks and HTTP logging
 builder.Services.AddHealthChecks();
@@ -76,6 +53,44 @@ builder.Services.Configure<FormOptions>(o =>
     o.MultipartBodyLengthLimit = MaxRequestSizeBytes;
 });
 
+// Custom ActivitySource for the application
+var moduleActivitySource = new ActivitySource("Modules");
+
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+});
+
+var otel = builder.Services.AddOpenTelemetry();
+
+// Add Metrics for ASP.NET Core and our custom metrics and export via OTLP
+otel.WithMetrics(metrics =>
+{
+    // Metrics provider from OpenTelemetry
+    metrics.AddAspNetCoreInstrumentation();
+    //Our custom metrics
+    metrics.AddMeter(ModuleMetrics.MeterName);
+    // Metrics provides by ASP.NET Core in .NET 8
+    metrics.AddMeter("Microsoft.AspNetCore.Hosting");
+    metrics.AddMeter("Microsoft.AspNetCore.Server.Kestrel");
+});
+
+// Add Tracing for ASP.NET Core and our custom ActivitySource and export via OTLP
+otel.WithTracing(tracing =>
+{
+    tracing.AddAspNetCoreInstrumentation();
+    tracing.AddHttpClientInstrumentation();
+    tracing.AddSource(moduleActivitySource.Name);
+});
+
+// Export OpenTelemetry data via OTLP, using env vars for the configuration
+var OtlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+if (OtlpEndpoint != null)
+{
+    otel.UseOtlpExporter();
+}
+
 var app = builder.Build();
 
 // Apply pending migrations (ensures schema is up to date)
@@ -98,10 +113,6 @@ app.UseHttpLogging();
 app.UseCors();
 app.UseStaticFiles(); // serve files from wwwroot (for app-updates)
 
-// Prometheus metrics (HTTP + runtime)
-app.UseHttpMetrics();
-DotNetRuntimeStatsBuilder.Default().StartCollecting();
-app.MapMetrics(); // exposes /metrics
 
 // Map endpoints using Vertical Slice Architecture
 app.MapAuth();

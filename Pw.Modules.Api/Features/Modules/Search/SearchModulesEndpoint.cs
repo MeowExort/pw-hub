@@ -15,6 +15,9 @@ public static class SearchModulesEndpoint
 
     public static async Task<IResult> Handle(ModulesDbContext db, string? q, string? tags, string? sort, string? order, int page = 1, int pageSize = 20, int? sinceDays = null)
     {
+        // Increment searches metric at the beginning of a search request
+        ModuleMetrics.Searches.Add(1);
+
         var query = db.Modules.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))

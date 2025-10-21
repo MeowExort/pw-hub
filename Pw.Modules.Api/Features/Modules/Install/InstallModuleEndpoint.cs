@@ -23,6 +23,10 @@ public static class InstallModuleEndpoint
 
         db.UserModules.Add(new Domain.UserModule { ModuleId = id, UserId = userId, InstalledAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync();
+
+        // Increment install metric only on successful install
+        ModuleMetrics.Install.Add(1);
+
         var count = await db.UserModules.CountAsync(x => x.ModuleId == id);
         return Results.Ok(ModuleMapper.ToDto(module, count));
     }
