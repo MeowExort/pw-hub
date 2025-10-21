@@ -38,8 +38,7 @@ public partial class LoginRegisterWindow : Window
         {
             var username = UsernameText.Text?.Trim() ?? string.Empty;
             var password = PasswordBox.Password ?? string.Empty;
-            var dev = DeveloperCheck.IsChecked == true;
-            var resp = await _api.RegisterAsync(username, password, dev);
+            var resp = await _api.RegisterAsync(username, password);
             if (resp == null)
             {
                 ErrorText.Text = "Регистрация не удалась";

@@ -44,10 +44,10 @@ namespace Pw.Hub.Services
                 _http.DefaultRequestHeaders.Add("X-Auth-Token", Token);
         }
 
-        public async Task<AuthResponse> RegisterAsync(string username, string password, bool developer = false)
+        public async Task<AuthResponse> RegisterAsync(string username, string password)
         {
             var url = $"{BaseUrl}/api/auth/register";
-            var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(new { username, password, developer }, JsonOptions), Encoding.UTF8, "application/json"));
+            var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(new { username, password }, JsonOptions), Encoding.UTF8, "application/json"));
             if (!resp.IsSuccessStatusCode) return null;
             var json = await resp.Content.ReadAsStringAsync();
             var ar = JsonSerializer.Deserialize<AuthResponse>(json, JsonOptions);
