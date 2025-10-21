@@ -8,11 +8,11 @@ namespace Pw.Hub.Windows
 {
     public partial class ModulesApiEditorWindow : Window
     {
-        private readonly ModuleDto? _existing;
+        private readonly ModuleDto _existing;
         private readonly ObservableCollection<InputItem> _inputs = new();
-        private CancellationTokenSource? _previewCts;
+        private CancellationTokenSource _previewCts;
 
-        public ModulesApiEditorWindow(ModuleDto? existing = null)
+        public ModulesApiEditorWindow(ModuleDto existing = null)
         {
             InitializeComponent();
             _existing = existing;
@@ -236,7 +236,7 @@ namespace Pw.Hub.Windows
             public string Name { get; set; } = string.Empty;
             public string Label { get; set; } = string.Empty;
             public string Type { get; set; } = "string"; // string|number|bool
-            public string? Default { get; set; }
+            public string Default { get; set; }
             public bool Required { get; set; }
         }
     }

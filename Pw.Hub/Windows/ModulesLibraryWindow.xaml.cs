@@ -12,15 +12,15 @@ namespace Pw.Hub.Windows
     public partial class ModulesLibraryWindow : Window
     {
         private readonly ModulesApiClient _api;
-        private ModuleDto? _selected;
+        private ModuleDto _selected;
         private readonly string _userId;
         private readonly ModuleService _moduleService = new();
 
-        public ModulesLibraryWindow(string? apiBaseUrl = null, string? userId = null)
+        public ModulesLibraryWindow(string apiBaseUrl = null, string userId = null)
         {
             InitializeComponent();
             _api = new ModulesApiClient(apiBaseUrl);
-            _userId = string.IsNullOrWhiteSpace(userId) ? "local-user" : userId!;
+            _userId = AuthState.CurrentUser.UserId ?? throw new ArgumentNullException(nameof(AuthState.CurrentUser.UserId));
             Loaded += async (_, _) => await InitAsync();
         }
 
@@ -156,7 +156,7 @@ namespace Pw.Hub.Windows
             }
         }
 
-        private static string NormalizeSemVer(string? v)
+        private static string NormalizeSemVer(string v)
         {
             if (string.IsNullOrWhiteSpace(v)) return "0.0.0";
             var core = v.Split('+')[0];
@@ -169,7 +169,7 @@ namespace Pw.Hub.Windows
             return Version.TryParse(NormalizeSemVer(v), out ver);
         }
 
-        private string? GetLocalVersion(Guid id)
+        private string GetLocalVersion(Guid id)
         {
             try
             {

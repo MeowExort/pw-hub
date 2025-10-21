@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Forms;
 using Pw.Hub.Services;
 using NotifyIcon = NotifyIconEx.NotifyIcon;
+using System.IO;
 
 namespace Pw.Hub;
 
@@ -19,6 +20,7 @@ public partial class App
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); } catch { }
 
         NotifyIcon = new NotifyIcon()
         {

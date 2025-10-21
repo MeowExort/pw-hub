@@ -14,7 +14,7 @@ namespace Pw.Hub.Windows;
 public partial class LuaEditorWindow : Window
 {
     private readonly LuaScriptRunner _runner;
-    private CompletionWindow? _completionWindow;
+    private CompletionWindow _completionWindow;
     private readonly string[] _apiSymbols = new[]
     {
         // Callback preferred APIs
@@ -35,7 +35,7 @@ public partial class LuaEditorWindow : Window
         Closed += OnClosed;
     }
 
-    private void OnLoaded(object? sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
         // Route Lua Print to our output box
         _runner.SetPrintSink(AppendLog);
@@ -66,7 +66,7 @@ public partial class LuaEditorWindow : Window
         Editor.PreviewKeyDown += EditorOnPreviewKeyDown;
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    private void OnClosed(object sender, EventArgs e)
     {
         // Stop routing Print to this window
         _runner.SetPrintSink(null);
@@ -81,7 +81,7 @@ public partial class LuaEditorWindow : Window
         }
     }
 
-    private void TextAreaOnTextEntered(object? sender, TextCompositionEventArgs e)
+    private void TextAreaOnTextEntered(object sender, TextCompositionEventArgs e)
     {
         // Trigger on dot or after letters to help discoverability
         if (char.IsLetterOrDigit(e.Text.Last()) || e.Text == "_" || e.Text == ".")
@@ -90,7 +90,7 @@ public partial class LuaEditorWindow : Window
         }
     }
 
-    private void TextAreaOnTextEntering(object? sender, TextCompositionEventArgs e)
+    private void TextAreaOnTextEntering(object sender, TextCompositionEventArgs e)
     {
         if (_completionWindow != null && e.Text.Length > 0)
         {

@@ -5,9 +5,9 @@ namespace Pw.Hub.Windows;
 public partial class ScriptLogWindow : Window
 {
     private bool _running = true;
-    private Action? _onStop;
+    private Action _onStop;
 
-    public ScriptLogWindow(string? moduleTitle = null)
+    public ScriptLogWindow(string moduleTitle = null)
     {
         InitializeComponent();
         TitleText.Text = string.IsNullOrWhiteSpace(moduleTitle) ? "Логи выполнения" : $"Модуль — {moduleTitle}";
@@ -50,13 +50,13 @@ public partial class ScriptLogWindow : Window
         }
     }
 
-    public void ReportProgress(int percent, string? message = null)
+    public void ReportProgress(int percent, string message = null)
     {
         try
         {
             if (!Dispatcher.CheckAccess())
             {
-                Dispatcher.BeginInvoke(new Action<int, string?>(ReportProgress), percent, message);
+                Dispatcher.BeginInvoke(new Action<int, string>(ReportProgress), percent, message);
                 return;
             }
             
@@ -72,13 +72,13 @@ public partial class ScriptLogWindow : Window
         }
     }
 
-    public void MarkCompleted(string? finalMessage = null)
+    public void MarkCompleted(string finalMessage = null)
     {
         try
         {
             if (!Dispatcher.CheckAccess())
             {
-                Dispatcher.BeginInvoke(new Action<string?>(MarkCompleted), finalMessage);
+                Dispatcher.BeginInvoke(new Action<string>(MarkCompleted), finalMessage);
                 return;
             }
 

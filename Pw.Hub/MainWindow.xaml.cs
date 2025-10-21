@@ -21,7 +21,7 @@ namespace Pw.Hub;
 public partial class MainWindow
 {
     private readonly MainViewModel _vm = new();
-    private object? _contextMenuTarget;
+    private object _contextMenuTarget;
 
     private readonly ModuleService _moduleService = new();
     private List<ModuleDefinition> _modules = new();
@@ -176,7 +176,7 @@ public partial class MainWindow
             NavigationTree.ItemContainerGenerator.ContainerFromItem((sender as TreeView).SelectedItem) as TreeViewItem);
     }
 
-    private void SelectedItemChanged(TreeViewItem? tvi)
+    private void SelectedItemChanged(TreeViewItem tvi)
     {
         ControlsList_SelectedItemChanged();
         if (tvi != null)
@@ -447,7 +447,7 @@ public partial class MainWindow
         // Fire-and-forget API run increment so the library reflects usage
         _ = IncrementRunIfApiModuleAsync(module);
 
-        string? result = null;
+        string result = null;
         // Start execution and update UI on completion
         var task = runner.RunModuleAsync(module, argsWindow.Values).ContinueWith(t =>
         {

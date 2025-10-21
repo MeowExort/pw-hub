@@ -10,7 +10,7 @@ public partial class ModuleArgsWindow : Window
     private readonly ModuleDefinition _module;
     private readonly Dictionary<string, FrameworkElement> _inputs = new();
 
-    public Dictionary<string, object?> Values { get; } = new();
+    public Dictionary<string, object> Values { get; } = new();
 
     public ModuleArgsWindow(ModuleDefinition module)
     {
@@ -64,7 +64,7 @@ public partial class ModuleArgsWindow : Window
             var name = kv.Key;
             var editor = kv.Value;
             var def = (ModuleInput)editor.Tag;
-            object? value = null;
+            object value = null;
             var type = (def.Type ?? "string").ToLowerInvariant();
             if (editor is CheckBox cb)
             {

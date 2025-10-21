@@ -7,7 +7,7 @@ public partial class EditAccountWindow
 {
     private readonly Account _account;
     public string AccountName { get; private set; } = string.Empty;
-    public string? Email { get; private set; }
+    public string Email { get; private set; }
 
     public EditAccountWindow(Account account)
     {

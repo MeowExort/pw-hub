@@ -10,10 +10,10 @@ public class LuaIntegration
 {
     private readonly IAccountManager _accountManager;
     private readonly IBrowser _browser;
-    private readonly TaskCompletionSource<string>? _tcs;
-    private Lua? _lua; // keep reference to current Lua state for creating tables
-    private Action<string>? _printSink; // optional sink for Print routing
-    private Action<int, string?>? _progressSink; // optional sink for progress reporting
+    private readonly TaskCompletionSource<string> _tcs;
+    private Lua _lua; // keep reference to current Lua state for creating tables
+    private Action<string> _printSink; // optional sink for Print routing
+    private Action<int, string> _progressSink; // optional sink for progress reporting
 
     public LuaIntegration(IAccountManager accountManager)
     {
@@ -38,14 +38,6 @@ public class LuaIntegration
     public void Register(Lua lua)
     {
         _lua = lua;
-        // AccountManager related
-        lua.RegisterFunction("Account_GetAccount", this, GetType().GetMethod(nameof(Account_GetAccount)));
-        lua.RegisterFunction("Account_IsAuthorized", this, GetType().GetMethod(nameof(Account_IsAuthorized)));
-        lua.RegisterFunction("Account_GetAccountsJson", this, GetType().GetMethod(nameof(Account_GetAccountsJson)));
-        lua.RegisterFunction("Account_GetAccounts", this, GetType().GetMethod(nameof(Account_GetAccounts)));
-        lua.RegisterFunction("Account_ChangeAccount", this, GetType().GetMethod(nameof(Account_ChangeAccount)));
-        lua.RegisterFunction("GetAccountAsyncCallback", this, GetType().GetMethod(nameof(GetAccountAsyncCallback), new[] { typeof(LuaFunction) }));
-
         // Callback variants for Account
         lua.RegisterFunction("Account_GetAccountCb", this, GetType().GetMethod(nameof(Account_GetAccountCb), new[] { typeof(LuaFunction) }));
         lua.RegisterFunction("Account_IsAuthorizedCb", this, GetType().GetMethod(nameof(Account_IsAuthorizedCb), new[] { typeof(LuaFunction) }));
@@ -56,26 +48,15 @@ public class LuaIntegration
         // Browser related
         if (_browser != null)
         {
-            lua.RegisterFunction("Browser_Navigate", this, GetType().GetMethod(nameof(Browser_Navigate)));
-            lua.RegisterFunction("Browser_Reload", this, GetType().GetMethod(nameof(Browser_Reload)));
-            lua.RegisterFunction("Browser_ExecuteScript", this, GetType().GetMethod(nameof(Browser_ExecuteScript)));
-            lua.RegisterFunction("Browser_ElementExists", this, GetType().GetMethod(nameof(Browser_ElementExists)));
-            lua.RegisterFunction("Browser_WaitForElement", this, GetType().GetMethod(nameof(Browser_WaitForElement)));
-            lua.RegisterFunction("Browser_GetCookiesJson", this, GetType().GetMethod(nameof(Browser_GetCookiesJson)));
-            lua.RegisterFunction("Browser_SetCookiesJson", this, GetType().GetMethod(nameof(Browser_SetCookiesJson)));
-
             // Callback variants
             lua.RegisterFunction("Browser_NavigateCb", this, GetType().GetMethod(nameof(Browser_NavigateCb), new[] { typeof(string), typeof(LuaFunction) }));
             lua.RegisterFunction("Browser_ReloadCb", this, GetType().GetMethod(nameof(Browser_ReloadCb), new[] { typeof(LuaFunction) }));
             lua.RegisterFunction("Browser_ExecuteScriptCb", this, GetType().GetMethod(nameof(Browser_ExecuteScriptCb), new[] { typeof(string), typeof(LuaFunction) }));
             lua.RegisterFunction("Browser_ElementExistsCb", this, GetType().GetMethod(nameof(Browser_ElementExistsCb), new[] { typeof(string), typeof(LuaFunction) }));
             lua.RegisterFunction("Browser_WaitForElementCb", this, GetType().GetMethod(nameof(Browser_WaitForElementCb), new[] { typeof(string), typeof(int), typeof(LuaFunction) }));
-            lua.RegisterFunction("Browser_GetCookiesJsonCb", this, GetType().GetMethod(nameof(Browser_GetCookiesJsonCb), new[] { typeof(LuaFunction) }));
-            lua.RegisterFunction("Browser_SetCookiesJsonCb", this, GetType().GetMethod(nameof(Browser_SetCookiesJsonCb), new[] { typeof(string), typeof(LuaFunction) }));
         }
 
         // Helpers
-        lua.RegisterFunction("Sleep", this, GetType().GetMethod(nameof(Sleep)));
         lua.RegisterFunction("Print", this, GetType().GetMethod(nameof(Print)));
         lua.RegisterFunction("DelayCb", this, GetType().GetMethod(nameof(DelayCb), new[] { typeof(int), typeof(LuaFunction) }));
 
@@ -84,12 +65,12 @@ public class LuaIntegration
         lua.RegisterFunction("ReportProgressMsg", this, GetType().GetMethod(nameof(ReportProgressMsg), new[] { typeof(int), typeof(string) }));
     }
 
-    public void SetPrintSink(Action<string>? sink)
+    public void SetPrintSink(Action<string> sink)
     {
         _printSink = sink;
     }
 
-    public void SetProgressSink(Action<int, string?>? sink)
+    public void SetProgressSink(Action<int, string> sink)
     {
         _progressSink = sink;
     }
@@ -107,12 +88,20 @@ public class LuaIntegration
                 {
                     app.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        try { _printSink?.Invoke(text); } catch { }
+                        try { _printSink?.Invoke(text); }
+                        catch
+                        {
+                            // ignored
+                        }
                     }));
                 }
                 else
                 {
-                    try { _printSink?.Invoke(text); } catch { }
+                    try { _printSink?.Invoke(text); }
+                    catch
+                    {
+                        // ignored
+                    }
                 }
                 return;
             }
@@ -181,7 +170,7 @@ public class LuaIntegration
     }
 
     // Internal helper: ensure Lua callback is executed on UI thread (no return expected)
-    private static void CallLuaVoid(LuaFunction? callback, params object[] args)
+    private static void CallLuaVoid(LuaFunction callback, params object[] args)
     {
         if (callback == null) return;
         try
@@ -204,7 +193,7 @@ public class LuaIntegration
     }
 
     // Internal helper: execute Lua callback on UI thread and capture first return value
-    private static object? CallLuaWithReturn(LuaFunction? callback, params object[] args)
+    private static object CallLuaWithReturn(LuaFunction callback, params object[] args)
     {
         if (callback == null) return null;
         try
