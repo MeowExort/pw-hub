@@ -48,16 +48,6 @@ builder.Services.AddOpenTelemetry()
             })
             .AddHttpClientInstrumentation()
             .AddEntityFrameworkCoreInstrumentation();
-
-        // Export to OTLP if endpoint is provided
-        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
-        {
-            t.AddOtlpExporter(options =>
-            {
-                options.Endpoint = new Uri(otlpEndpoint);
-                options.Protocol = OtlpExportProtocol.HttpProtobuf;
-            });
-        }
     })
     .UseOtlpExporter();
 
