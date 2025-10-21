@@ -14,6 +14,11 @@ public static class ModuleMapper
 
     public static ModuleDto ToDto(Module m, int installCount)
     {
+        return ToDto(m, installCount, null);
+    }
+
+    public static ModuleDto ToDto(Module m, int installCount, string? authorUsername)
+    {
         var inputs = string.IsNullOrWhiteSpace(m.InputsJson)
             ? Array.Empty<InputDefinitionDto>()
             : (JsonSerializer.Deserialize<InputDefinitionDto[]>(m.InputsJson, JsonOptions) ?? Array.Empty<InputDefinitionDto>());
@@ -31,7 +36,8 @@ public static class ModuleMapper
             CreatedAt = m.CreatedAt,
             UpdatedAt = m.UpdatedAt,
             InstallCount = installCount,
-            OwnerUserId = m.OwnerUserId
+            OwnerUserId = m.OwnerUserId,
+            AuthorUsername = authorUsername
         };
     }
 

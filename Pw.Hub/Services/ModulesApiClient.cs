@@ -200,6 +200,7 @@ namespace Pw.Hub.Services
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
         public string OwnerUserId { get; set; }
+        public string AuthorUsername { get; set; }
     }
 
     public class InputDefinitionDto
