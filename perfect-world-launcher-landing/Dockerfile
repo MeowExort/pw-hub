@@ -16,7 +16,7 @@ RUN npm run build
 FROM nginx:1.25-alpine AS runtime
 
 # Copy build output to Nginx's web root
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist/client /usr/share/nginx/html
 
 # Run Nginx in the foreground
 CMD ["nginx", "-g", "daemon off;"]
