@@ -2,6 +2,7 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef } from 'react';
+import { useAppManifest } from '../hooks/useAppManifest';
 
 export default function Modules() {
     const ref = useRef(null);
