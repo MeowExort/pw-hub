@@ -157,7 +157,15 @@ public partial class ScriptLogWindow : Window
     private void CloseButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (_running) return;
-        DialogResult = true;
+        try
+        {
+            // If the window was opened with ShowDialog(), DialogResult can be set.
+            DialogResult = true;
+        }
+        catch
+        {
+            // If opened modelessly via Show(), setting DialogResult throws — ignore.
+        }
         Close();
     }
 

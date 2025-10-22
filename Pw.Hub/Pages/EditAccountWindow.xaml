@@ -40,7 +40,49 @@
                 <TextBox x:Name="EmailTextBox"
                         Style="{StaticResource ModernTextBox}"
                         Padding="12,10"
-                        MaxLength="100"/>
+                        MaxLength="100"
+                        Margin="0,0,0,16"/>
+
+                <Border Background="{StaticResource AccentBlueBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,1"
+                        Padding="12"
+                        Margin="0,8,0,8">
+                    <TextBlock Text="ПЕРСОНАЖ ПО УМОЛЧАНИЮ ПО СЕРВЕРАМ"
+                               Style="{StaticResource ModernTextBlock}"
+                               FontWeight="SemiBold"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </Border>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Height="300">
+                    <ItemsControl x:Name="ServersList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Vertical" Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding Name}"
+                                               Style="{StaticResource ModernTextBlock}"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,6"/>
+                                    <ComboBox Style="{StaticResource ModernComboBox}"
+                                              ItemsSource="{Binding CharactersWithPlaceholder}"
+                                              DisplayMemberPath="Name"
+                                              SelectedValuePath="OptionId"
+                                              SelectedValue="{Binding DefaultCharacterOptionId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                        <ComboBox.Resources>
+                                            <!-- Placeholder will be inserted from code-behind as first item -->
+                                        </ComboBox.Resources>
+                                    </ComboBox>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
             </StackPanel>
 
             <!-- Actions -->

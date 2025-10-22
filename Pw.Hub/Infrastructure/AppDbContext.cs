@@ -46,6 +46,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.OptionId).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.DefaultCharacterOptionId).HasMaxLength(50);
             entity.HasMany(e => e.Characters)
                 .WithOne(e => e.Server)
                 .HasForeignKey(e => e.ServerId)

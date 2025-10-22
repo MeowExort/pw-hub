@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
@@ -17,7 +18,10 @@ public class AccountManager(IBrowser browser) : IAccountManager
     public async Task<Account[]> GetAccountsAsync()
     {
         await using var db = new AppDbContext();
-        return db.Accounts.ToArray();
+        return db.Accounts
+            .Include(x=> x.Servers)
+            .ThenInclude(x=> x.Characters)
+            .ToArray();
     }
 
     public async Task ChangeAccountAsync(string accountId)
