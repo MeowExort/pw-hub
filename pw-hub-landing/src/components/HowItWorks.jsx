@@ -6,6 +6,18 @@ import { useRef } from 'react';
 export default function HowItWorks() {
     const ref = useRef(null);
     const isInView = useInView(ref, { once: true, threshold: 0.3 });
+    const { manifest, loading, error } = useAppManifest();
+
+    // Текст для кнопки скачивания в зависимости от состояния
+    const getDownloadButtonText = () => {
+        if (loading) return '🔄 Загрузка...';
+        if (error) return '⬇️ Скачать приложение';
+        if (manifest) return `⬇️ Скачать v${manifest.version}`;
+        return '⬇️ Скачать бесплатно';
+    };
+
+    // URL для скачивания
+    const downloadUrl = manifest?.url || '#';
 
     const steps = [
         {
@@ -121,15 +133,49 @@ export default function HowItWorks() {
                         <p className="text-gray-300 font-body mb-6 text-lg">
                             Присоединяйтесь к тысячам игроков, которые уже экономят время с нашим лаунчером
                         </p>
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            className="bg-[#ffb300] text-gray-900 px-8 py-4 rounded-lg font-heading font-bold text-lg hover:bg-[#ffc107] transition-colors shadow-lg"
+
+                        <motion.a
+                            whileHover={{ scale: loading ? 1 : 1.05 }}
+                            whileTap={{ scale: loading ? 1 : 0.95 }}
+                            href={downloadUrl}
+                            download
+                            className={`px-8 py-4 rounded-lg font-heading font-bold text-lg transition-colors shadow-lg flex items-center justify-center gap-2 ${
+                                loading
+                                    ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                                    : 'bg-[#ffb300] text-gray-900 hover:bg-[#ffc107]'
+                            }`}
+                            onClick={(e) => {
+                                if (loading || error) {
+                                    e.preventDefault();
+                                }
+                            }}
                         >
-                            ⬇️ Скачать бесплатно
-                        </motion.button>
+                            {getDownloadButtonText()}
+                            {loading && (
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                    className="w-5 h-5 border-2 border-gray-700 border-t-gray-900 rounded-full"
+                                />
+                            )}
+                        </motion.a>
+
+
+                        {/* Статус загрузки */}
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="mt-4 p-3 bg-red-900/20 border border-red-500 rounded-lg"
+                            >
+                                <p className="text-red-400 text-sm font-body">
+                                    Не удалось загрузить информацию о версии. {error}
+                                </p>
+                            </motion.div>
+                        )}
+                        
                         <p className="text-gray-400 font-body text-sm mt-4">
-                            Бесплатно • Без регистрации • Без вирусов
+                            Бесплатно • Без вирусов
                         </p>
                     </div>
                 </motion.div>
