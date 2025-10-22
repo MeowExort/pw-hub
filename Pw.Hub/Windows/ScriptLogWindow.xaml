@@ -62,6 +62,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -80,8 +81,15 @@
                           FontWeight="SemiBold"
                           Margin="16,0,0,8"/>
 
+                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                           x:Name="ElapsedText"
+                           Style="{StaticResource ModernTextBlock}"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="⏱ Текущее время выполнения: 00:00"
+                           Margin="0,0,0,8"/>
+
                 <ProgressBar x:Name="Progress"
-                            Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                            Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                             Height="24"
                             Minimum="0"
                             Maximum="100"
