@@ -56,7 +56,6 @@ namespace Pw.Hub.Services
                 Token = ar.Token;
                 ApplyAuthHeader();
                 CurrentUser = new UserDto { UserId = ar.UserId, Username = ar.Username, Developer = ar.Developer };
-                AuthState.Set(Token, CurrentUser);
             }
             return ar;
         }
@@ -87,8 +86,6 @@ namespace Pw.Hub.Services
             if (me != null)
             {
                 CurrentUser = me;
-                if (!string.IsNullOrWhiteSpace(Token))
-                    AuthState.Set(Token, CurrentUser);
             }
             return me;
         }

@@ -49,14 +49,7 @@ public partial class LoginRegisterWindow : Window
 
             // Remember me handling for registration
             var remember = RememberCheck.IsChecked == true;
-            if (remember)
-            {
-                AuthState.Set(_api.Token, _api.CurrentUser);
-            }
-            else
-            {
-                AuthState.Set(null, null);
-            }
+            AuthState.Set(_api.Token, _api.CurrentUser, remember);
 
             DialogResult = true;
             Close();
@@ -85,14 +78,7 @@ public partial class LoginRegisterWindow : Window
 
             // Remember me handling for login
             var remember = RememberCheck.IsChecked == true;
-            if (remember)
-            {
-                AuthState.Set(_api.Token, _api.CurrentUser);
-            }
-            else
-            {
-                AuthState.Set(null, null);
-            }
+            AuthState.Set(_api.Token, _api.CurrentUser, remember);
 
             DialogResult = true;
             Close();

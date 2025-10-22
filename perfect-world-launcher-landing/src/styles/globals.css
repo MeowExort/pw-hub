@@ -1,0 +1,31 @@
+﻿/* src/styles/globals.css */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        font-family: 'Exo 2', system-ui, sans-serif;
+        scroll-behavior: smooth;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Orbitron', sans-serif;
+    }
+
+    body {
+        background-color: #111827;
+        color: white;
+    }
+}
+
+@layer utilities {
+    .perspective-1000 {
+        perspective: 1000px;
+    }
+
+    .backdrop-blur-sm {
+        backdrop-filter: blur(4px);
+    }
+}
