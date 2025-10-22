@@ -80,7 +80,7 @@ export default function Hero() {
                         {/* Скриншот */}
                         <div className="rounded-lg overflow-hidden border border-gray-700 shadow-inner">
                             <img
-                                src="public/images/hero-screenshot.png"
+                                src="images/hero-screenshot.png"
                                 alt="Интерфейс Perfect World Launcher"
                                 className="w-full h-auto object-cover"
                             />

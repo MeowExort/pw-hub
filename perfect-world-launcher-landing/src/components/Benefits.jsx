@@ -19,7 +19,7 @@ export default function Benefits() {
             try {
                 setLoading(true);
                 setError(null);
-                const res = await fetch('/api/app/stats', { signal: controller.signal });
+                const res = await fetch('https://api.pw-hub.ru/api/app/stats', { signal: controller.signal });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (isMounted) {
