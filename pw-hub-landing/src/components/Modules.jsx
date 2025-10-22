@@ -108,13 +108,13 @@ export default function Modules() {
                                     <div>Всего аккаунтов: 8</div>
 
                                     <div className="ml-4">
-                                        <div className="text-yellow-400">[1/8] Копаты:</div>
-                                        <div className="ml-4 text-gray-400">- Копаты = сундуков не найдено</div>
+                                        <div className="text-yellow-400">[1/8] Копатыч:</div>
+                                        <div className="ml-4 text-gray-400">- Копатыч = сундуков не найдено</div>
                                     </div>
 
                                     <div className="ml-4">
-                                        <div className="text-yellow-400">[2/8] Лесая:</div>
-                                        <div className="ml-4 text-gray-400">- Лесая = сундуков не найдено</div>
+                                        <div className="text-yellow-400">[2/8] Лосяш:</div>
+                                        <div className="ml-4 text-gray-400">- Лосяш = сундуков не найдено</div>
                                     </div>
 
                                     <div className="ml-4">

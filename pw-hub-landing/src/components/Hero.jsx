@@ -7,8 +7,8 @@ export default function Hero() {
     const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
     return (
-        <>
-            <section className="min-h-screen bg-gradient-to-br from-[#0d1430] to-[#1a237e] flex items-center justify-center px-4 py-12">
+        <>// В начале секции Hero добавляем id
+            <section id="home" className="min-h-screen bg-gradient-to-br from-[#0d1430] to-[#1a237e] flex items-center justify-center px-4 py-12">
                 <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
                     {/* Текстовая часть */}
                     <motion.div

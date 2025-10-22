@@ -79,7 +79,7 @@ export default function VideoModal({isOpen, onClose}) {
                         <div className="p-6 bg-gray-800">
                             <div className="grid md:grid-cols-3 gap-6 text-center">
                                 <div>
-                                    <div className="text-[#ffb300] text-lg font-heading font-bold">1 мин</div>
+                                    <div className="text-[#ffb300] text-lg font-heading font-bold">1 мин 32 сек</div>
                                     <div className="text-gray-400 text-sm font-body">Длительность</div>
                                 </div>
                                 <div>
