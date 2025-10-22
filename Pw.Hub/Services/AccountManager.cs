@@ -20,7 +20,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
         return db.Accounts.ToArray();
     }
 
-    public async Task ChangeAccountAsync(Guid accountId)
+    public async Task ChangeAccountAsync(string accountId)
     {
         await _semaphoreSlim.WaitAsync();
         await SaveCookies();

@@ -110,6 +110,8 @@
                                               Click="OnEditSquadClick" IsEnabled="False" />
                                     <MenuItem x:Name="EditAccountMenuItem" Header="✏ Редактировать аккаунт"
                                               Click="OnEditAccountClick" IsEnabled="False" />
+                                    <MenuItem x:Name="LoadCharactersMenuItem" Header="⬇ Загрузить персонажей"
+                                              Click="OnLoadCharactersClick" IsEnabled="False" />
                                     <Separator Style="{StaticResource ModernSeparator}"/>
                                     <MenuItem x:Name="DeleteMenuItem" Header="🗑 Удалить"
                                               Click="OnDeleteClick" IsEnabled="False" />

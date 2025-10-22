@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -84,6 +86,8 @@ public partial class MainWindow
 
         // "Редактировать аккаунт" доступна только для аккаунтов
         EditAccountMenuItem.IsEnabled = isAccount;
+        // "Загрузить персонажей" доступна только для аккаунтов
+        LoadCharactersMenuItem.IsEnabled = isAccount;
 
         // "Удалить" доступна для отрядов и аккаунтов
         DeleteMenuItem.IsEnabled = isSquad || isAccount;
@@ -522,5 +526,94 @@ public partial class MainWindow
             }
         }
         catch { }
+    }
+
+    private class JsOption
+    {
+        public string value { get; set; } = string.Empty;
+        public string text { get; set; } = string.Empty;
+    }
+
+    private async void OnLoadCharactersClick(object sender, RoutedEventArgs e)
+    {
+        if (_contextMenuTarget is not Account selectedAccount)
+        {
+            MessageBox.Show("Выберите аккаунт", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var log = new Windows.ScriptLogWindow("Загрузка персонажей") { Owner = this };
+        log.ShowDialog();
+
+        try
+        {
+            log.AppendLog($"Переключаемся на аккаунт: {selectedAccount.Name}");
+            await AccountPage.AccountManager.ChangeAccountAsync(selectedAccount.Id);
+
+            log.AppendLog("Переходим на страницу промо-предметов...");
+            await AccountPage.Browser.NavigateAsync("https://pwonline.ru/promo_items.php");
+
+            var hasShard = await AccountPage.Browser.WaitForElementExistsAsync(".js-shard", 20000);
+            if (!hasShard)
+            {
+                log.AppendLog("Не найден элемент .js-шard — список серверов.");
+                log.MarkCompleted("Ошибка: не удалось получить список серверов");
+                return;
+            }
+
+            log.AppendLog("Читаем список серверов...");
+            var shardsJson = await AccountPage.Browser.ExecuteScriptAsync(
+                "(function(){ var s=document.querySelector('.js-shard'); if(!s) return []; return Array.from(s.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
+            );
+            var shards = JsonSerializer.Deserialize<List<JsOption>>(shardsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<JsOption>();
+
+            var servers = new List<AccountServer>();
+            for (var index = 0; index < shards.Count; index++)
+            {
+                var shard = shards[index];
+                log.AppendLog($"[{index + 1}/{shards.Count}] Сервер: {shard.text}");
+
+                // Выбираем сервер
+                var valEsc = (shard.value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'");
+                await AccountPage.Browser.ExecuteScriptAsync(
+                    $"(function(){{ var s=document.querySelector('.js-shard'); if(!s) return false; s.value='{valEsc}'; s.dispatchEvent(new Event('change', {{ bubbles:true }})); return true; }})()"
+                );
+
+                // Ждем появления/обновления списка персонажей
+                await AccountPage.Browser.WaitForElementExistsAsync(".js-char", 10000);
+
+                var charsJson = await AccountPage.Browser.ExecuteScriptAsync(
+                    "(function(){ var c=document.querySelector('.js-char'); if(!c) return []; return Array.from(c.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
+                );
+                var chars = JsonSerializer.Deserialize<List<JsOption>>(charsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<JsOption>();
+
+                var server = new AccountServer
+                {
+                    OptionId = shard.value ?? string.Empty,
+                    Name = shard.text ?? string.Empty,
+                    Characters = chars.Select(ch => new AccountCharacter { OptionId = ch.value ?? string.Empty, Name = ch.text ?? string.Empty }).ToList()
+                };
+                servers.Add(server);
+                log.AppendLog($"   Персонажей: {server.Characters.Count}");
+            }
+
+            await using (var db = new AppDbContext())
+            {
+                var acc = await db.Accounts.FindAsync(selectedAccount.Id);
+                if (acc != null)
+                {
+                    acc.Servers = servers;
+                    db.Update(acc);
+                    await db.SaveChangesAsync();
+                }
+            }
+
+            log.MarkCompleted("Готово: данные о серверах и персонажах сохранены.");
+        }
+        catch (Exception ex)
+        {
+            log.AppendLog("Ошибка: " + ex.Message);
+            log.MarkCompleted("Завершено с ошибкой");
+        }
     }
 }

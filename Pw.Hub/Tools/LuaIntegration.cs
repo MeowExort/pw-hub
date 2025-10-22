@@ -39,30 +39,44 @@ public class LuaIntegration
     {
         _lua = lua;
         // Callback variants for Account
-        lua.RegisterFunction("Account_GetAccountCb", this, GetType().GetMethod(nameof(Account_GetAccountCb), new[] { typeof(LuaFunction) }));
-        lua.RegisterFunction("Account_IsAuthorizedCb", this, GetType().GetMethod(nameof(Account_IsAuthorizedCb), new[] { typeof(LuaFunction) }));
-        lua.RegisterFunction("Account_GetAccountsJsonCb", this, GetType().GetMethod(nameof(Account_GetAccountsJsonCb), new[] { typeof(LuaFunction) }));
-        lua.RegisterFunction("Account_GetAccountsCb", this, GetType().GetMethod(nameof(Account_GetAccountsCb), new[] { typeof(LuaFunction) }));
-        lua.RegisterFunction("Account_ChangeAccountCb", this, GetType().GetMethod(nameof(Account_ChangeAccountCb), new[] { typeof(string), typeof(LuaFunction) }));
+        lua.RegisterFunction("Account_GetAccountCb", this,
+            GetType().GetMethod(nameof(Account_GetAccountCb), new[] { typeof(LuaFunction) }));
+        lua.RegisterFunction("Account_IsAuthorizedCb", this,
+            GetType().GetMethod(nameof(Account_IsAuthorizedCb), new[] { typeof(LuaFunction) }));
+        lua.RegisterFunction("Account_GetAccountsJsonCb", this,
+            GetType().GetMethod(nameof(Account_GetAccountsJsonCb), new[] { typeof(LuaFunction) }));
+        lua.RegisterFunction("Account_GetAccountsCb", this,
+            GetType().GetMethod(nameof(Account_GetAccountsCb), new[] { typeof(LuaFunction) }));
+        lua.RegisterFunction("Account_ChangeAccountCb", this,
+            GetType().GetMethod(nameof(Account_ChangeAccountCb), new[] { typeof(string), typeof(LuaFunction) }));
 
         // Browser related
         if (_browser != null)
         {
             // Callback variants
-            lua.RegisterFunction("Browser_NavigateCb", this, GetType().GetMethod(nameof(Browser_NavigateCb), new[] { typeof(string), typeof(LuaFunction) }));
-            lua.RegisterFunction("Browser_ReloadCb", this, GetType().GetMethod(nameof(Browser_ReloadCb), new[] { typeof(LuaFunction) }));
-            lua.RegisterFunction("Browser_ExecuteScriptCb", this, GetType().GetMethod(nameof(Browser_ExecuteScriptCb), new[] { typeof(string), typeof(LuaFunction) }));
-            lua.RegisterFunction("Browser_ElementExistsCb", this, GetType().GetMethod(nameof(Browser_ElementExistsCb), new[] { typeof(string), typeof(LuaFunction) }));
-            lua.RegisterFunction("Browser_WaitForElementCb", this, GetType().GetMethod(nameof(Browser_WaitForElementCb), new[] { typeof(string), typeof(int), typeof(LuaFunction) }));
+            lua.RegisterFunction("Browser_NavigateCb", this,
+                GetType().GetMethod(nameof(Browser_NavigateCb), new[] { typeof(string), typeof(LuaFunction) }));
+            lua.RegisterFunction("Browser_ReloadCb", this,
+                GetType().GetMethod(nameof(Browser_ReloadCb), new[] { typeof(LuaFunction) }));
+            lua.RegisterFunction("Browser_ExecuteScriptCb", this,
+                GetType().GetMethod(nameof(Browser_ExecuteScriptCb), new[] { typeof(string), typeof(LuaFunction) }));
+            lua.RegisterFunction("Browser_ElementExistsCb", this,
+                GetType().GetMethod(nameof(Browser_ElementExistsCb), new[] { typeof(string), typeof(LuaFunction) }));
+            lua.RegisterFunction("Browser_WaitForElementCb", this,
+                GetType().GetMethod(nameof(Browser_WaitForElementCb),
+                    new[] { typeof(string), typeof(int), typeof(LuaFunction) }));
         }
 
         // Helpers
         lua.RegisterFunction("Print", this, GetType().GetMethod(nameof(Print)));
-        lua.RegisterFunction("DelayCb", this, GetType().GetMethod(nameof(DelayCb), new[] { typeof(int), typeof(LuaFunction) }));
+        lua.RegisterFunction("DelayCb", this,
+            GetType().GetMethod(nameof(DelayCb), new[] { typeof(int), typeof(LuaFunction) }));
 
         // Progress reporting helpers
-        lua.RegisterFunction("ReportProgress", this, GetType().GetMethod(nameof(ReportProgress), new[] { typeof(int) }));
-        lua.RegisterFunction("ReportProgressMsg", this, GetType().GetMethod(nameof(ReportProgressMsg), new[] { typeof(int), typeof(string) }));
+        lua.RegisterFunction("ReportProgress", this,
+            GetType().GetMethod(nameof(ReportProgress), new[] { typeof(int) }));
+        lua.RegisterFunction("ReportProgressMsg", this,
+            GetType().GetMethod(nameof(ReportProgressMsg), new[] { typeof(int), typeof(string) }));
     }
 
     public void SetPrintSink(Action<string> sink)
@@ -77,6 +91,7 @@ public class LuaIntegration
 
     // Helpers
     public void Sleep(int ms) => Thread.Sleep(ms);
+
     public void Print(string text)
     {
         try
@@ -88,7 +103,10 @@ public class LuaIntegration
                 {
                     app.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        try { _printSink?.Invoke(text); }
+                        try
+                        {
+                            _printSink?.Invoke(text);
+                        }
                         catch
                         {
                             // ignored
@@ -97,16 +115,23 @@ public class LuaIntegration
                 }
                 else
                 {
-                    try { _printSink?.Invoke(text); }
+                    try
+                    {
+                        _printSink?.Invoke(text);
+                    }
                     catch
                     {
                         // ignored
                     }
                 }
+
                 return;
             }
         }
-        catch { }
+        catch
+        {
+        }
+
         // Fallback UI
         MessageBox.Show($"[Lua] {text}");
     }
@@ -118,10 +143,18 @@ public class LuaIntegration
         {
             Task.Delay(ms).ContinueWith(_ =>
             {
-                try { CallLuaVoid(callback); } catch { }
+                try
+                {
+                    CallLuaVoid(callback);
+                }
+                catch
+                {
+                }
             });
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     // Progress reporters
@@ -136,15 +169,29 @@ public class LuaIntegration
             {
                 app.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    try { sink(percent, null); } catch { }
+                    try
+                    {
+                        sink(percent, null);
+                    }
+                    catch
+                    {
+                    }
                 }));
             }
             else
             {
-                try { sink(percent, null); } catch { }
+                try
+                {
+                    sink(percent, null);
+                }
+                catch
+                {
+                }
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     public void ReportProgressMsg(int percent, string message)
@@ -158,15 +205,29 @@ public class LuaIntegration
             {
                 app.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    try { sink(percent, message); } catch { }
+                    try
+                    {
+                        sink(percent, message);
+                    }
+                    catch
+                    {
+                    }
                 }));
             }
             else
             {
-                try { sink(percent, message); } catch { }
+                try
+                {
+                    sink(percent, message);
+                }
+                catch
+                {
+                }
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     // Internal helper: ensure Lua callback is executed on UI thread (no return expected)
@@ -180,16 +241,30 @@ public class LuaIntegration
             {
                 app.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    try { callback.Call(args); } catch { }
+                    try
+                    {
+                        callback.Call(args);
+                    }
+                    catch
+                    {
+                    }
                 }));
             }
             else
             {
                 // Fallback: call directly
-                try { callback.Call(args); } catch { }
+                try
+                {
+                    callback.Call(args);
+                }
+                catch
+                {
+                }
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     // Internal helper: execute Lua callback on UI thread and capture first return value
@@ -214,56 +289,66 @@ public class LuaIntegration
                     }
                 });
             }
+
             // Fallback if no dispatcher
             try
             {
                 var ret = callback.Call(args);
                 return (ret != null && ret.Length > 0) ? ret[0] : null;
             }
-            catch { return null; }
+            catch
+            {
+                return null;
+            }
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 
     // Account API
     public string Account_GetAccount() => _accountManager.GetAccount();
     public bool Account_IsAuthorized() => _accountManager.IsAuthorizedAsync().GetAwaiter().GetResult();
+
     public string Account_GetAccountsJson()
     {
         var list = _accountManager.GetAccountsAsync().GetAwaiter().GetResult();
         return JsonSerializer.Serialize(list, JsonSerializerOptions.Web);
     }
+
     public Account[] Account_GetAccounts()
     {
         var list = _accountManager.GetAccountsAsync().GetAwaiter().GetResult();
         return list ?? [];
     }
+
     public void Account_ChangeAccount(string accountId)
     {
-        if (Guid.TryParse(accountId, out var id))
-        {
-            _accountManager.ChangeAccountAsync(id).GetAwaiter().GetResult();
-        }
-        else
-        {
-            throw new ArgumentException("Invalid account id");
-        }
+        _accountManager.ChangeAccountAsync(accountId).GetAwaiter().GetResult();
     }
 
     // Browser API
     public void Browser_Navigate(string url) => _browser.NavigateAsync(url).GetAwaiter().GetResult();
     public void Browser_Reload() => _browser.ReloadAsync().GetAwaiter().GetResult();
     public string Browser_ExecuteScript(string script) => _browser.ExecuteScriptAsync(script).GetAwaiter().GetResult();
-    public bool Browser_ElementExists(string selector) => _browser.ElementExistsAsync(selector).GetAwaiter().GetResult();
-    public bool Browser_WaitForElement(string selector, int timeoutMs) => _browser.WaitForElementExistsAsync(selector, timeoutMs).GetAwaiter().GetResult();
+
+    public bool Browser_ElementExists(string selector) =>
+        _browser.ElementExistsAsync(selector).GetAwaiter().GetResult();
+
+    public bool Browser_WaitForElement(string selector, int timeoutMs) =>
+        _browser.WaitForElementExistsAsync(selector, timeoutMs).GetAwaiter().GetResult();
+
     public string Browser_GetCookiesJson()
     {
         var cookies = _browser.GetCookiesAsync().GetAwaiter().GetResult();
         return JsonSerializer.Serialize(cookies, JsonSerializerOptions.Web);
     }
+
     public void Browser_SetCookiesJson(string json)
     {
-        var cookies = JsonSerializer.Deserialize<Pw.Hub.Models.Cookie[]>(json, JsonSerializerOptions.Web) ?? Array.Empty<Pw.Hub.Models.Cookie>();
+        var cookies = JsonSerializer.Deserialize<Pw.Hub.Models.Cookie[]>(json, JsonSerializerOptions.Web) ??
+                      Array.Empty<Pw.Hub.Models.Cookie>();
         _browser.SetCookieAsync(cookies).GetAwaiter().GetResult();
     }
 
@@ -329,7 +414,9 @@ public class LuaIntegration
                 var ok = t.IsCompletedSuccessfully && t.Result;
                 CallLuaVoid(callback, ok);
             }
-            catch { }
+            catch
+            {
+            }
         });
     }
 
@@ -343,7 +430,9 @@ public class LuaIntegration
                 var json = JsonSerializer.Serialize(list, JsonSerializerOptions.Web);
                 CallLuaVoid(callback, json);
             }
-            catch { }
+            catch
+            {
+            }
         });
     }
 
@@ -365,6 +454,7 @@ public class LuaIntegration
                     {
                         table[i++] = acc;
                     }
+
                     CallLuaVoid(callback, table);
                 }
                 else
@@ -373,25 +463,24 @@ public class LuaIntegration
                     CallLuaVoid(callback, new object[] { list });
                 }
             }
-            catch { }
+            catch
+            {
+            }
         });
     }
 
     public void Account_ChangeAccountCb(string accountId, LuaFunction callback)
     {
-        if (!Guid.TryParse(accountId, out var id))
-        {
-            CallLuaVoid(callback, false);
-            return;
-        }
-        _accountManager.ChangeAccountAsync(id).ContinueWith(t =>
+        _accountManager.ChangeAccountAsync(accountId).ContinueWith(t =>
         {
             try
             {
                 var ok = t.IsCompletedSuccessfully && (t.Exception == null);
                 CallLuaVoid(callback, ok);
             }
-            catch { }
+            catch
+            {
+            }
         });
     }
 
@@ -400,7 +489,13 @@ public class LuaIntegration
     {
         _browser.NavigateAsync(url).ContinueWith(t =>
         {
-            try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { }
+            try
+            {
+                CallLuaVoid(callback, t.IsCompletedSuccessfully);
+            }
+            catch
+            {
+            }
         });
     }
 
@@ -408,7 +503,13 @@ public class LuaIntegration
     {
         _browser.ReloadAsync().ContinueWith(t =>
         {
-            try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { }
+            try
+            {
+                CallLuaVoid(callback, t.IsCompletedSuccessfully);
+            }
+            catch
+            {
+            }
         });
     }
 
@@ -421,7 +522,9 @@ public class LuaIntegration
                 var result = t.IsCompletedSuccessfully ? (t.Result ?? string.Empty) : string.Empty;
                 CallLuaVoid(callback, result);
             }
-            catch { }
+            catch
+            {
+            }
         });
     }
 
@@ -429,7 +532,13 @@ public class LuaIntegration
     {
         _browser.ElementExistsAsync(selector).ContinueWith(t =>
         {
-            try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { }
+            try
+            {
+                CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result);
+            }
+            catch
+            {
+            }
         });
     }
 
@@ -437,7 +546,13 @@ public class LuaIntegration
     {
         _browser.WaitForElementExistsAsync(selector, timeoutMs).ContinueWith(t =>
         {
-            try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { }
+            try
+            {
+                CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result);
+            }
+            catch
+            {
+            }
         });
     }
 
@@ -451,7 +566,9 @@ public class LuaIntegration
                 var json = JsonSerializer.Serialize(cookies, JsonSerializerOptions.Web);
                 CallLuaVoid(callback, json);
             }
-            catch { }
+            catch
+            {
+            }
         });
     }
 
@@ -459,16 +576,28 @@ public class LuaIntegration
     {
         try
         {
-            var cookies = JsonSerializer.Deserialize<Pw.Hub.Models.Cookie[]>(json, JsonSerializerOptions.Web) ?? Array.Empty<Pw.Hub.Models.Cookie>();
+            var cookies = JsonSerializer.Deserialize<Pw.Hub.Models.Cookie[]>(json, JsonSerializerOptions.Web) ??
+                          Array.Empty<Pw.Hub.Models.Cookie>();
             _browser.SetCookieAsync(cookies).ContinueWith(t =>
             {
-                try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { }
+                try
+                {
+                    CallLuaVoid(callback, t.IsCompletedSuccessfully);
+                }
+                catch
+                {
+                }
             });
         }
         catch
         {
-            try { CallLuaVoid(callback, false); } catch { }
+            try
+            {
+                CallLuaVoid(callback, false);
+            }
+            catch
+            {
+            }
         }
     }
-
 }
