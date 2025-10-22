@@ -82,6 +82,7 @@ namespace Pw.Hub.Windows
                     Name = i.Name?.Trim() ?? string.Empty,
                     Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                     Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                    Default = i.Default,
                     Required = i.Required
                 })
                 .ToArray();

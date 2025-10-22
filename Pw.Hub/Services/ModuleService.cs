@@ -93,6 +93,7 @@ public class ModuleService
             {
                 if (string.IsNullOrWhiteSpace(i.Label)) i.Label = i.Name;
                 if (string.IsNullOrWhiteSpace(i.Type)) i.Type = "string";
+                if (string.IsNullOrWhiteSpace(i.Default)) i.Default = string.Empty;
             }
         }
         return modules.OrderBy(m => m.Name).ToList();

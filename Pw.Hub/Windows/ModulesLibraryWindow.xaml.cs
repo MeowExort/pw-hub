@@ -379,6 +379,7 @@ namespace Pw.Hub.Windows
                         Name = i.Name,
                         Label = string.IsNullOrWhiteSpace(i.Label) ? i.Name : i.Label,
                         Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                        Default = string.IsNullOrWhiteSpace(i.Default) ? null : i.Default,
                         Required = i.Required
                     }).ToList() ?? new List<ModuleInput>()
                 };

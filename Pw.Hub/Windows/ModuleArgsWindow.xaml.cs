@@ -28,6 +28,9 @@ public partial class ModuleArgsWindow : Window
         {
             var sp = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
             var lbl = new TextBlock { Text = string.IsNullOrWhiteSpace(input.Label) ? input.Name : input.Label };
+            // Apply application style to label
+            if (TryFindResource("ModernTextBlock") is Style lblStyle)
+                lbl.Style = lblStyle;
             sp.Children.Add(lbl);
 
             FrameworkElement editor;
@@ -36,16 +39,22 @@ public partial class ModuleArgsWindow : Window
                 case "bool":
                 case "boolean":
                     var cb = new CheckBox { IsChecked = bool.TryParse(input.Default, out var b) && b };
+                    if (TryFindResource("ModernCheckBox") is Style cbStyle)
+                        cb.Style = cbStyle;
                     editor = cb;
                     break;
                 case "number":
                 case "int":
                 case "double":
                     var tbNum = new TextBox { Text = input.Default ?? string.Empty };
+                    if (TryFindResource("ModernTextBox") is Style tbStyle1)
+                        tbNum.Style = tbStyle1;
                     editor = tbNum;
                     break;
                 default:
                     var tb = new TextBox { Text = input.Default ?? string.Empty };
+                    if (TryFindResource("ModernTextBox") is Style tbStyle2)
+                        tb.Style = tbStyle2;
                     editor = tb;
                     break;
             }
