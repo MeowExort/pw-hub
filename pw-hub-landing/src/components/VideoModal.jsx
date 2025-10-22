@@ -46,7 +46,7 @@ export default function VideoModal({isOpen, onClose}) {
                         <div
                             className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-[#ffb300]/20">
                             <h3 className="text-xl font-heading font-bold text-white">
-                                Демонстрация работы Perfect World Launcher
+                                Демонстрация работы PW Hub
                             </h3>
                             <button
                                 onClick={onClose}
@@ -61,9 +61,7 @@ export default function VideoModal({isOpen, onClose}) {
 
                         {/* Видео контейнер */}
                         <div className="relative aspect-video bg-black">
-
                             {/* Реальный видео плеер (раскомментируйте когда будет видео) */}
-
                             <video
                                 className="w-full h-full"
                                 controls

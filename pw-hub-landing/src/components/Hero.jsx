@@ -2,12 +2,25 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import VideoModal from './VideoModal';
+import { useAppManifest } from '../hooks/useAppManifest';
 
 export default function Hero() {
     const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+    const { manifest, loading, error } = useAppManifest();
+
+    // Текст для кнопки скачивания в зависимости от состояния
+    const getDownloadButtonText = () => {
+        if (loading) return '🔄 Загрузка...';
+        if (error) return '⬇️ Скачать приложение';
+        if (manifest) return `⬇️ Скачать v${manifest.version}`;
+        return '⬇️ Скачать бесплатно';
+    };
+
+    // URL для скачивания
+    const downloadUrl = manifest?.url || '#';
 
     return (
-        <>// В начале секции Hero добавляем id
+        <>
             <section id="home" className="min-h-screen bg-gradient-to-br from-[#0d1430] to-[#1a237e] flex items-center justify-center px-4 py-12">
                 <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
                     {/* Текстовая часть */}
@@ -41,14 +54,19 @@ export default function Hero() {
 
                                         {/* Текст */}
                                         <div className="text-left">
-                                            <div className="font-heading font-bold text-2xl text-white leading-tight">
-                                                PW
+                                            <div className="font-heading font-bold text-3xl text-white leading-tight">
+                                                PW HUB
                                             </div>
                                             <div className="font-heading text-lg text-[#ffb300] leading-tight">
-                                                Hub
+                                                Perfect World Manager
                                             </div>
                                             <div className="text-xs text-gray-400 font-body mt-1">
                                                 Управление аккаунтами
+                                                {manifest && (
+                                                    <div className="text-[#ffb300] font-bold mt-1">
+                                                        v{manifest.version}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -67,19 +85,38 @@ export default function Hero() {
                         </h1>
 
                         <p className="text-lg md:text-xl mb-8 text-gray-300 leading-relaxed font-body max-w-2xl">
-                            Безопасный лаунчер для игроков, который автоматизирует рутину.
+                            Мощный менеджер аккаунтов Perfect World, который автоматизирует рутину.
                             Приложение <span className="text-[#ffb300] font-semibold">не хранит ваши пароли</span> —
                             авторизация происходит напрямую через официальный сайт.
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="bg-[#ffb300] text-gray-900 px-8 py-4 rounded-lg font-heading font-bold text-lg hover:bg-[#ffc107] transition-colors shadow-lg"
+                            <motion.a
+                                whileHover={{ scale: loading ? 1 : 1.05 }}
+                                whileTap={{ scale: loading ? 1 : 0.95 }}
+                                href={downloadUrl}
+                                download
+                                className={`px-8 py-4 rounded-lg font-heading font-bold text-lg transition-colors shadow-lg flex items-center justify-center gap-2 ${
+                                    loading
+                                        ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                                        : 'bg-[#ffb300] text-gray-900 hover:bg-[#ffc107]'
+                                }`}
+                                onClick={(e) => {
+                                    if (loading || error) {
+                                        e.preventDefault();
+                                    }
+                                }}
                             >
-                                ⬇️ Скачать бесплатно
-                            </motion.button>
+                                {getDownloadButtonText()}
+                                {loading && (
+                                    <motion.div
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                        className="w-5 h-5 border-2 border-gray-700 border-t-gray-900 rounded-full"
+                                    />
+                                )}
+                            </motion.a>
+
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
@@ -90,6 +127,19 @@ export default function Hero() {
                                 <span>Смотреть демо</span>
                             </motion.button>
                         </div>
+
+                        {/* Статус загрузки */}
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="mt-4 p-3 bg-red-900/20 border border-red-500 rounded-lg"
+                            >
+                                <p className="text-red-400 text-sm font-body">
+                                    Не удалось загрузить информацию о версии. {error}
+                                </p>
+                            </motion.div>
+                        )}
 
                         {/* Дополнительная информация */}
                         <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center lg:text-left">
@@ -126,6 +176,9 @@ export default function Hero() {
                                 </div>
                                 <div className="flex-1 text-center">
                                     <span className="text-gray-400 text-sm font-body">PW Hub</span>
+                                    {manifest && (
+                                        <span className="text-[#ffb300] text-xs ml-2">v{manifest.version}</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -133,7 +186,7 @@ export default function Hero() {
                             <div className="rounded-lg overflow-hidden border border-gray-700 shadow-inner">
                                 <img
                                     src="/images/hero-screenshot.png"
-                                    alt="PW Hub"
+                                    alt="Интерфейс PW Hub"
                                     className="w-full h-auto object-cover"
                                 />
                             </div>

@@ -89,9 +89,6 @@ public class LuaIntegration
         _progressSink = sink;
     }
 
-    // Helpers
-    public void Sleep(int ms) => Thread.Sleep(ms);
-
     public void Print(string text)
     {
         try
@@ -307,87 +304,6 @@ public class LuaIntegration
         }
     }
 
-    // Account API
-    public string Account_GetAccount() => _accountManager.GetAccount();
-    public bool Account_IsAuthorized() => _accountManager.IsAuthorizedAsync().GetAwaiter().GetResult();
-
-    public string Account_GetAccountsJson()
-    {
-        var list = _accountManager.GetAccountsAsync().GetAwaiter().GetResult();
-        return JsonSerializer.Serialize(list, JsonSerializerOptions.Web);
-    }
-
-    public Account[] Account_GetAccounts()
-    {
-        var list = _accountManager.GetAccountsAsync().GetAwaiter().GetResult();
-        return list ?? [];
-    }
-
-    public void Account_ChangeAccount(string accountId)
-    {
-        _accountManager.ChangeAccountAsync(accountId).GetAwaiter().GetResult();
-    }
-
-    // Browser API
-    public void Browser_Navigate(string url) => _browser.NavigateAsync(url).GetAwaiter().GetResult();
-    public void Browser_Reload() => _browser.ReloadAsync().GetAwaiter().GetResult();
-    public string Browser_ExecuteScript(string script) => _browser.ExecuteScriptAsync(script).GetAwaiter().GetResult();
-
-    public bool Browser_ElementExists(string selector) =>
-        _browser.ElementExistsAsync(selector).GetAwaiter().GetResult();
-
-    public bool Browser_WaitForElement(string selector, int timeoutMs) =>
-        _browser.WaitForElementExistsAsync(selector, timeoutMs).GetAwaiter().GetResult();
-
-    public string Browser_GetCookiesJson()
-    {
-        var cookies = _browser.GetCookiesAsync().GetAwaiter().GetResult();
-        return JsonSerializer.Serialize(cookies, JsonSerializerOptions.Web);
-    }
-
-    public void Browser_SetCookiesJson(string json)
-    {
-        var cookies = JsonSerializer.Deserialize<Pw.Hub.Models.Cookie[]>(json, JsonSerializerOptions.Web) ??
-                      Array.Empty<Pw.Hub.Models.Cookie>();
-        _browser.SetCookieAsync(cookies).GetAwaiter().GetResult();
-    }
-
-    // Existing callback support for demo
-    public void GetAccountAsyncCallback(Action<string> callback)
-    {
-        var task = _accountManager.GetAccountAsync();
-        task.ContinueWith(t =>
-        {
-            try
-            {
-                var acc = t.IsCompletedSuccessfully ? t.Result : string.Empty;
-                callback(acc);
-            }
-            catch
-            {
-                // ignored
-            }
-        });
-    }
-
-    public void GetAccountAsyncCallback(LuaFunction callback)
-    {
-        var task = _accountManager.GetAccountAsync();
-        task.ContinueWith(t =>
-        {
-            try
-            {
-                var acc = t.IsCompletedSuccessfully ? t.Result : string.Empty;
-                var first = CallLuaWithReturn(callback, acc)?.ToString() ?? string.Empty;
-                _tcs?.TrySetResult(first);
-            }
-            catch (Exception ex)
-            {
-                _tcs?.TrySetException(ex);
-            }
-        });
-    }
-
     // Callback-based non-blocking APIs for Account
     public void Account_GetAccountCb(LuaFunction callback)
     {
@@ -554,50 +470,5 @@ public class LuaIntegration
             {
             }
         });
-    }
-
-    public void Browser_GetCookiesJsonCb(LuaFunction callback)
-    {
-        _browser.GetCookiesAsync().ContinueWith(t =>
-        {
-            try
-            {
-                var cookies = t.IsCompletedSuccessfully ? t.Result : Array.Empty<Pw.Hub.Models.Cookie>();
-                var json = JsonSerializer.Serialize(cookies, JsonSerializerOptions.Web);
-                CallLuaVoid(callback, json);
-            }
-            catch
-            {
-            }
-        });
-    }
-
-    public void Browser_SetCookiesJsonCb(string json, LuaFunction callback)
-    {
-        try
-        {
-            var cookies = JsonSerializer.Deserialize<Pw.Hub.Models.Cookie[]>(json, JsonSerializerOptions.Web) ??
-                          Array.Empty<Pw.Hub.Models.Cookie>();
-            _browser.SetCookieAsync(cookies).ContinueWith(t =>
-            {
-                try
-                {
-                    CallLuaVoid(callback, t.IsCompletedSuccessfully);
-                }
-                catch
-                {
-                }
-            });
-        }
-        catch
-        {
-            try
-            {
-                CallLuaVoid(callback, false);
-            }
-            catch
-            {
-            }
-        }
     }
 }
