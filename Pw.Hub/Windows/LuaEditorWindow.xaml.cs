@@ -70,6 +70,8 @@ public partial class LuaEditorWindow : Window
     {
         // Stop routing Print to this window
         _runner.SetPrintSink(null);
+        // Dispose current Lua VM used by editor so pending callbacks are cancelled and resources released
+        try { _runner.Stop(); } catch { }
     }
 
     private void EditorOnPreviewKeyDown(object sender, KeyEventArgs e)

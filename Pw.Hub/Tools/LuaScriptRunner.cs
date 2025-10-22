@@ -59,16 +59,19 @@ public class LuaScriptRunner
     {
         try
         {
-            using var lua = new Lua();
-            lua.State.Encoding = Encoding.UTF8;
-            _integration.Register(lua);
+            // Keep Lua VM alive so callback-based APIs (…Cb) can invoke into the same state
+            _currentLua?.Dispose(); // dispose previous editor session if any
+            _currentLua = new Lua();
+            _currentLua.State.Encoding = Encoding.UTF8;
+            _integration.Register(_currentLua);
 
             if (!string.IsNullOrWhiteSpace(selectedAccountId))
-                lua["selectedAccountId"] = selectedAccountId;
+                _currentLua["selectedAccountId"] = selectedAccountId;
             else
-                lua["selectedAccountId"] = null;
+                _currentLua["selectedAccountId"] = null;
 
-            lua.DoString(code);
+            // Execute user code synchronously; further async callbacks will target _currentLua
+            _currentLua.DoString(code);
         }
         catch (Exception ex)
         {

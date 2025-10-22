@@ -338,6 +338,7 @@ namespace Pw.Hub.Windows
             if (_selected == null) return;
             try
             {
+                var res1 = await _api.InstallAsync(_selected.Id, _userId);
                 var res = await _api.UninstallAsync(_selected.Id, _userId);
                 if (res != null)
                 {
@@ -511,9 +512,16 @@ namespace Pw.Hub.Windows
 
         private void OnOpenLuaEditorClick(object sender, RoutedEventArgs e)
         {
-            // var runner = new LuaScriptRunner(mainWindow.AccountPage.AccountManager, mainWindow.AccountPage.Browser);
             if (Application.Current.MainWindow is not MainWindow mainWindow) return;
-            var win = new LuaEditorWindow(mainWindow.AccountPage.LuaRunner);
+            var win = new LuaEditorWindow(mainWindow.AccountPage.LuaRunner)
+            {
+                Owner = mainWindow
+            };
+            // Закрываем библиотеку модулей, чтобы не блокировать MainWindow (ShowDialog)
+            // Это позволит Lua-скриптам использовать API, зависящее от UI MainWindow/WebView2
+            try { DialogResult = false; } catch { }
+            Close();
+            // Показываем редактор немодально, чтобы UI MainWindow оставался активным для API-вызовов
             win.Show();
         }
     }
