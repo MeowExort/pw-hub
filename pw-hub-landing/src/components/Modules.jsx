@@ -178,7 +178,7 @@ export default function Modules() {
                         whileTap={{ scale: loading ? 1 : 0.95 }}
                         href={downloadUrl}
                         download
-                        className={`px-8 py-4 rounded-lg font-heading font-bold text-lg transition-colors shadow-lg flex items-center justify-center gap-2 ${
+                        className={`px-8 py-4 rounded-lg font-heading font-bold text-lg transition-colors shadow-lg ${
                             loading
                                 ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
                                 : 'bg-[#ffb300] text-gray-900 hover:bg-[#ffc107]'
