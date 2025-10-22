@@ -82,4 +82,4 @@ jobs:
           script: |
             cd ~/app
             TAG=${{ github.sha }} docker compose pull backend
-            TAG=${{ github.sha }} docker compose up -d
+            TAG=${{ github.sha }} docker compose up -d backend
