@@ -12,8 +12,8 @@ public class LuaScriptRunner
     private readonly IAccountManager _accountManager;
     private readonly IBrowser _browser;
 
-    private Lua? _currentLua;
-    private TaskCompletionSource<string?>? _currentTcs;
+    private Lua _currentLua;
+    private TaskCompletionSource<string> _currentTcs;
     private readonly LuaIntegration _integration;
 
     public LuaScriptRunner(IAccountManager accountManager, IBrowser browser)
@@ -23,17 +23,17 @@ public class LuaScriptRunner
         _integration = new LuaIntegration(_accountManager, _browser);
     }
 
-    public void SetPrintSink(Action<string>? sink)
+    public void SetPrintSink(Action<string> sink)
     {
         _integration.SetPrintSink(sink);
     }
 
-    public void SetProgressSink(Action<int, string?>? sink)
+    public void SetProgressSink(Action<int, string> sink)
     {
         _integration.SetProgressSink(sink);
     }
 
-    public async Task RunAsync(string scriptFileName, string? selectedAccountId = null)
+    public async Task RunAsync(string scriptFileName, string selectedAccountId = null)
     {
         // Load script text from embedded Scripts folder in output directory
         try
@@ -55,20 +55,23 @@ public class LuaScriptRunner
         }
     }
 
-    public Task RunCodeAsync(string code, string? selectedAccountId = null)
+    public Task RunCodeAsync(string code, string selectedAccountId = null)
     {
         try
         {
-            using var lua = new Lua();
-            lua.State.Encoding = Encoding.UTF8;
-            _integration.Register(lua);
+            // Keep Lua VM alive so callback-based APIs (…Cb) can invoke into the same state
+            _currentLua?.Dispose(); // dispose previous editor session if any
+            _currentLua = new Lua();
+            _currentLua.State.Encoding = Encoding.UTF8;
+            _integration.Register(_currentLua);
 
             if (!string.IsNullOrWhiteSpace(selectedAccountId))
-                lua["selectedAccountId"] = selectedAccountId;
+                _currentLua["selectedAccountId"] = selectedAccountId;
             else
-                lua["selectedAccountId"] = null;
+                _currentLua["selectedAccountId"] = null;
 
-            lua.DoString(code);
+            // Execute user code synchronously; further async callbacks will target _currentLua
+            _currentLua.DoString(code);
         }
         catch (Exception ex)
         {
@@ -77,7 +80,7 @@ public class LuaScriptRunner
         return Task.CompletedTask;
     }
 
-    public async Task<string?> RunModuleAsync(ModuleDefinition module, Dictionary<string, object?> args)
+    public async Task<string> RunModuleAsync(ModuleDefinition module, Dictionary<string, object> args)
     {
         try
         {
@@ -109,7 +112,7 @@ public class LuaScriptRunner
             }
 
             // Register completion bridge for async/callback-based scripts
-            _currentTcs = new TaskCompletionSource<string?>();
+            _currentTcs = new TaskCompletionSource<string>();
             var bridge = new LuaCompleteBridge(_currentTcs);
             var mi = typeof(LuaCompleteBridge).GetMethod(nameof(LuaCompleteBridge.Complete), new[] { typeof(object) });
             if (mi != null)
@@ -160,8 +163,8 @@ public class LuaScriptRunner
 
     private class LuaCompleteBridge
     {
-        private readonly TaskCompletionSource<string?> _tcs;
-        public LuaCompleteBridge(TaskCompletionSource<string?> tcs) { _tcs = tcs; }
+        private readonly TaskCompletionSource<string> _tcs;
+        public LuaCompleteBridge(TaskCompletionSource<string> tcs) { _tcs = tcs; }
         public void Complete(object value)
         {
             try { _tcs.TrySetResult(value?.ToString()); } catch { _tcs.TrySetResult(null); }

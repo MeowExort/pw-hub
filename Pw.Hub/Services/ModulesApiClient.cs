@@ -10,8 +10,8 @@ namespace Pw.Hub.Services
     {
         private readonly HttpClient _http;
         public string BaseUrl { get; }
-        public string? Token { get; private set; }
-        public UserDto? CurrentUser { get; private set; }
+        public string Token { get; private set; }
+        public UserDto CurrentUser { get; private set; }
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -19,9 +19,9 @@ namespace Pw.Hub.Services
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public ModulesApiClient(string? baseUrl = null, HttpMessageHandler? handler = null)
+        public ModulesApiClient(string baseUrl = null, HttpMessageHandler handler = null)
         {
-            BaseUrl = baseUrl?.TrimEnd('/') ?? Environment.GetEnvironmentVariable("PW_MODULES_API")?.TrimEnd('/') ?? "http://localhost:5000";
+            BaseUrl = baseUrl?.TrimEnd('/') ?? Environment.GetEnvironmentVariable("PW_MODULES_API")?.TrimEnd('/') ?? "https://api.pw-hub.ru";
             _http = handler == null ? new HttpClient() : new HttpClient(handler);
             _http.Timeout = TimeSpan.FromSeconds(15);
             try
@@ -44,10 +44,10 @@ namespace Pw.Hub.Services
                 _http.DefaultRequestHeaders.Add("X-Auth-Token", Token);
         }
 
-        public async Task<AuthResponse?> RegisterAsync(string username, string password, bool developer = false)
+        public async Task<AuthResponse> RegisterAsync(string username, string password)
         {
             var url = $"{BaseUrl}/api/auth/register";
-            var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(new { username, password, developer }, JsonOptions), Encoding.UTF8, "application/json"));
+            var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(new { username, password }, JsonOptions), Encoding.UTF8, "application/json"));
             if (!resp.IsSuccessStatusCode) return null;
             var json = await resp.Content.ReadAsStringAsync();
             var ar = JsonSerializer.Deserialize<AuthResponse>(json, JsonOptions);
@@ -56,12 +56,11 @@ namespace Pw.Hub.Services
                 Token = ar.Token;
                 ApplyAuthHeader();
                 CurrentUser = new UserDto { UserId = ar.UserId, Username = ar.Username, Developer = ar.Developer };
-                AuthState.Set(Token, CurrentUser);
             }
             return ar;
         }
 
-        public async Task<AuthResponse?> LoginAsync(string username, string password)
+        public async Task<AuthResponse> LoginAsync(string username, string password)
         {
             var url = $"{BaseUrl}/api/auth/login";
             var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(new { username, password }, JsonOptions), Encoding.UTF8, "application/json"));
@@ -77,7 +76,7 @@ namespace Pw.Hub.Services
             return ar;
         }
 
-        public async Task<UserDto?> MeAsync()
+        public async Task<UserDto> MeAsync()
         {
             ApplyAuthHeader();
             var resp = await _http.GetAsync($"{BaseUrl}/api/auth/me");
@@ -87,13 +86,11 @@ namespace Pw.Hub.Services
             if (me != null)
             {
                 CurrentUser = me;
-                if (!string.IsNullOrWhiteSpace(Token))
-                    AuthState.Set(Token, CurrentUser);
             }
             return me;
         }
 
-        public async Task<PagedModulesResponse> SearchAsync(string? q = null, string? tags = null, string? sort = null, string? order = null, int page = 1, int pageSize = 20)
+        public async Task<PagedModulesResponse> SearchAsync(string q = null, string tags = null, string sort = null, string order = null, int page = 1, int pageSize = 20)
         {
             var ub = new UriBuilder(BaseUrl + "/api/modules");
             var query = HttpUtility.ParseQueryString(ub.Query);
@@ -113,7 +110,7 @@ namespace Pw.Hub.Services
             return result;
         }
 
-        public async Task<ModuleDto?> CreateModuleAsync(CreateOrUpdateModule req)
+        public async Task<ModuleDto> CreateModuleAsync(CreateOrUpdateModule req)
         {
             ApplyAuthHeader();
             var url = $"{BaseUrl}/api/modules";
@@ -123,7 +120,7 @@ namespace Pw.Hub.Services
             return JsonSerializer.Deserialize<ModuleDto>(json, JsonOptions);
         }
 
-        public async Task<ModuleDto?> UpdateModuleAsync(Guid id, CreateOrUpdateModule req)
+        public async Task<ModuleDto> UpdateModuleAsync(Guid id, CreateOrUpdateModule req)
         {
             ApplyAuthHeader();
             var url = $"{BaseUrl}/api/modules/{id}";
@@ -141,7 +138,7 @@ namespace Pw.Hub.Services
             return resp.IsSuccessStatusCode;
         }
 
-        public async Task<ModuleDto?> InstallAsync(Guid id, string userId)
+        public async Task<ModuleDto> InstallAsync(Guid id, string userId)
         {
             var url = $"{BaseUrl}/api/modules/{id}/install?userId={Uri.EscapeDataString(userId)}";
             using var resp = await _http.PostAsync(url, new StringContent(string.Empty, Encoding.UTF8, "application/json"));
@@ -153,7 +150,7 @@ namespace Pw.Hub.Services
             return null;
         }
 
-        public async Task<ModuleDto?> UninstallAsync(Guid id, string userId)
+        public async Task<ModuleDto> UninstallAsync(Guid id, string userId)
         {
             var url = $"{BaseUrl}/api/modules/{id}/install?userId={Uri.EscapeDataString(userId)}";
             using var resp = await _http.DeleteAsync(url);
@@ -165,7 +162,7 @@ namespace Pw.Hub.Services
             return null;
         }
 
-        public async Task<ModuleDto?> IncrementRunAsync(Guid id)
+        public async Task<ModuleDto> IncrementRunAsync(Guid id)
         {
             var url = $"{BaseUrl}/api/modules/{id}/run";
             using var resp = await _http.PostAsync(url, new StringContent(string.Empty, Encoding.UTF8, "application/json"));
@@ -191,7 +188,7 @@ namespace Pw.Hub.Services
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Version { get; set; } = "1.0.0";
-        public string? Description { get; set; }
+        public string Description { get; set; }
         public string DescriptionHtml { get; set; } = string.Empty;
         public string Script { get; set; } = string.Empty;
         public InputDefinitionDto[] Inputs { get; set; } = Array.Empty<InputDefinitionDto>();
@@ -199,7 +196,8 @@ namespace Pw.Hub.Services
         public int InstallCount { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
-        public string? OwnerUserId { get; set; }
+        public string OwnerUserId { get; set; }
+        public string AuthorUsername { get; set; }
     }
 
     public class InputDefinitionDto
@@ -207,6 +205,7 @@ namespace Pw.Hub.Services
         public string Name { get; set; } = string.Empty;
         public string Label { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
+        public string Default { get; set; } = string.Empty;
         public bool Required { get; set; }
     }
 
@@ -214,7 +213,7 @@ namespace Pw.Hub.Services
     {
         public string Name { get; set; } = string.Empty;
         public string Version { get; set; } = "1.0.0";
-        public string? Description { get; set; }
+        public string Description { get; set; }
         public string Script { get; set; } = string.Empty;
         public InputDefinitionDto[] Inputs { get; set; } = Array.Empty<InputDefinitionDto>();
     }

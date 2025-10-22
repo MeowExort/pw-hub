@@ -1,10 +1,13 @@
 ﻿using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using Microsoft.EntityFrameworkCore;
 using NLua;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
@@ -21,7 +24,7 @@ namespace Pw.Hub;
 public partial class MainWindow
 {
     private readonly MainViewModel _vm = new();
-    private object? _contextMenuTarget;
+    private object _contextMenuTarget;
 
     private readonly ModuleService _moduleService = new();
     private List<ModuleDefinition> _modules = new();
@@ -84,6 +87,8 @@ public partial class MainWindow
 
         // "Редактировать аккаунт" доступна только для аккаунтов
         EditAccountMenuItem.IsEnabled = isAccount;
+        // "Загрузить персонажей" доступна только для аккаунтов
+        LoadCharactersMenuItem.IsEnabled = isAccount;
 
         // "Удалить" доступна для отрядов и аккаунтов
         DeleteMenuItem.IsEnabled = isSquad || isAccount;
@@ -176,7 +181,7 @@ public partial class MainWindow
             NavigationTree.ItemContainerGenerator.ContainerFromItem((sender as TreeView).SelectedItem) as TreeViewItem);
     }
 
-    private void SelectedItemChanged(TreeViewItem? tvi)
+    private void SelectedItemChanged(TreeViewItem tvi)
     {
         ControlsList_SelectedItemChanged();
         if (tvi != null)
@@ -375,7 +380,9 @@ public partial class MainWindow
             ModulesList.ItemsSource = _modules;
             RunModuleButton.IsEnabled = _modules.Count > 0;
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private void OnReloadModulesClick(object sender, RoutedEventArgs e)
@@ -403,6 +410,7 @@ public partial class MainWindow
             MessageBox.Show("Выберите модуль для редактирования", "Модули");
             return;
         }
+
         var editor = new Windows.ModuleEditorWindow(selected) { Owner = this };
         if (editor.ShowDialog() == true)
         {
@@ -439,7 +447,9 @@ public partial class MainWindow
                 runner.Stop();
                 logWindow.AppendLog("[Остановлено пользователем]");
             }
-            catch { }
+            catch
+            {
+            }
         });
 
         logWindow.SetRunning(true);
@@ -447,7 +457,7 @@ public partial class MainWindow
         // Fire-and-forget API run increment so the library reflects usage
         _ = IncrementRunIfApiModuleAsync(module);
 
-        string? result = null;
+        string result = null;
         // Start execution and update UI on completion
         var task = runner.RunModuleAsync(module, argsWindow.Values).ContinueWith(t =>
         {
@@ -462,7 +472,9 @@ public partial class MainWindow
                     app.NotifyIcon.ShowBalloonTip(5, title, text, System.Windows.Forms.ToolTipIcon.Info);
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }, TaskScheduler.FromCurrentSynchronizationContext());
 
         // Show modal log window while running; Close becomes available when finished
@@ -486,6 +498,7 @@ public partial class MainWindow
                 MessageBox.Show("Не удалось найти метод интеграции Lua.");
                 return;
             }
+
             lua.RegisterFunction("GetAccountAsyncCallback", luaIntegration, mi);
 
             // Start script; it will call our C# function with a Lua callback.
@@ -521,6 +534,123 @@ public partial class MainWindow
                 await client.IncrementRunAsync(id);
             }
         }
-        catch { }
+        catch
+        {
+        }
+    }
+
+    private class JsOption
+    {
+        public string value { get; set; } = string.Empty;
+        public string text { get; set; } = string.Empty;
+    }
+
+    private void OnLoadCharactersClick(object sender, RoutedEventArgs e)
+    {
+        if (_contextMenuTarget is not Account selectedAccount)
+        {
+            MessageBox.Show("Выберите аккаунт", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var log = new Windows.ScriptLogWindow("Загрузка персонажей") { Owner = this };
+
+        // Запускаем асинхронный процесс загрузки до показа модального окна
+        async void StartLoad()
+        {
+            try
+            {
+                log.AppendLog($"Переключаемся на аккаунт: {selectedAccount.Name}");
+                await AccountPage.AccountManager.ChangeAccountAsync(selectedAccount.Id);
+
+                log.AppendLog("Переходим на страницу промо-предметов...");
+                await AccountPage.Browser.NavigateAsync("https://pwonline.ru/promo_items.php");
+
+                var hasShard = await AccountPage.Browser.WaitForElementExistsAsync(".js-shard", 20000);
+                if (!hasShard)
+                {
+                    log.AppendLog("Не найден элемент .js-шard — список серверов.");
+                    log.MarkCompleted("Ошибка: не удалось получить список серверов");
+                    return;
+                }
+
+                log.AppendLog("Читаем список серверов...");
+                var shardsJson = await AccountPage.Browser.ExecuteScriptAsync(
+                    "(function(){ var s=document.querySelector('.js-shard'); if(!s) return []; return Array.from(s.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
+                );
+                var shards =
+                    JsonSerializer.Deserialize<List<JsOption>>(shardsJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<JsOption>();
+
+                var servers = new List<AccountServer>();
+                for (var index = 0; index < shards.Count; index++)
+                {
+                    var shard = shards[index];
+                    log.AppendLog($"[{index + 1}/{shards.Count}] Сервер: {shard.text}");
+
+                    // Выбираем сервер
+                    var valEsc = (shard.value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'");
+                    await AccountPage.Browser.ExecuteScriptAsync(
+                        $"(function(){{ var s=document.querySelector('.js-shard'); if(!s) return false; s.value='{valEsc}'; s.dispatchEvent(new Event('change', {{ bubbles:true }})); return true; }})()"
+                    );
+
+                    // Ждем появления/обновления списка персонажей
+                    await AccountPage.Browser.WaitForElementExistsAsync(".js-char", 10000);
+
+                    var charsJson = await AccountPage.Browser.ExecuteScriptAsync(
+                        "(function(){ var c=document.querySelector('.js-char'); if(!c) return []; return Array.from(c.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
+                    );
+                    var chars = JsonSerializer.Deserialize<List<JsOption>>(charsJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<JsOption>();
+
+                    var server = new AccountServer
+                    {
+                        OptionId = shard.value ?? string.Empty,
+                        Name = shard.text ?? string.Empty,
+                        Characters = chars.Select(ch => new AccountCharacter
+                            { OptionId = ch.value ?? string.Empty, Name = ch.text ?? string.Empty }).ToList()
+                    };
+                    servers.Add(server);
+                    log.AppendLog($"   Персонажей: {server.Characters.Count}");
+                }
+
+                await using (var db = new AppDbContext())
+                {
+                    var acc = await db.Accounts
+                        .Include(x => x.Servers)
+                        .ThenInclude(x => x.Characters)
+                        .SingleOrDefaultAsync(x => x.Id == selectedAccount.Id);
+                    if (acc != null)
+                    {
+                        foreach (var server in servers)
+                        {
+                            var existing = acc.Servers.FirstOrDefault(s => s.OptionId == server.OptionId) ?? server;
+
+                            var newChars = server.Characters.Where(character =>
+                                    existing.Characters.All(c => c.OptionId != character.OptionId))
+                                .ToList();
+
+                            existing.Characters.AddRange(newChars);
+                        }
+
+                        acc.Servers = servers;
+                        db.Update(acc);
+                        await db.SaveChangesAsync();
+                    }
+                }
+                _vm.Reload();
+
+                log.MarkCompleted("Готово: данные о серверах и персонажах сохранены.");
+            }
+            catch (Exception ex)
+            {
+                log.AppendLog("Ошибка: " + ex.Message);
+                log.MarkCompleted("Завершено с ошибкой");
+            }
+        }
+
+        StartLoad();
+        // Показываем окно как модальное, пока идёт загрузка (кнопка Закрыть станет доступной по завершении)
+        log.ShowDialog();
     }
 }

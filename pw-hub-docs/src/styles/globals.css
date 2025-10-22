@@ -1,0 +1,256 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap');
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
+/* Улучшение отображения блоков кода */
+pre[class*="language-"] {
+    margin: 1rem 0;
+    border-radius: 8px;
+    background: #2d2d2d !important;
+}
+
+code[class*="language-"] {
+    font-family: 'Fira Code', 'Courier New', monospace !important;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+:root {
+    --primary-bg: #0d1430;
+    --secondary-bg: #1a237e;
+    --accent: #ffb300;
+    --accent-hover: #ffc107;
+    --text-primary: #ffffff;
+    --text-secondary: #e0e0e0;
+    --text-muted: #9e9e9e;
+    --border: #333;
+    --code-bg: #1e1e1e;
+    --sidebar-width: 280px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Exo 2', sans-serif;
+    background: linear-gradient(135deg, var(--primary-bg) 0%, var(--secondary-bg) 100%);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.main-container {
+    display: flex;
+    flex: 1;
+}
+
+.content {
+    flex: 1;
+    padding: 2rem;
+    margin-left: var(--sidebar-width);
+    max-width: calc(100% - var(--sidebar-width));
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: var(--accent);
+}
+
+h1 {
+    font-size: 3rem;
+    background: linear-gradient(45deg, var(--accent), #ff8f00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 2rem;
+}
+
+h2 {
+    font-size: 2rem;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.5rem;
+    margin-top: 2rem;
+}
+
+h3 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-top: 1.5rem;
+}
+
+/* Cards */
+.function-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+}
+
+.function-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 179, 0, 0.1);
+}
+
+/* Code blocks */
+.code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.code-block code {
+    color: #e0e0e0;
+}
+
+/* Navigation */
+.nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    display: block;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: var(--accent);
+    background: rgba(255, 179, 0, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .main-container {
+        flex-direction: column;
+    }
+
+    .content {
+        margin-left: 0;
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+}
+
+/* Плавная прокрутка для всего сайта */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Стили для якорных ссылок */
+a[href^="#"] {
+    color: var(--accent);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+a[href^="#"]:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+/* Улучшение видимости при фокусе для доступности */
+a:focus, button:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Анимация для появления/исчезновения кнопки "Наверх" */
+.scroll-to-top-btn {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Стили для подсветки синтаксиса */
+.code-editor-textarea {
+    outline: none;
+    font-family: 'Fira Code', 'Courier New', monospace !important;
+}
+
+.code-editor-pre {
+    font-family: 'Fira Code', 'Courier New', monospace !important;
+}
+
+/* Улучшение читаемости кода */
+.token.comment {
+    color: #6a9955;
+}
+
+.token.keyword {
+    color: #569cd6;
+}
+
+.token.string {
+    color: #ce9178;
+}
+
+.token.function {
+    color: #dcdcaa;
+}
+
+.token.number {
+    color: #b5cea8;
+}
+
+.token.operator {
+    color: #d4d4d4;
+}
+
+.token.punctuation {
+    color: #d4d4d4;
+}
+
+/* Отступ для якорных ссылок чтобы не скрывались под фиксированным хедером */
+.function-card {
+    scroll-margin-top: 100px;
+}
+
+/* Улучшение для плавной прокрутки */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Стили для подсветки при переходе по якорю */
+.function-card:target {
+    background: rgba(255, 179, 0, 0.05) !important;
+    border: 1px solid var(--accent) !important;
+    transition: all 0.5s ease;
+}

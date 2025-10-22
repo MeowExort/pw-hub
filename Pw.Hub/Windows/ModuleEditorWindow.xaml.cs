@@ -10,7 +10,7 @@ public partial class ModuleEditorWindow : Window
     public ModuleDefinition Module { get; private set; }
     public ObservableCollection<ModuleInput> Inputs { get; } = new();
 
-    public ModuleEditorWindow(ModuleDefinition? module = null)
+    public ModuleEditorWindow(ModuleDefinition module = null)
     {
         InitializeComponent();
         if (module == null)

@@ -22,7 +22,11 @@ public class MainViewModel : BaseViewModel
         db.Database.Migrate();
 
         // Загружаем отряды с аккаунтами
-        var squads = db.Squads.Include(s => s.Accounts).ToList();
+        var squads = db.Squads
+            .Include(s => s.Accounts)
+            .ThenInclude(x=> x.Servers)
+            .ThenInclude(x=> x.Characters)
+            .ToList();
 
         Squads.Clear();
         foreach (var squad in squads)

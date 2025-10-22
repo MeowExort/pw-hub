@@ -20,6 +20,6 @@ public class ModuleInput
     public string Name { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
     public string Type { get; set; } = "string"; // string|number|bool
-    public string? Default { get; set; }
+    public string Default { get; set; }
     public bool Required { get; set; } = false;
 }

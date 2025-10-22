@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Forms;
 using Pw.Hub.Services;
 using NotifyIcon = NotifyIconEx.NotifyIcon;
+using System.IO;
 
 namespace Pw.Hub;
 
@@ -19,6 +20,7 @@ public partial class App
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); } catch { }
 
         NotifyIcon = new NotifyIcon()
         {
@@ -36,9 +38,6 @@ public partial class App
         NotifyIcon.AddMenu("Закрыть", (_, _) => Current.Shutdown());
 
         NotifyIcon.MouseDoubleClick += NotifyIconOnMouseDoubleClick;
-
-        // Fire-and-forget update check on startup (no UI if up-to-date or failed)
-        _ = _updateService.CheckForUpdates(false);
 
         // Prevent auto-shutdown when the login dialog (the only window) closes
         Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -60,6 +59,9 @@ public partial class App
 
         // Restore default shutdown behavior after main window is shown
         Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+        // Fire-and-forget update check on startup (no UI if up-to-date or failed)
+        _ = _updateService.CheckForUpdates(false);
     }
 
     private void NotifyIconOnMouseDoubleClick(object sender, MouseEventArgs e)

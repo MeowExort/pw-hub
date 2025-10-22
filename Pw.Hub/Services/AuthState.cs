@@ -8,8 +8,8 @@ public static class AuthState
     private static readonly string Folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Pw.Hub");
     private static readonly string FilePath = Path.Combine(Folder, "auth.json");
 
-    public static string? Token { get; private set; }
-    public static UserDto? CurrentUser { get; private set; }
+    public static string Token { get; private set; }
+    public static UserDto CurrentUser { get; private set; }
 
     public static void Load()
     {
@@ -36,16 +36,17 @@ public static class AuthState
         catch { }
     }
 
-    public static void Set(string? token, UserDto? user)
+    public static void Set(string token, UserDto user, bool remember)
     {
         Token = token;
         CurrentUser = user;
+        if (!remember) return;
         Save();
     }
 
     private class AuthPersisted
     {
-        public string? Token { get; set; }
-        public UserDto? User { get; set; }
+        public string Token { get; set; }
+        public UserDto User { get; set; }
     }
 }

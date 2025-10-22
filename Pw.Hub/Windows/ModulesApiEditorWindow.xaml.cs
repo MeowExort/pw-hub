@@ -8,11 +8,11 @@ namespace Pw.Hub.Windows
 {
     public partial class ModulesApiEditorWindow : Window
     {
-        private readonly ModuleDto? _existing;
+        private readonly ModuleDto _existing;
         private readonly ObservableCollection<InputItem> _inputs = new();
-        private CancellationTokenSource? _previewCts;
+        private CancellationTokenSource _previewCts;
 
-        public ModulesApiEditorWindow(ModuleDto? existing = null)
+        public ModulesApiEditorWindow(ModuleDto existing = null)
         {
             InitializeComponent();
             _existing = existing;
@@ -20,7 +20,13 @@ namespace Pw.Hub.Windows
             // Bind grid
             InputsGrid.ItemsSource = _inputs;
 
-            Loaded += async (_, _) => await InitPreviewAsync();
+            Loaded += async (_, _) =>
+            {
+                await InitPreviewAsync();
+                // Ensure clipping is updated after window is fully loaded
+                await Task.Delay(200);
+                UpdateWebViewClipping();
+            };
 
             if (existing != null)
             {
@@ -35,7 +41,7 @@ namespace Pw.Hub.Windows
                         Name = i.Name ?? string.Empty,
                         Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                         Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
-                        Default = string.Empty,
+                        Default = i.Default,
                         Required = i.Required
                     });
                 }
@@ -51,10 +57,21 @@ namespace Pw.Hub.Windows
                 {
                     await PreviewWebView.EnsureCoreWebView2Async();
                 }
+                
+                // Update clipping on size change
+                PreviewWebView.SizeChanged += (s, e) => UpdateWebViewClipping();
+                PreviewContainer.SizeChanged += (s, e) => UpdateWebViewClipping();
+                this.SizeChanged += (s, e) => UpdateWebViewClipping();
             }
             catch { }
             await UpdatePreviewAsync();
             UpdatePreviewVisibility();
+            
+            // Initial clipping update
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                UpdateWebViewClipping();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         public CreateOrUpdateModule GetRequest()
@@ -65,6 +82,7 @@ namespace Pw.Hub.Windows
                     Name = i.Name?.Trim() ?? string.Empty,
                     Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                     Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                    Default = i.Default,
                     Required = i.Required
                 })
                 .ToArray();
@@ -111,7 +129,12 @@ namespace Pw.Hub.Windows
         {
             UpdatePreviewVisibility();
             if (ShowPreviewCheck.IsChecked == true)
+            {
                 DebouncePreview();
+                // Update clipping when preview is shown
+                Dispatcher.BeginInvoke(new Action(() => UpdateWebViewClipping()), 
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         }
 
         private void UpdatePreviewVisibility()
@@ -127,6 +150,58 @@ namespace Pw.Hub.Windows
                 }
                 var visible = ShowPreviewCheck.IsChecked == true;
                 PreviewContainer.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            }
+            catch { }
+        }
+
+        private void MainScrollViewer_OnScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+        {
+            // Update WebView2 clipping when scrolling
+            UpdateWebViewClipping();
+        }
+
+        private void UpdateWebViewClipping()
+        {
+            try
+            {
+                if (PreviewWebView?.CoreWebView2 == null || MainScrollViewer == null || PreviewContainer == null || PreviewHeader == null)
+                    return;
+
+                // Get the position of PreviewContainer relative to ScrollViewer content
+                var relativePos = PreviewContainer.TransformToAncestor(MainScrollViewer).Transform(new System.Windows.Point(0, 0));
+                
+                var scrollViewerHeight = MainScrollViewer.ActualHeight;
+                var containerHeight = PreviewContainer.ActualHeight;
+                var headerHeight = PreviewHeader.ActualHeight;
+                
+                // Calculate how much the container is clipped at top and bottom
+                // If relativePos.Y is negative, container top is above viewport (scrolled up)
+                var containerClipTop = Math.Max(0, -relativePos.Y);
+                
+                // WebView2 should be clipped less because header takes some space
+                // Only clip WebView if the clipping goes beyond the header
+                var webViewClipTop = Math.Max(0, containerClipTop - headerHeight);
+                
+                // If container bottom is below viewport, clip from bottom
+                var containerBottom = relativePos.Y + containerHeight;
+                var clipBottom = Math.Max(0, containerBottom - scrollViewerHeight);
+                
+                // Apply visual clipping to container
+                if (containerClipTop > 0 || clipBottom > 0)
+                {
+                    var visibleHeight = Math.Max(0, containerHeight - containerClipTop - clipBottom);
+                    var clipRect = new System.Windows.Media.RectangleGeometry(
+                        new System.Windows.Rect(0, containerClipTop, PreviewContainer.ActualWidth, visibleHeight));
+                    PreviewContainer.Clip = clipRect;
+                    
+                    // Set margin on WebView2 accounting for header height
+                    PreviewWebView.Margin = new System.Windows.Thickness(0, webViewClipTop, 0, clipBottom);
+                }
+                else
+                {
+                    PreviewContainer.Clip = null;
+                    PreviewWebView.Margin = new System.Windows.Thickness(0);
+                }
             }
             catch { }
         }
@@ -160,17 +235,24 @@ namespace Pw.Hub.Windows
                 {
                     await PreviewWebView.EnsureCoreWebView2Async();
                 }
-                var css = @"body{font-family:Segoe UI,Arial,sans-serif;padding:12px;background:#171A21;color:#C7D5E0;}
-                    h1,h2,h3,h4,h5,h6{color:#C7D5E0}
+                var css = @"html{height:100%;margin:0;padding:0;overflow:auto;}
+                    body{margin:0;padding:8px 12px 12px 12px;font-family:Segoe UI,Arial,sans-serif;background:#171A21;color:#C7D5E0;box-sizing:border-box;}
+                    *{box-sizing:border-box;max-width:100%;}
+                    h1,h2,h3,h4,h5,h6{color:#C7D5E0;margin:0.5em 0;}
                     a{color:#66C0F4}
-                    pre{background:#1B2838;padding:8px;border-radius:6px;overflow:auto;border:1px solid #2A475E}
-                    code{background:#1B2838;padding:2px 4px;border-radius:4px;border:1px solid #2A475E}
+                    pre{background:#1B2838;padding:8px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word;border:1px solid #2A475E;margin:8px 0;}
+                    code{background:#1B2838;padding:2px 4px;border-radius:4px;border:1px solid #2A475E;word-break:break-word;}
                     blockquote{border-left:3px solid #2A475E;margin:8px 0;padding:4px 12px;color:#B8C6D1}
-                    table{border-collapse:collapse}
-                    th,td{border:1px solid #2A475E;padding:6px}
-                    ul,ol{padding-left:22px}";
+                    table{border-collapse:collapse;width:100%;margin:8px 0;}
+                    th,td{border:1px solid #2A475E;padding:6px;text-align:left;}
+                    ul,ol{padding-left:22px;margin:8px 0;}
+                    p{margin:0.5em 0;}";
                 var doc = $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
                 PreviewWebView.NavigateToString(doc);
+                
+                // Update clipping after content loads
+                await Task.Delay(100); // Small delay to let content render
+                UpdateWebViewClipping();
             }
             catch { }
         }
@@ -236,7 +318,7 @@ namespace Pw.Hub.Windows
             public string Name { get; set; } = string.Empty;
             public string Label { get; set; } = string.Empty;
             public string Type { get; set; } = "string"; // string|number|bool
-            public string? Default { get; set; }
+            public string Default { get; set; }
             public bool Required { get; set; }
         }
     }

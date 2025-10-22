@@ -19,7 +19,7 @@ namespace Pw.Hub.Migrations
 
             modelBuilder.Entity("Pw.Hub.Models.Account", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
@@ -48,6 +48,60 @@ namespace Pw.Hub.Migrations
                     b.ToTable("Accounts");
                 });
 
+            modelBuilder.Entity("Pw.Hub.Models.AccountCharacter", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OptionId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ServerId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("AccountCharacter");
+                });
+
+            modelBuilder.Entity("Pw.Hub.Models.AccountServer", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultCharacterOptionId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OptionId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.ToTable("AccountServer");
+                });
+
             modelBuilder.Entity("Pw.Hub.Models.Squad", b =>
                 {
                     b.Property<Guid>("Id")
@@ -72,6 +126,36 @@ namespace Pw.Hub.Migrations
                         .IsRequired();
 
                     b.Navigation("Squad");
+                });
+
+            modelBuilder.Entity("Pw.Hub.Models.AccountCharacter", b =>
+                {
+                    b.HasOne("Pw.Hub.Models.AccountServer", "Server")
+                        .WithMany("Characters")
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Pw.Hub.Models.AccountServer", b =>
+                {
+                    b.HasOne("Pw.Hub.Models.Account", "Account")
+                        .WithMany("Servers")
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("Pw.Hub.Models.Account", b =>
+                {
+                    b.Navigation("Servers");
+                });
+
+            modelBuilder.Entity("Pw.Hub.Models.AccountServer", b =>
+                {
+                    b.Navigation("Characters");
                 });
 
             modelBuilder.Entity("Pw.Hub.Models.Squad", b =>

@@ -5,7 +5,7 @@ namespace Pw.Hub.Pages;
 public partial class CreateAccountWindow
 {
     public string AccountName { get; private set; } = string.Empty;
-    public string? Email { get; private set; }
+    public string Email { get; private set; }
 
     public CreateAccountWindow()
     {

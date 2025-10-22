@@ -4,23 +4,21 @@ using Pw.Hub.Services;
 using Markdig;
 using System.IO;
 using Pw.Hub.Models;
-using Pw.Hub.Pages;
-using Pw.Hub.Tools;
 
 namespace Pw.Hub.Windows
 {
     public partial class ModulesLibraryWindow : Window
     {
         private readonly ModulesApiClient _api;
-        private ModuleDto? _selected;
+        private ModuleDto _selected;
         private readonly string _userId;
         private readonly ModuleService _moduleService = new();
 
-        public ModulesLibraryWindow(string? apiBaseUrl = null, string? userId = null)
+        public ModulesLibraryWindow(string apiBaseUrl = null, string userId = null)
         {
             InitializeComponent();
             _api = new ModulesApiClient(apiBaseUrl);
-            _userId = string.IsNullOrWhiteSpace(userId) ? "local-user" : userId!;
+            _userId = AuthState.CurrentUser.UserId ?? throw new ArgumentNullException(nameof(AuthState.CurrentUser.UserId));
             Loaded += async (_, _) => await InitAsync();
         }
 
@@ -98,6 +96,7 @@ namespace Pw.Hub.Windows
                 var localVer = GetLocalVersion(_selected.Id);
                 var serverVer = _selected.Version ?? "1.0.0";
                 var title = string.IsNullOrWhiteSpace(serverVer) ? _selected.Name : _selected.Name + "  v" + serverVer;
+                title += $" Автор: {_selected.AuthorUsername}";
                 if (!string.IsNullOrWhiteSpace(localVer))
                 {
                     var lv = localVer ?? string.Empty;
@@ -112,8 +111,6 @@ namespace Pw.Hub.Windows
                         title += "  (локально v" + lv + ")";
                         UpdateButton.IsEnabled = false;
                     }
-                    title += $"  — Установок: {_selected.InstallCount}";
-                    title += $"  — Автор: {_selected.OwnerUserId}";
                 }
                 else
                 {
@@ -156,7 +153,7 @@ namespace Pw.Hub.Windows
             }
         }
 
-        private static string NormalizeSemVer(string? v)
+        private static string NormalizeSemVer(string v)
         {
             if (string.IsNullOrWhiteSpace(v)) return "0.0.0";
             var core = v.Split('+')[0];
@@ -169,7 +166,7 @@ namespace Pw.Hub.Windows
             return Version.TryParse(NormalizeSemVer(v), out ver);
         }
 
-        private string? GetLocalVersion(Guid id)
+        private string GetLocalVersion(Guid id)
         {
             try
             {
@@ -315,6 +312,7 @@ namespace Pw.Hub.Windows
             if (_selected == null) return;
             try
             {
+                var res1 = await _api.UninstallAsync(_selected.Id, _userId);
                 var res = await _api.InstallAsync(_selected.Id, _userId);
                 if (res != null)
                 {
@@ -340,6 +338,7 @@ namespace Pw.Hub.Windows
             if (_selected == null) return;
             try
             {
+                var res1 = await _api.InstallAsync(_selected.Id, _userId);
                 var res = await _api.UninstallAsync(_selected.Id, _userId);
                 if (res != null)
                 {
@@ -382,6 +381,7 @@ namespace Pw.Hub.Windows
                         Name = i.Name,
                         Label = string.IsNullOrWhiteSpace(i.Label) ? i.Name : i.Label,
                         Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                        Default = string.IsNullOrWhiteSpace(i.Default) ? null : i.Default,
                         Required = i.Required
                     }).ToList() ?? new List<ModuleInput>()
                 };
@@ -389,8 +389,10 @@ namespace Pw.Hub.Windows
                 var svc = new ModuleService();
                 svc.AddOrUpdateModule(def);
             }
-            catch
+            catch (Exception ex)
             {
+                MessageBox.Show(ex.Message);
+
                 // ignore local install errors to not break API flow; user will get message if needed elsewhere
             }
         }
@@ -510,9 +512,16 @@ namespace Pw.Hub.Windows
 
         private void OnOpenLuaEditorClick(object sender, RoutedEventArgs e)
         {
-            // var runner = new LuaScriptRunner(mainWindow.AccountPage.AccountManager, mainWindow.AccountPage.Browser);
             if (Application.Current.MainWindow is not MainWindow mainWindow) return;
-            var win = new LuaEditorWindow(mainWindow.AccountPage.LuaRunner);
+            var win = new LuaEditorWindow(mainWindow.AccountPage.LuaRunner)
+            {
+                Owner = mainWindow
+            };
+            // Закрываем библиотеку модулей, чтобы не блокировать MainWindow (ShowDialog)
+            // Это позволит Lua-скриптам использовать API, зависящее от UI MainWindow/WebView2
+            try { DialogResult = false; } catch { }
+            Close();
+            // Показываем редактор немодально, чтобы UI MainWindow оставался активным для API-вызовов
             win.Show();
         }
     }

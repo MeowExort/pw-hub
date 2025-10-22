@@ -1,11 +1,12 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace Pw.Hub.Models;
 
 public class Account : INotifyPropertyChanged
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     public string Name
     {
@@ -28,12 +29,19 @@ public class Account : INotifyPropertyChanged
             OnPropertyChanged(nameof(ImageUri));
         }
     }
-    
+
     public DateTime LastVisit
     {
         get;
         set => SetField(ref field, value);
     } = DateTime.MinValue;
+
+    // Convenience property for accessing servers as objects
+    public List<AccountServer> Servers
+    {
+        get;
+        set => SetField(ref field, value);
+    }
 
     public Uri ImageUri => string.IsNullOrEmpty(ImageSource) ? null : new Uri(ImageSource);
 

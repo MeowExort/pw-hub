@@ -15,6 +15,9 @@ public static class SearchModulesEndpoint
 
     public static async Task<IResult> Handle(ModulesDbContext db, string? q, string? tags, string? sort, string? order, int page = 1, int pageSize = 20, int? sinceDays = null)
     {
+        // Increment searches metric at the beginning of a search request
+        ModuleMetrics.Searches.Add(1);
+
         var query = db.Modules.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -34,7 +37,8 @@ public static class SearchModulesEndpoint
             {
                 Module = m,
                 InstallCount = db.UserModules.Count(um => um.ModuleId == m.Id),
-                RecentInstallCount = db.UserModules.Count(um => um.ModuleId == m.Id && um.InstalledAt >= since)
+                RecentInstallCount = db.UserModules.Count(um => um.ModuleId == m.Id && um.InstalledAt >= since),
+                AuthorUsername = db.Users.Where(u => u.Id == m.OwnerUserId!).Select(u => u.Username).FirstOrDefault()
             });
 
         var ord = string.Equals(order, "asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc";
@@ -80,7 +84,7 @@ public static class SearchModulesEndpoint
             Total = total,
             Page = page,
             PageSize = pageSize,
-            Items = items.Select(x => ModuleMapper.ToDto(x.Module, x.InstallCount)).ToList()
+            Items = items.Select(x => ModuleMapper.ToDto(x.Module, x.InstallCount, x.AuthorUsername)).ToList()
         };
 
         return Results.Ok(result);

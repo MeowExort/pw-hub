@@ -38,8 +38,7 @@ public partial class LoginRegisterWindow : Window
         {
             var username = UsernameText.Text?.Trim() ?? string.Empty;
             var password = PasswordBox.Password ?? string.Empty;
-            var dev = DeveloperCheck.IsChecked == true;
-            var resp = await _api.RegisterAsync(username, password, dev);
+            var resp = await _api.RegisterAsync(username, password);
             if (resp == null)
             {
                 ErrorText.Text = "Регистрация не удалась";
@@ -50,14 +49,7 @@ public partial class LoginRegisterWindow : Window
 
             // Remember me handling for registration
             var remember = RememberCheck.IsChecked == true;
-            if (remember)
-            {
-                AuthState.Set(_api.Token, _api.CurrentUser);
-            }
-            else
-            {
-                AuthState.Set(null, null);
-            }
+            AuthState.Set(_api.Token, _api.CurrentUser, remember);
 
             DialogResult = true;
             Close();
@@ -86,14 +78,7 @@ public partial class LoginRegisterWindow : Window
 
             // Remember me handling for login
             var remember = RememberCheck.IsChecked == true;
-            if (remember)
-            {
-                AuthState.Set(_api.Token, _api.CurrentUser);
-            }
-            else
-            {
-                AuthState.Set(null, null);
-            }
+            AuthState.Set(_api.Token, _api.CurrentUser, remember);
 
             DialogResult = true;
             Close();
