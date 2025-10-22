@@ -7,6 +7,7 @@ public static class AppEndpoints
         var group = app.MapGroup("/api/app");
         UploadVersionEndpoint.Map(group);
         ManifestEndpoint.Map(group);
+        StatsEndpoint.Map(group);
         return group;
     }
 }

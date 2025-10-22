@@ -36,10 +36,11 @@ public static class AuthState
         catch { }
     }
 
-    public static void Set(string token, UserDto user)
+    public static void Set(string token, UserDto user, bool remember)
     {
         Token = token;
         CurrentUser = user;
+        if (!remember) return;
         Save();
     }
 
