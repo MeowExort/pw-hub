@@ -44,7 +44,21 @@ builder.Services.AddDbContext<ModulesDbContext>(options =>
 
 builder.Services.AddCors(options =>
 {
+    // Default policy kept permissive to avoid breaking existing clients
     options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+
+    // Policy for pw-helper.ru
+    options.AddPolicy("PwHelper", p =>
+        p.WithOrigins(
+                "https://pw-helper.ru",
+                "http://pw-helper.ru",
+                "https://www.pw-helper.ru",
+                "http://www.pw-helper.ru"
+            )
+         .AllowAnyHeader()
+         .AllowAnyMethod()
+         .AllowCredentials()
+    );
 });
 
 // Increase multipart/form-data body length limit (for file uploads)
