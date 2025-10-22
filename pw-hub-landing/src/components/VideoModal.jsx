@@ -61,25 +61,6 @@ export default function VideoModal({isOpen, onClose}) {
 
                         {/* Видео контейнер */}
                         <div className="relative aspect-video bg-black">
-                            {/* Заглушка видео - замените на реальное видео */}
-                            <div className="w-full h-full flex items-center justify-center">
-                                <div className="text-center text-white">
-                                    <div className="text-6xl mb-4">🎮</div>
-                                    <p className="text-xl font-body mb-4">Демонстрация работы лаунчера</p>
-                                    <p className="text-gray-400 font-body">
-                                        Здесь будет видео с демонстрацией всех функций приложения
-                                    </p>
-
-                                    {/* Кнопка воспроизведения */}
-                                    <motion.button
-                                        whileHover={{scale: 1.1}}
-                                        whileTap={{scale: 0.9}}
-                                        className="mt-6 bg-[#ffb300] text-gray-900 px-8 py-4 rounded-lg font-heading font-bold text-lg hover:bg-[#ffc107] transition-colors shadow-lg"
-                                    >
-                                        ▶️ Воспроизвести демо
-                                    </motion.button>
-                                </div>
-                            </div>
 
                             {/* Реальный видео плеер (раскомментируйте когда будет видео) */}
 
