@@ -16,7 +16,7 @@ export default function Security() {
         {
             icon: '🌐',
             title: 'Прямое подключение',
-            description: 'Встроенный браузер подключается напрямую к серверам Perfect World, минуя посредников.'
+            description: 'Встроенный браузер подключается напрямую к личному кабинету Perfect World.'
         },
         {
             icon: '🛡️',
@@ -91,10 +91,6 @@ export default function Security() {
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-300 font-body">Хранение паролей</span>
                                     <span className="text-red-400 font-heading font-bold">НЕТ</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-300 font-body">Передача данных</span>
-                                    <span className="text-green-400 font-heading font-bold">Только PW</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-300 font-body">Локальное хранение</span>

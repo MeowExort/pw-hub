@@ -41,7 +41,7 @@ namespace Pw.Hub.Windows
                         Name = i.Name ?? string.Empty,
                         Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                         Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
-                        Default = string.Empty,
+                        Default = i.Default,
                         Required = i.Required
                     });
                 }

@@ -13,11 +13,11 @@ export default function Footer() {
                         <div className="flex items-center gap-4 mb-4">
                             <img
                                 src="/images/logo.jpg"
-                                alt="Perfect World Launcher"
+                                alt="PW Hub"
                                 className="h-10 object-contain"
                             />
                             <h3 className="text-2xl font-heading font-bold text-white">
-                                Perfect World Launcher
+                                PW Hub
                             </h3>
                         </div>
                         <p className="text-gray-400 font-body mb-6 leading-relaxed">
@@ -60,9 +60,9 @@ export default function Footer() {
                         </h4>
                         <ul className="space-y-2 text-gray-400 font-body">
                             <li>💬 Telegram чат</li>
-                            <li>📧 Email поддержка</li>
                             <li>📚 База знаний</li>
                             <li>🔄 Обновления</li>
+                            <li>🔀 исходный код (github)</li>
                         </ul>
                     </div>
                 </div>
@@ -70,10 +70,7 @@ export default function Footer() {
                 {/* Нижняя часть */}
                 <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
                     <div className="text-gray-400 font-body mb-4 md:mb-0">
-                        © {currentYear} Perfect World Launcher. Неофициальный фанатский проект.
-                    </div>
-                    <div className="text-gray-400 font-body text-sm">
-                        Perfect World является зарегистрированной торговой маркой Beijing Perfect World Technology Co., Ltd.
+                        © {currentYear} PW Hub. Неофициальный фанатский проект.
                     </div>
                 </div>
             </div>

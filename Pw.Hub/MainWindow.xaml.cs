@@ -638,6 +638,7 @@ public partial class MainWindow
                         await db.SaveChangesAsync();
                     }
                 }
+                _vm.Reload();
 
                 log.MarkCompleted("Готово: данные о серверах и персонажах сохранены.");
             }

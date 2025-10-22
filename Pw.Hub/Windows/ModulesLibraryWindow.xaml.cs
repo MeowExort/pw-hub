@@ -312,6 +312,7 @@ namespace Pw.Hub.Windows
             if (_selected == null) return;
             try
             {
+                var res1 = await _api.UninstallAsync(_selected.Id, _userId);
                 var res = await _api.InstallAsync(_selected.Id, _userId);
                 if (res != null)
                 {

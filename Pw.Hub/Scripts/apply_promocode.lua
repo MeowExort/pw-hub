@@ -45,8 +45,7 @@ local function processAccountAt(accounts, index)
 
   total = total + 1
   local accName = trim(acc.Name)
-  local idStr = tostring(acc.Id)
-  local id = idStr:gsub(":(.*)%s.*$","%1")
+  local id = acc.Id
   if accName == "" then accName = tostring(id) end
   if Print ~= nil then Print(string.format("[%d/%d] %s", index, total_accounts > 0 and total_accounts or #accounts, accName)) end
 
