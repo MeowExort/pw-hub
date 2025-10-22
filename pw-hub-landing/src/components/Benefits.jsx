@@ -138,7 +138,7 @@ export default function Benefits() {
                             {loading && '…'}
                             {!loading && formatCompact(stats.moduleRuns)}
                         </div>
-                        <div className="text-gray-400 font-body">выполненных модулей</div>
+                        <div className="text-gray-400 font-body">запущенных модулей</div>
                     </div>
                     <div>
                         <div className="text-3xl font-heading font-bold text-[#ffb300]">99.9%</div>

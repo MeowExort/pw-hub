@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "master" ]
     paths:
-      - "perfect-world-launcher-landing/**"
+      - "pw-hub-landing/**"
 
 env:
   REGISTRY: ghcr.io

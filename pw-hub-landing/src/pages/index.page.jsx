@@ -20,6 +20,6 @@ export function Page() {
 }
 
 export const documentProps = {
-    title: 'Perfect World Launcher - Управление аккаунтами',
+    title: 'PW Hub - Управление аккаунтами',
     description: 'Автоматизируйте управление аккаунтами Perfect World. Безопасно, удобно, бесплатно.'
 }

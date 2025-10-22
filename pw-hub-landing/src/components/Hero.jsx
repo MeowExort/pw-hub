@@ -12,16 +12,34 @@ export default function Hero() {
                     transition={{ duration: 0.8 }}
                     className="text-white text-center lg:text-left"
                 >
+                    {/* Логотип */}
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                        className="mb-8 flex justify-center lg:justify-start"
+                    >
+                        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-[#ffb300]/30">
+                            <img
+                                src="/images/logo.jpg"
+                                alt="Perfect World Launcher"
+                                className="h-12 md:h-16 object-contain"
+                            />
+                        </div>
+                    </motion.div>
+
                     <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold mb-6 leading-tight">
                         Управляй своими{' '}
                         <span className="text-[#ffb300]">аккаунтами</span>{' '}
                         Perfect World
                     </h1>
+
                     <p className="text-lg md:text-xl mb-8 text-gray-300 leading-relaxed font-body max-w-2xl">
                         Безопасный лаунчер для игроков, который автоматизирует рутину.
                         Приложение <span className="text-[#ffb300] font-semibold">не хранит ваши пароли</span> —
                         авторизация происходит напрямую через официальный сайт.
                     </p>
+
                     <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                         <motion.button
                             whileHover={{ scale: 1.05 }}
@@ -80,7 +98,7 @@ export default function Hero() {
                         {/* Скриншот */}
                         <div className="rounded-lg overflow-hidden border border-gray-700 shadow-inner">
                             <img
-                                src="images/hero-screenshot.png"
+                                src="/images/hero-screenshot.png"
                                 alt="Интерфейс Perfect World Launcher"
                                 className="w-full h-auto object-cover"
                             />

@@ -14,7 +14,7 @@ async function render(pageContext) {
     )
 
     const { documentProps } = pageContext.exports
-    const title = (documentProps && documentProps.title) || 'Perfect World Launcher'
+    const title = (documentProps && documentProps.title) || 'PW Hub'
     const desc = (documentProps && documentProps.description) || 'Автоматизируйте управление аккаунтами Perfect World'
 
     return `<!DOCTYPE html>

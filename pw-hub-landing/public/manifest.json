@@ -1,6 +1,6 @@
 ﻿{
-  "name": "Perfect World Launcher",
-  "short_name": "PW Launcher",
+  "name": "PW Hub",
+  "short_name": "PW Hub",
   "description": "Автоматизируйте управление аккаунтами Perfect World. Безопасно, удобно, бесплатно.",
   "theme_color": "#ffb300",
   "background_color": "#0d1430",
@@ -9,14 +9,14 @@
   "start_url": "/",
   "icons": [
     {
-      "src": "icon-192x192.png",
+      "src": "/images/logo.jpg",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/jpeg"
     },
     {
-      "src": "icon-512x512.png",
+      "src": "/images/logo.jpg",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/jpeg"
     }
   ]
 }

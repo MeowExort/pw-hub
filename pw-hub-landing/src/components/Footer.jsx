@@ -10,9 +10,16 @@ export default function Footer() {
                 <div className="grid md:grid-cols-4 gap-8">
                     {/* Лого и описание */}
                     <div className="md:col-span-2">
-                        <h3 className="text-2xl font-heading font-bold text-white mb-4">
-                            Perfect World Launcher
-                        </h3>
+                        <div className="flex items-center gap-4 mb-4">
+                            <img
+                                src="/images/logo.jpg"
+                                alt="Perfect World Launcher"
+                                className="h-10 object-contain"
+                            />
+                            <h3 className="text-2xl font-heading font-bold text-white">
+                                Perfect World Launcher
+                            </h3>
+                        </div>
                         <p className="text-gray-400 font-body mb-6 leading-relaxed">
                             Мощный инструмент для управления множеством аккаунтов Perfect World.
                             Автоматизируйте рутину и наслаждайтесь игрой.
