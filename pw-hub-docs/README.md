@@ -1,18 +1,25 @@
-# PW Hub Documentation
+﻿# pw-hub-docs — сайт документации
 
-Документация Lua API для PW Hub - менеджера аккаунтов Perfect World.
+Сайт с документацией по Lua API и руководствами пользователя.
 
 ## Разработка
-
-```bash
-# Установка зависимостей
+```
+cd pw-hub-docs
 npm install
-
-# Запуск в режиме разработки
 npm run dev
+```
 
-# Сборка для production
+## Сборка
+```
 npm run build
-
-# Просмотр собранной версии
 npm run preview
+```
+
+## Структура
+- `src/components/*` — компоненты React (карточки функций, поиск, навигация и пр.).
+- `src/data/luaApiData.js` — исходные данные по Lua API для автогенерации карточек.
+- `public/` — статические файлы.
+
+## Полезные ссылки
+- Журнал изменений: [CHANGELOG.md](CHANGELOG.md)
+- Корневая документация репозитория: [../README.md](../README.md)
