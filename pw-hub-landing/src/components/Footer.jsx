@@ -134,7 +134,7 @@ export default function Footer() {
                             {/* Документация */}
                             <li>
                                 <a
-                                    href="#"
+                                    href="https://docs.pw-hub.ru"
                                     className="flex items-center gap-2 text-gray-400 hover:text-[#ffb300] font-body transition-colors group"
                                 >
                                     <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
