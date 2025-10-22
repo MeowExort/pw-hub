@@ -9,8 +9,8 @@ export default function ScrollToTop({
     const { pathname, hash } = useLocation()
 
     useEffect(() => {
-        // Если есть хэш и мы на главной странице, прокручиваем к элементу
-        if (hash && pathname === '/') {
+        // Если есть хэш, прокручиваем к элементу на любой странице
+        if (hash) {
             const id = hash.replace('#', '')
             const element = document.getElementById(id)
 
@@ -21,6 +21,17 @@ export default function ScrollToTop({
                         behavior: behavior,
                         block: 'start'
                     })
+
+                    // Добавляем временную подсветку
+                    element.style.transition = 'all 0.5s ease'
+                    element.style.background = 'rgba(255, 179, 0, 0.2)'
+                    element.style.border = '2px solid var(--accent)'
+                    element.style.borderRadius = '8px'
+
+                    setTimeout(() => {
+                        element.style.background = ''
+                        element.style.border = ''
+                    }, 2000)
                 }, 100)
                 return
             }

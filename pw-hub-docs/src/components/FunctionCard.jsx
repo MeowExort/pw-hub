@@ -1,9 +1,16 @@
 ﻿import LuaCodeBlock from './LuaCodeBlock'
 
-export default function FunctionCard({ functionData }) {
+export default function FunctionCard({functionData}) {
     return (
-        <div className="function-card" id={functionData.name}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <div className="function-card" id={functionData.name} style={{
+            scrollMarginTop: '100px' // Добавляем отступ для фиксированного хедера
+        }}>
+            <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                marginBottom: '1rem'
+            }}>
                 <h3 style={{
                     color: 'var(--accent)',
                     margin: 0,
@@ -24,20 +31,20 @@ export default function FunctionCard({ functionData }) {
             </div>
 
             {/* Сигнатура функции с подсветкой синтаксиса */}
-            <div style={{ margin: '1rem 0' }}>
-                <LuaCodeBlock code={functionData.signature} />
+            <div style={{margin: '1rem 0'}}>
+                <LuaCodeBlock code={functionData.signature}/>
             </div>
 
-            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+            <p style={{marginBottom: '1rem', color: 'var(--text-secondary)'}}>
                 {functionData.description}
             </p>
 
             {functionData.parameters && functionData.parameters.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                    <h4 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                <div style={{marginBottom: '1rem'}}>
+                    <h4 style={{color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.5rem'}}>
                         Параметры:
                     </h4>
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    <div style={{display: 'grid', gap: '0.5rem'}}>
                         {functionData.parameters.map((param, index) => (
                             <div key={index} style={{
                                 display: 'flex',
@@ -54,10 +61,10 @@ export default function FunctionCard({ functionData }) {
                                 }}>
                                     {param.name}
                                 </code>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                <span style={{color: 'var(--text-muted)', fontSize: '0.9rem'}}>
                   {param.type}
                 </span>
-                                <span style={{ color: 'var(--text-secondary)', flex: 1 }}>
+                                <span style={{color: 'var(--text-secondary)', flex: 1}}>
                   {param.description}
                 </span>
                             </div>
@@ -66,8 +73,8 @@ export default function FunctionCard({ functionData }) {
                 </div>
             )}
 
-            <div style={{ marginBottom: '1rem' }}>
-                <h4 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+            <div style={{marginBottom: '1rem'}}>
+                <h4 style={{color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.5rem'}}>
                     Возвращаемое значение:
                 </h4>
                 <code style={{
@@ -83,10 +90,10 @@ export default function FunctionCard({ functionData }) {
 
             {functionData.example && (
                 <div>
-                    <h4 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                    <h4 style={{color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.5rem'}}>
                         Пример использования:
                     </h4>
-                    <LuaCodeBlock code={functionData.example} />
+                    <LuaCodeBlock code={functionData.example}/>
                 </div>
             )}
 

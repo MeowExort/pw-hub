@@ -1,11 +1,14 @@
 ﻿import { useState, useEffect, useRef } from 'react'
-import { luaApiData } from '../data/luaApiData'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { getAllFunctions } from '../data/luaApiData'
 
 export default function SearchBox({ onSearch }) {
     const [query, setQuery] = useState('')
     const [results, setResults] = useState([])
     const [isOpen, setIsOpen] = useState(false)
     const searchRef = useRef(null)
+    const navigate = useNavigate()
+    const location = useLocation()
 
     // Закрытие результатов при клике вне компонента
     useEffect(() => {
@@ -19,6 +22,11 @@ export default function SearchBox({ onSearch }) {
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
+    // Закрытие результатов при изменении маршрута
+    useEffect(() => {
+        setIsOpen(false)
+    }, [location.pathname])
+
     // Поиск по всем функциям
     const performSearch = (searchQuery) => {
         if (!searchQuery.trim()) {
@@ -28,11 +36,7 @@ export default function SearchBox({ onSearch }) {
         }
 
         const searchTerm = searchQuery.toLowerCase()
-        const allFunctions = [
-            ...luaApiData.account,
-            ...luaApiData.browser,
-            ...luaApiData.utilities
-        ]
+        const allFunctions = getAllFunctions()
 
         const found = allFunctions.filter(func =>
             func.name.toLowerCase().includes(searchTerm) ||
@@ -59,18 +63,10 @@ export default function SearchBox({ onSearch }) {
     }
 
     const handleResultClick = (func) => {
-        // Прокручиваем к выбранной функции
-        const element = document.getElementById(func.name)
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth' })
-            // Добавляем подсветку
-            element.style.background = 'rgba(255, 179, 0, 0.1)'
-            element.style.border = '2px solid var(--accent)'
-            setTimeout(() => {
-                element.style.background = ''
-                element.style.border = ''
-            }, 2000)
-        }
+        // Переходим на нужную страницу
+        navigate(`/${func.page}#${func.name}`)
+
+        // Закрываем поиск и очищаем запрос
         setIsOpen(false)
         setQuery('')
     }
@@ -81,6 +77,15 @@ export default function SearchBox({ onSearch }) {
         setIsOpen(false)
     }
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            clearSearch()
+        } else if (e.key === 'Enter' && results.length > 0 && isOpen) {
+            // При нажатии Enter выбираем первый результат
+            handleResultClick(results[0])
+        }
+    }
+
     return (
         <div ref={searchRef} style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
             <div style={{ position: 'relative' }}>
@@ -88,6 +93,7 @@ export default function SearchBox({ onSearch }) {
                     type="text"
                     value={query}
                     onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
                     placeholder="🔍 Поиск функций (название, описание, параметры)..."
                     style={{
                         width: '100%',
@@ -116,7 +122,18 @@ export default function SearchBox({ onSearch }) {
                             border: 'none',
                             color: 'var(--text-muted)',
                             cursor: 'pointer',
-                            fontSize: '1.2rem'
+                            fontSize: '1.2rem',
+                            padding: '0.25rem',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        onMouseOver={(e) => {
+                            e.target.style.background = 'rgba(255, 255, 255, 0.1)'
+                        }}
+                        onMouseOut={(e) => {
+                            e.target.style.background = 'none'
                         }}
                     >
                         ×
@@ -171,16 +188,28 @@ export default function SearchBox({ onSearch }) {
                                 }}>
                                     {func.name}
                                 </code>
-                                <span style={{
-                                    background: 'var(--accent)',
-                                    color: 'var(--primary-bg)',
-                                    padding: '0.2rem 0.5rem',
-                                    borderRadius: '12px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 'bold'
-                                }}>
-                  {func.category}
-                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{
+                      background: 'var(--accent)',
+                      color: 'var(--primary-bg)',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '12px',
+                      fontSize: '0.7rem',
+                      fontWeight: 'bold'
+                  }}>
+                    {func.category}
+                  </span>
+                                    <span style={{
+                                        background: 'rgba(0, 150, 255, 0.3)',
+                                        color: '#0096ff',
+                                        padding: '0.2rem 0.5rem',
+                                        borderRadius: '12px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 'bold'
+                                    }}>
+                    {func.page}
+                  </span>
+                                </div>
                             </div>
 
                             <div style={{

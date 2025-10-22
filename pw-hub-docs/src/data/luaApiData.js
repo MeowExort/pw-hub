@@ -3,6 +3,7 @@
         {
             name: 'Account_GetAccountCb',
             category: 'Account',
+            page: 'account',
             signature: 'Account_GetAccountCb(callback)',
             description: 'Асинхронно получает логин текущего авторизованного аккаунта. Функция выполняется в фоновом режиме и возвращает результат через callback.',
             parameters: [
@@ -26,6 +27,7 @@ end)`,
         {
             name: 'Account_IsAuthorizedCb',
             category: 'Account',
+            page: 'account',
             signature: 'Account_IsAuthorizedCb(callback)',
             description: 'Проверяет, авторизован ли текущий пользователь на сайте Perfect World.',
             parameters: [
@@ -53,6 +55,7 @@ end)`
         {
             name: 'Account_GetAccountsCb',
             category: 'Account',
+            page: 'account',
             signature: 'Account_GetAccountsCb(callback)',
             description: 'Получает список всех аккаунтов, зарегистрированных в системе. Возвращает таблицу с объектами аккаунтов.',
             parameters: [
@@ -90,6 +93,7 @@ end)`,
         {
             name: 'Account_ChangeAccountCb',
             category: 'Account',
+            page: 'account',
             signature: 'Account_ChangeAccountCb(accountId, callback)',
             description: 'Переключает текущий активный аккаунт на указанный. Функция загружает cookies и выполняет перезагрузку страницы.',
             parameters: [
@@ -134,6 +138,7 @@ end)`,
         {
             name: 'Browser_NavigateCb',
             category: 'Browser',
+            page: 'browser',
             signature: 'Browser_NavigateCb(url, callback)',
             description: 'Переходит по указанному URL в веб-браузере. Поддерживает только домен pwonline.ru.',
             parameters: [
@@ -174,6 +179,7 @@ end)`
         {
             name: 'Browser_ExecuteScriptCb',
             category: 'Browser',
+            page: 'browser',
             signature: 'Browser_ExecuteScriptCb(script, callback)',
             description: 'Выполняет JavaScript код в контексте текущей страницы и возвращает результат.',
             parameters: [
@@ -229,6 +235,7 @@ end)`,
         {
             name: 'Browser_WaitForElementCb',
             category: 'Browser',
+            page: 'browser',
             signature: 'Browser_WaitForElementCb(selector, timeoutMs, callback)',
             description: 'Ожидает появления элемента на странице в течение указанного времени.',
             parameters: [
@@ -272,6 +279,7 @@ end)`,
         {
             name: 'Browser_ElementExistsCb',
             category: 'Browser',
+            page: 'browser',
             signature: 'Browser_ElementExistsCb(selector, callback)',
             description: 'Проверяет существование элемента на странице без ожидания.',
             parameters: [
@@ -306,6 +314,7 @@ end)`,
         {
             name: 'Print',
             category: 'Utilities',
+            page: 'utilities',
             signature: 'Print(message)',
             description: 'Выводит сообщение в консоль выполнения скрипта. Полезно для отладки и логирования.',
             parameters: [
@@ -339,6 +348,7 @@ Print("❌ Ошибка: элемент не найден")`,
         {
             name: 'DelayCb',
             category: 'Utilities',
+            page: 'utilities',
             signature: 'DelayCb(delayMs, callback)',
             description: 'Выполняет задержку выполнения без блокировки интерфейса. Асинхронный аналог sleep().',
             parameters: [
@@ -390,6 +400,7 @@ end)`,
         {
             name: 'ReportProgress',
             category: 'Utilities',
+            page: 'utilities',
             signature: 'ReportProgress(percent)',
             description: 'Обновляет индикатор прогресса выполнения скрипта.',
             parameters: [
@@ -441,6 +452,7 @@ end)`,
         {
             name: 'ReportProgressMsg',
             category: 'Utilities',
+            page: 'utilities',
             signature: 'ReportProgressMsg(percent, message)',
             description: 'Обновляет индикатор прогресса с текстовым сообщением.',
             parameters: [
@@ -477,4 +489,20 @@ Print("🎉 Задача завершена")`,
             notes: 'Сообщения помогают пользователю понимать, что именно происходит в текущий момент.'
         }
     ]
+}
+
+// Вспомогательная функция для получения всех функций с информацией о странице
+export const getAllFunctions = () => {
+    const allFunctions = []
+
+    Object.keys(luaApiData).forEach(page => {
+        luaApiData[page].forEach(func => {
+            allFunctions.push({
+                ...func,
+                page: page // Добавляем информацию о странице
+            })
+        })
+    })
+
+    return allFunctions
 }

@@ -237,3 +237,20 @@ a:focus, button:focus {
 .token.punctuation {
     color: #d4d4d4;
 }
+
+/* Отступ для якорных ссылок чтобы не скрывались под фиксированным хедером */
+.function-card {
+    scroll-margin-top: 100px;
+}
+
+/* Улучшение для плавной прокрутки */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Стили для подсветки при переходе по якорю */
+.function-card:target {
+    background: rgba(255, 179, 0, 0.05) !important;
+    border: 1px solid var(--accent) !important;
+    transition: all 0.5s ease;
+}
