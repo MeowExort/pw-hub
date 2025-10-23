@@ -4,13 +4,15 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
+
         mc:Ignorable="d"
-        Title="Lua Editor" Height="750" Width="1100" WindowStartupLocation="CenterOwner"
+        Icon="/Assets/icon.png"
+        Title="Lua Editor" Height="850" Width="1500" WindowStartupLocation="CenterOwner"
         Style="{StaticResource ModernWindowChrome}">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
@@ -22,29 +24,40 @@
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Style="{StaticResource PrimaryButton}"
-                           Content="▶ Запустить"
-                           MinWidth="120"
-                           Padding="16,8"
-                           Margin="0,0,8,0"
-                           Click="OnRunClick"/>
+                            Content="▶ Запустить"
+                            MinWidth="120"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Click="OnRunClick" />
+                    <Button Style="{StaticResource PrimaryButton}"
+                            Content="▶ Отладка"
+                            MinWidth="120"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Click="OnDebugClick" />
                     <Button Style="{StaticResource ModernButton}"
-                           Content="🗑 Очистить вывод"
-                           MinWidth="140"
-                           Padding="16,8"
-                           Margin="0,0,8,0"
-                           Click="OnClearOutputClick"/>
+                            Content="🗑 Очистить вывод"
+                            MinWidth="140"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Click="OnClearOutputClick" />
                     <Button Style="{StaticResource ModernButton}"
-                           Content="✖ Закрыть"
-                           MinWidth="100"
-                           Padding="16,8"
-                           Click="OnCloseClick"/>
+                            Content="✖ Закрыть"
+                            MinWidth="100"
+                            Padding="16,8"
+                            Click="OnCloseClick" />
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Right"
-                          Text="💡 Ctrl+Space — автодополнение"
-                          Style="{StaticResource ModernTextBlock}"
-                          Foreground="{StaticResource TextSecondaryBrush}"
-                          VerticalAlignment="Center"
-                          FontSize="12"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <TextBlock Text="⚫ F9 — поставить/снять брейкпоинт на текущей строке  "
+                               Style="{StaticResource ModernTextBlock}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"/>
+                    <TextBlock x:Name="BpCountText"
+                               Text="(0 точек)"
+                               Style="{StaticResource ModernTextBlock}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"/>
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -58,72 +71,64 @@
 
             <!-- Code Editor -->
             <Border Grid.Row="0"
-                   Style="{StaticResource Card}"
-                   Padding="0"
-                   Margin="0,0,0,8">
+                    Style="{StaticResource Card}"
+                    Padding="0"
+                    Margin="0,0,0,8">
                 <DockPanel>
                     <Border DockPanel.Dock="Top"
-                           Background="{StaticResource BackgroundTertiaryBrush}"
-                           BorderBrush="{StaticResource BorderBrush}"
-                           BorderThickness="0,0,0,1"
-                           Padding="12,8">
+                            Background="{StaticResource BackgroundTertiaryBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,8">
                         <TextBlock Text="📝 Редактор кода Lua"
-                                  Style="{StaticResource ModernTextBlock}"
-                                  FontWeight="SemiBold"/>
+                                   Style="{StaticResource ModernTextBlock}"
+                                   FontWeight="SemiBold" />
                     </Border>
                     <avalonedit:TextEditor x:Name="Editor"
-                                          ShowLineNumbers="True"
-                                          FontFamily="{StaticResource MonospaceFont}"
-                                          FontSize="14"
-                                          HorizontalScrollBarVisibility="Auto"
-                                          VerticalScrollBarVisibility="Auto"
-                                          Background="{StaticResource BackgroundSecondaryBrush}"
-                                          Foreground="{StaticResource TextPrimaryBrush}"
-                                          LineNumbersForeground="{StaticResource TextSecondaryBrush}"
-                                          Padding="8"
-                                          MinHeight="150"/>
+                                           ShowLineNumbers="True"
+                                           FontFamily="{StaticResource MonospaceFont}"
+                                           FontSize="14"
+                                           HorizontalScrollBarVisibility="Auto"
+                                           VerticalScrollBarVisibility="Auto"
+                                           Background="{StaticResource BackgroundSecondaryBrush}"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           LineNumbersForeground="{StaticResource TextSecondaryBrush}"
+                                           Padding="8"
+                                           MinHeight="150" />
                 </DockPanel>
             </Border>
 
-            <GridSplitter Grid.Row="1"
-                         Height="8"
-                         HorizontalAlignment="Stretch"
-                         ResizeBehavior="PreviousAndNext"
-                         ResizeDirection="Rows"
-                         Background="Transparent"
-                         ShowsPreview="True"/>
-
             <!-- Output Console -->
             <Border Grid.Row="2"
-                   Style="{StaticResource Card}"
-                   Padding="0"
-                   Margin="0,8,0,0">
+                    Style="{StaticResource Card}"
+                    Padding="0"
+                    Margin="0,8,0,0">
                 <DockPanel>
                     <Border DockPanel.Dock="Top"
-                           Background="{StaticResource AccentBlueBrush}"
-                           BorderBrush="{StaticResource BorderBrush}"
-                           BorderThickness="0,0,0,1"
-                           Padding="12,8">
+                            Background="{StaticResource AccentBlueBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,8">
                         <TextBlock Text="📟 Консоль вывода (Print)"
-                                  Style="{StaticResource ModernTextBlock}"
-                                  FontWeight="SemiBold"
-                                  Foreground="{StaticResource AccentHighlightBrush}"/>
+                                   Style="{StaticResource ModernTextBlock}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentHighlightBrush}" />
                     </Border>
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                 Padding="8">
+                                  Padding="8">
                         <TextBox x:Name="OutputBox"
-                                IsReadOnly="True"
-                                TextWrapping="Wrap"
-                                AcceptsReturn="True"
-                                BorderThickness="0"
-                                Background="Transparent"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                VerticalScrollBarVisibility="Auto"
-                                HorizontalScrollBarVisibility="Auto"
-                                FontFamily="{StaticResource MonospaceFont}"
-                                FontSize="13"
-                                Padding="4"
-                                MinHeight="100"/>
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 FontFamily="{StaticResource MonospaceFont}"
+                                 FontSize="13"
+                                 Padding="4"
+                                 MinHeight="100" />
                     </ScrollViewer>
                 </DockPanel>
             </Border>

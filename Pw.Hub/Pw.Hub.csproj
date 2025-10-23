@@ -6,10 +6,11 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
         <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-        <Version>0.0.7</Version>
+        <Version>0.0.8</Version>
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
       <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
@@ -22,11 +23,13 @@
 
     <ItemGroup>
       <None Remove="Assets\icon.jpg" />
-      <Resource Include="Assets\icon.jpg" />
     </ItemGroup>
 
   <ItemGroup>
     <Content Include="Scripts\**\*.lua">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -37,13 +40,27 @@
     </Content>
   </ItemGroup>
 
+  <!-- Ensure lua.xshd is embedded as a WPF Resource so pack URI works in all run/publish modes -->
+  <ItemGroup>
+    <Content Remove="Assets\LuaEditor\lua.xshd" />
+    <Resource Include="Assets\LuaEditor\lua.xshd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+
   <ItemGroup>
     <Content Include="modules.json" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ICSharpCode.AvalonEdit" Version="4.3.0-alpha-00000000" />
     <PackageReference Include="Markdig" Version="0.37.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\icon.png" />
+    <Resource Include="Assets\icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 
 </Project>

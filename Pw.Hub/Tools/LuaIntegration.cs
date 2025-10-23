@@ -361,17 +361,15 @@ public class LuaIntegration
                 var list = t.IsCompletedSuccessfully ? t.Result : Array.Empty<Account>();
                 if (_lua != null)
                 {
-                    // Pack into Lua table to avoid NLua expanding array into multiple arguments
-                    var tableName = $"__accounts_{Guid.NewGuid():N}";
-                    _lua.NewTable(tableName);
-                    var table = (LuaTable)_lua[tableName];
+                    // Build Lua table of accounts with nested Servers and Characters as Lua tables
+                    var accountsTable = CreateLuaTable("accounts");
                     int i = 1; // Lua is 1-based
                     foreach (var acc in list)
                     {
-                        table[i++] = acc;
+                        accountsTable[i++] = ToLuaAccount(acc);
                     }
 
-                    CallLuaVoid(callback, table);
+                    CallLuaVoid(callback, accountsTable);
                 }
                 else
                 {
@@ -383,6 +381,85 @@ public class LuaIntegration
             {
             }
         });
+    }
+
+    private LuaTable CreateLuaTable(string prefix)
+    {
+        var name = $"__{prefix}_{Guid.NewGuid():N}";
+        _lua.NewTable(name);
+        return (LuaTable)_lua[name];
+    }
+
+    private LuaTable ToLuaAccount(Account acc)
+    {
+        var t = CreateLuaTable("account");
+        try
+        {
+            // Primitive/simple fields
+            t["Id"] = acc?.Id;
+            t["Name"] = acc?.Name;
+            t["Email"] = acc?.Email;
+            t["ImageSource"] = acc?.ImageSource;
+            t["LastVisit"] = acc?.LastVisit.ToString("o"); // ISO string for DateTime
+            t["ImageUri"] = acc?.ImageUri?.ToString();
+            t["SquadId"] = acc?.SquadId.ToString();
+
+            // Servers -> table of server tables
+            var serversTable = CreateLuaTable("servers");
+            int i = 1;
+            if (acc?.Servers != null)
+            {
+                foreach (var s in acc.Servers)
+                {
+                    serversTable[i++] = ToLuaServer(s);
+                }
+            }
+            t["Servers"] = serversTable;
+        }
+        catch { }
+        return t;
+    }
+
+    private LuaTable ToLuaServer(AccountServer s)
+    {
+        var t = CreateLuaTable("server");
+        try
+        {
+            t["Id"] = s?.Id;
+            t["OptionId"] = s?.OptionId;
+            t["Name"] = s?.Name;
+            t["DefaultCharacterOptionId"] = s?.DefaultCharacterOptionId;
+            t["AccountId"] = s?.AccountId;
+
+            // Characters -> table of character tables
+            var charsTable = CreateLuaTable("characters");
+            int i = 1;
+            if (s?.Characters != null)
+            {
+                foreach (var c in s.Characters)
+                {
+                    charsTable[i++] = ToLuaCharacter(c);
+                }
+            }
+            t["Characters"] = charsTable;
+        }
+        catch { }
+        return t;
+    }
+
+    private LuaTable ToLuaCharacter(AccountCharacter c)
+    {
+        var t = CreateLuaTable("character");
+        try
+        {
+            t["Id"] = c?.Id;
+            t["OptionId"] = c?.OptionId;
+            t["Name"] = c?.Name;
+            t["ServerId"] = c?.ServerId;
+            // Avoid including back-reference to Server to prevent deep cycles
+        }
+        catch { }
+        return t;
     }
 
     public void Account_ChangeAccountCb(string accountId, LuaFunction callback)

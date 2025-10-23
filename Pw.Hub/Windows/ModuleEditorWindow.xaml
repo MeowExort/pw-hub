@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="Модуль" Height="600" Width="800" WindowStartupLocation="CenterOwner"
+        Icon="/Assets/icon.png"
         Style="{StaticResource ModernWindowChrome}">
     <Grid Margin="16">
         <Grid.RowDefinitions>

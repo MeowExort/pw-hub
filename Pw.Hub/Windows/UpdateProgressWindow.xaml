@@ -2,18 +2,27 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Обновление" Height="160" Width="420"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="ToolWindow" ShowInTaskbar="False" Topmost="True">
+        Icon="/Assets/icon.png"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        Style="{StaticResource ModernWindowChrome}">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock x:Name="TitleText" Text="Загрузка обновления..." FontSize="14" FontWeight="SemiBold"/>
-        <ProgressBar x:Name="Progress" Grid.Row="1" Margin="0,10,0,0" Height="18" Minimum="0" Maximum="100"/>
+        <TextBlock x:Name="TitleText" Text="Загрузка обновления..." FontSize="14" FontWeight="SemiBold"
+                   Style="{StaticResource ModernTextBlock}"/>
+        <ProgressBar x:Name="Progress" Grid.Row="1" Margin="0,10,0,0" Height="18" Minimum="0" Maximum="100"
+                     Background="{StaticResource BackgroundTertiaryBrush}"
+                     BorderBrush="{StaticResource BorderBrush}"
+                     BorderThickness="1"
+                     Foreground="{StaticResource AccentHighlightBrush}"/>
         <DockPanel Grid.Row="2" Margin="0,10,0,0">
-            <TextBlock x:Name="PercentText" Text="0%" DockPanel.Dock="Right"/>
-            <TextBlock x:Name="StatusText" Text="Подготовка..." TextWrapping="Wrap"/>
+            <TextBlock x:Name="PercentText" Text="0%" DockPanel.Dock="Right"
+                       Style="{StaticResource ModernTextBlock}"/>
+            <TextBlock x:Name="StatusText" Text="Подготовка..." TextWrapping="Wrap"
+                       Style="{StaticResource ModernTextBlock}"/>
         </DockPanel>
     </Grid>
 </Window>

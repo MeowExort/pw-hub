@@ -6,7 +6,7 @@
         xmlns:models="clr-namespace:Pw.Hub.Models"
         xmlns:pages="clr-namespace:Pw.Hub.Pages"
         Closing="MainWindow_OnClosing"
-        Icon="Assets/icon.jpg"
+        Icon="/Assets/icon.png"
         mc:Ignorable="d"
         WindowState="Maximized"
         Title="PW Hub" Height="900" Width="1900" WindowStartupLocation="CenterScreen"
