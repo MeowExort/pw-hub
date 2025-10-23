@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.ComponentModel;
+using System.IO;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Abstractions;
@@ -9,18 +10,21 @@ namespace Pw.Hub.Services;
 
 public class AccountManager(IBrowser browser) : IAccountManager
 {
+    public event Action<Account> CurrentAccountChanged;
+    public event Action<Account> CurrentAccountDataChanged;
     private const string CookieFileExtension = ".json";
     private const string CookieFolder = "Cookies";
 
-    private Account CurrentAccount;
+    public Account CurrentAccount { get; private set; }
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+    private PropertyChangedEventHandler _accountPropertyChangedHandler;
 
     public async Task<Account[]> GetAccountsAsync()
     {
         await using var db = new AppDbContext();
         return db.Accounts
-            .Include(x=> x.Servers)
-            .ThenInclude(x=> x.Characters)
+            .Include(x => x.Servers)
+            .ThenInclude(x => x.Characters)
             .ToArray();
     }
 
@@ -30,7 +34,14 @@ public class AccountManager(IBrowser browser) : IAccountManager
         await SaveCookies();
         await using var db = new AppDbContext();
         var account = await db.Accounts.FindAsync(accountId);
+        // detach from previous account PropertyChanged
+        if (CurrentAccount is INotifyPropertyChanged oldInpc && _accountPropertyChangedHandler != null)
+        {
+            try { oldInpc.PropertyChanged -= _accountPropertyChangedHandler; } catch { }
+        }
         CurrentAccount = account ?? throw new InvalidOperationException("Account not found");
+        // attach to new account PropertyChanged
+        AttachToCurrentAccountPropertyChanged();
 
         Cookie[] cookies;
         if (!File.Exists(GetCookieFilePath()))
@@ -51,6 +62,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
             _semaphoreSlim.Release();
             throw new InvalidOperationException("Page did not load in time");
         }
+
         var isAuthorized = await IsAuthorizedAsync();
         if (!isAuthorized)
         {
@@ -62,6 +74,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
         account.LastVisit = DateTime.UtcNow;
         db.Update(account);
         await db.SaveChangesAsync();
+        try { CurrentAccountChanged?.Invoke(account); } catch { }
         _semaphoreSlim.Release();
     }
 
@@ -70,19 +83,41 @@ public class AccountManager(IBrowser browser) : IAccountManager
         var exists = await browser.WaitForElementExistsAsync(".auth_h > h2 > a > strong", 500);
         if (!exists)
             return false;
-        var result = await GetAccountAsync();
-        return !string.IsNullOrEmpty(result);
+        
+        var siteId = await GetSiteId();
+        if (siteId != CurrentAccount.SiteId)
+            return false;
+
+        return true;
     }
 
-    public async Task<string> GetAccountAsync()
+    public async Task<Account> GetAccountAsync()
+    {
+        return CurrentAccount;
+    }
+
+    public async Task<string> GetSiteId()
     {
         var result = await browser.ExecuteScriptAsync("$('.auth_h > h2 > a > strong')[0].innerText");
         return result.Trim('"').Replace("null", "");
     }
 
-    public string GetAccount()
+    private void AttachToCurrentAccountPropertyChanged()
     {
-        return GetAccountAsync().GetAwaiter().GetResult();
+        if (CurrentAccount is INotifyPropertyChanged inpc)
+        {
+            _accountPropertyChangedHandler ??= (sender, args) =>
+            {
+                if (string.IsNullOrEmpty(args.PropertyName) ||
+                    args.PropertyName == nameof(Account.ImageSource) ||
+                    args.PropertyName == nameof(Account.SiteId) ||
+                    args.PropertyName == nameof(Account.Name))
+                {
+                    try { CurrentAccountDataChanged?.Invoke(CurrentAccount); } catch { }
+                }
+            };
+            try { inpc.PropertyChanged += _accountPropertyChangedHandler; } catch { }
+        }
     }
 
     private string GetCookieFilePath()
@@ -96,6 +131,9 @@ public class AccountManager(IBrowser browser) : IAccountManager
     private async Task SaveCookies()
     {
         if (CurrentAccount == null)
+            return;
+        var siteId = await GetSiteId();
+        if (siteId != CurrentAccount.SiteId)
             return;
         var cookies = await browser.GetCookiesAsync();
         var json = JsonSerializer.Serialize(cookies, JsonSerializerOptions.Web);

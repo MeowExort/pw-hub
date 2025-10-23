@@ -51,10 +51,12 @@ public class AuthService
 
             var notAuthorized = new List<Account>();
             var reAuthorized = new List<Account>();
+            var manager = mainWindow.AccountPage.AccountManager;
 
             foreach (var account in accounts)
             {
-                var check = await mainWindow.ChangeAccount(account);
+                await manager.ChangeAccountAsync(account.Id);
+                var check = await manager.IsAuthorizedAsync();
                 if (check)
                     reAuthorized.Add(account);
                 else

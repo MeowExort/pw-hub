@@ -6,14 +6,16 @@ namespace Pw.Hub.Windows;
 
 public partial class ScriptLogWindow : Window
 {
+    private readonly bool _closeWhenEnd;
     private bool _running = true;
     private Action _onStop;
 
     private readonly Stopwatch _stopwatch = new();
     private readonly DispatcherTimer _timer;
 
-    public ScriptLogWindow(string moduleTitle = null)
+    public ScriptLogWindow(string moduleTitle = null, bool closeWhenEnd = false)
     {
+        _closeWhenEnd = closeWhenEnd;
         InitializeComponent();
         TitleText.Text = string.IsNullOrWhiteSpace(moduleTitle) ? "Логи выполнения" : $"Модуль — {moduleTitle}";
         CloseButton.IsEnabled = false;
@@ -116,6 +118,8 @@ public partial class ScriptLogWindow : Window
             // Зафиксировать итоговое время выполнения в логах
             AppendLog("");
             AppendLog($"Время выполнения: {FormatElapsed(_stopwatch.Elapsed)}");
+            
+            if (_closeWhenEnd) Close();
 
             if (!string.IsNullOrWhiteSpace(finalMessage))
             {

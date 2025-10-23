@@ -311,7 +311,7 @@ public class LuaIntegration
         {
             try
             {
-                var acc = t.IsCompletedSuccessfully ? t.Result : string.Empty;
+                var acc = t.IsCompletedSuccessfully ? t.Result : null;
                 CallLuaVoid(callback, acc);
             }
             catch
@@ -401,7 +401,7 @@ public class LuaIntegration
             // Primitive/simple fields
             t["Id"] = acc?.Id;
             t["Name"] = acc?.Name;
-            t["Email"] = acc?.Email;
+            t["SiteId"] = acc?.SiteId;
             t["ImageSource"] = acc?.ImageSource;
             t["LastVisit"] = acc?.LastVisit.ToString("o"); // ISO string for DateTime
             t["ImageUri"] = acc?.ImageUri?.ToString();

@@ -33,7 +33,89 @@ public partial class MainWindow
     {
         InitializeComponent();
         DataContext = _vm;
+        try
+        {
+            // Subscribe to account change events to sync TreeView selection
+            AccountPage.AccountManager.CurrentAccountChanged += OnCurrentAccountChanged;
+            // Subscribe to current account data/property changes to mirror updates (e.g., avatar) into VM
+            AccountPage.AccountManager.CurrentAccountDataChanged += OnCurrentAccountDataChanged;
+        }
+        catch { }
         Loaded += (_, _) => LoadModules();
+    }
+
+    private void OpenAIGenerator_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new Pw.Hub.Windows.AIGeneratorWindow
+        {
+            Owner = this
+        };
+        win.Show();
+    }
+
+    private void OnCurrentAccountChanged(Account account)
+    {
+        if (account == null) return;
+        // Ensure run on UI thread
+        Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                // Find account in current ViewModel collections
+                var squad = _vm.Squads.FirstOrDefault(s => s.Accounts.Any(a => a.Id == account.Id));
+                if (squad == null) return;
+
+                var vmAccount = squad.Accounts.FirstOrDefault(a => a.Id == account.Id);
+                if (vmAccount == null) return;
+
+                // Ensure containers are generated
+                NavigationTree.UpdateLayout();
+                if (NavigationTree.ItemContainerGenerator.ContainerFromItem(squad) is not TreeViewItem squadItem)
+                {
+                    return;
+                }
+
+                // Expand squad to generate children
+                squadItem.IsExpanded = true;
+                squadItem.UpdateLayout();
+
+                if (squadItem.ItemContainerGenerator.ContainerFromItem(vmAccount) is TreeViewItem accountItem)
+                {
+                    accountItem.IsSelected = true;
+                    accountItem.BringIntoView();
+                }
+            }
+            catch
+            {
+                // ignore selection errors
+            }
+        });
+    }
+
+    private void OnCurrentAccountDataChanged(Account account)
+    {
+        if (account == null) return;
+        Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                var squad = _vm.Squads.FirstOrDefault(s => s.Accounts.Any(a => a.Id == account.Id));
+                if (squad == null) return;
+                var vmAccount = squad.Accounts.FirstOrDefault(a => a.Id == account.Id);
+                if (vmAccount == null) return;
+
+                // Mirror properties that affect UI visuals
+                if (!string.Equals(vmAccount.ImageSource, account.ImageSource, StringComparison.Ordinal))
+                    vmAccount.ImageSource = account.ImageSource;
+                if (!string.Equals(vmAccount.SiteId, account.SiteId, StringComparison.Ordinal))
+                    vmAccount.SiteId = account.SiteId;
+                if (!string.Equals(vmAccount.Name, account.Name, StringComparison.Ordinal))
+                    vmAccount.Name = account.Name;
+            }
+            catch
+            {
+            }
+        });
     }
 
     private static void CollapseSiblings(TreeViewItem item)
@@ -138,7 +220,6 @@ public partial class MainWindow
             var newAccount = new Account
             {
                 Name = dialog.AccountName,
-                Email = dialog.Email,
                 SquadId = selectedSquad.Id,
                 ImageSource = ""
             };
@@ -194,10 +275,10 @@ public partial class MainWindow
     {
         if (NavigationTree.SelectedItem is Account account)
         {
-            if (AccountPage.Account?.Id != account.Id)
+            if (AccountPage.AccountManager.CurrentAccount?.Id != account.Id)
             {
                 // Если уже открыта другая страница аккаунта, обновляем её контекст
-                await AccountPage.ChangeAccount(account);
+                await AccountPage.AccountManager.ChangeAccountAsync(account.Id);
             }
 
             return;
@@ -265,7 +346,6 @@ public partial class MainWindow
             // var currentSelection = NavigationTree.SelectedItem;
 
             selectedAccount.Name = dialog.AccountName;
-            selectedAccount.Email = dialog.Email;
 
             using var db = new AppDbContext();
             db.Update(selectedAccount);
@@ -305,7 +385,7 @@ public partial class MainWindow
                     if (NavigationTree.SelectedItem == selectedSquad ||
                         (NavigationTree.SelectedItem is Account acc && acc.SquadId == selectedSquad.Id))
                     {
-                        await AccountPage.ChangeAccount(null);
+                        await AccountPage.AccountManager.ChangeAccountAsync(null);
                     }
                 }
             }
@@ -354,7 +434,7 @@ public partial class MainWindow
                     // Очищаем ContentFrame если был выбран удаленный аккаунт
                     if (NavigationTree.SelectedItem == selectedAccount)
                     {
-                        await AccountPage.ChangeAccount(null);
+                        await AccountPage.AccountManager.ChangeAccountAsync(null);
                     }
                 }
             }
@@ -366,12 +446,7 @@ public partial class MainWindow
         e.Cancel = true;
         Hide();
     }
-
-    public async Task<bool> ChangeAccount(Account account)
-    {
-        return await AccountPage.ChangeAccount(account);
-    }
-
+    
     public void LoadModules()
     {
         try
@@ -553,7 +628,7 @@ public partial class MainWindow
             return;
         }
 
-        var log = new Windows.ScriptLogWindow("Загрузка персонажей") { Owner = this };
+        var log = new Windows.ScriptLogWindow("Загрузка персонажей", true) { Owner = this };
 
         // Запускаем асинхронный процесс загрузки до показа модального окна
         async void StartLoad()
@@ -566,7 +641,7 @@ public partial class MainWindow
                 log.AppendLog("Переходим на страницу промо-предметов...");
                 await AccountPage.Browser.NavigateAsync("https://pwonline.ru/promo_items.php");
 
-                var hasShard = await AccountPage.Browser.WaitForElementExistsAsync(".js-shard", 20000);
+                var hasShard = await AccountPage.Browser.WaitForElementExistsAsync(".js-shard", 1000);
                 if (!hasShard)
                 {
                     log.AppendLog("Не найден элемент .js-шard — список серверов.");
@@ -595,7 +670,7 @@ public partial class MainWindow
                     );
 
                     // Ждем появления/обновления списка персонажей
-                    await AccountPage.Browser.WaitForElementExistsAsync(".js-char", 10000);
+                    await AccountPage.Browser.WaitForElementExistsAsync(".js-char", 500);
 
                     var charsJson = await AccountPage.Browser.ExecuteScriptAsync(
                         "(function(){ var c=document.querySelector('.js-char'); if(!c) return []; return Array.from(c.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
@@ -607,38 +682,54 @@ public partial class MainWindow
                     {
                         OptionId = shard.value ?? string.Empty,
                         Name = shard.text ?? string.Empty,
-                        Characters = chars.Select(ch => new AccountCharacter
-                            { OptionId = ch.value ?? string.Empty, Name = ch.text ?? string.Empty }).ToList()
+                        Characters = [],
+                        AccountId = selectedAccount.Id
                     };
+                    server.Characters = chars.Select(ch => new AccountCharacter
+                        {
+                            OptionId = ch.value ?? string.Empty, Name = ch.text ?? string.Empty, ServerId = server.Id
+                        })
+                        .ToList();
                     servers.Add(server);
                     log.AppendLog($"   Персонажей: {server.Characters.Count}");
                 }
 
                 await using (var db = new AppDbContext())
                 {
-                    var acc = await db.Accounts
-                        .Include(x => x.Servers)
-                        .ThenInclude(x => x.Characters)
-                        .SingleOrDefaultAsync(x => x.Id == selectedAccount.Id);
+                    var accounts = _vm.Squads.SelectMany(x => x.Accounts).ToList();
+                    var acc = accounts.FirstOrDefault(x => x.Id == selectedAccount.Id);
                     if (acc != null)
                     {
                         foreach (var server in servers)
                         {
-                            var existing = acc.Servers.FirstOrDefault(s => s.OptionId == server.OptionId) ?? server;
-
-                            var newChars = server.Characters.Where(character =>
-                                    existing.Characters.All(c => c.OptionId != character.OptionId))
-                                .ToList();
-
-                            existing.Characters.AddRange(newChars);
+                            var chars = new List<AccountCharacter>();
+                            var existing = acc.Servers.FirstOrDefault(s => s.OptionId == server.OptionId);
+                            if (existing != null)
+                            {
+                                var newChars = server.Characters.Where(character =>
+                                        existing.Characters.All(c => c.OptionId != character.OptionId))
+                                    .ToList();
+                                foreach (var newChar in newChars)
+                                    newChar.ServerId = existing.Id;
+                                chars.AddRange(newChars);
+                            }
+                            if (existing == null)
+                            {
+                                await db.AddAsync(server);
+                                existing = server;
+                                chars.AddRange(server.Characters);
+                            }
+                            
+                            if (existing.Characters.Count == 1)
+                                existing.DefaultCharacterOptionId = existing.Characters.First().OptionId;
+                            await db.AddRangeAsync(chars);
                         }
 
-                        acc.Servers = servers;
                         db.Update(acc);
                         await db.SaveChangesAsync();
                     }
                 }
-                _vm.Reload();
+                // _vm.Reload();
 
                 log.MarkCompleted("Готово: данные о серверах и персонажах сохранены.");
             }

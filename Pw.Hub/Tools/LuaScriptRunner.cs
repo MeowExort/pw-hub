@@ -17,7 +17,8 @@ public class LuaScriptRunner
     private readonly LuaIntegration _integration;
 
     // Debug support types
-    public delegate bool DebugBreakHandler(int line, IDictionary<string, object> locals, IDictionary<string, object> globals);
+    public delegate bool DebugBreakHandler(int line, IDictionary<string, object> locals,
+        IDictionary<string, object> globals);
 
     public LuaScriptRunner(IAccountManager accountManager, IBrowser browser)
     {
@@ -36,7 +37,7 @@ public class LuaScriptRunner
         _integration.SetProgressSink(sink);
     }
 
-    public async Task RunAsync(string scriptFileName, string selectedAccountId = null)
+    public async Task RunAsync(string scriptFileName)
     {
         // Load script text from embedded Scripts folder in output directory
         try
@@ -45,45 +46,36 @@ public class LuaScriptRunner
             var scriptPath = Path.Combine(baseDir, "Scripts", scriptFileName);
             if (!File.Exists(scriptPath))
             {
-                MessageBox.Show($"Скрипт {scriptFileName} не найден по пути: {scriptPath}", "Lua", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Скрипт {scriptFileName} не найден по пути: {scriptPath}", "Lua", MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
             var code = await File.ReadAllTextAsync(scriptPath, Encoding.UTF8);
-            await RunCodeAsync(code, selectedAccountId);
+            await RunCodeAsync(code);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Ошибка во время выполнения Lua-скрипта: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Ошибка во время выполнения Lua-скрипта: {ex.Message}", "Lua", MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
-    public Task RunCodeAsync(string code, string selectedAccountId = null)
+    public Task RunCodeAsync(string code)
     {
-        try
-        {
-            // Keep Lua VM alive so callback-based APIs (…Cb) can invoke into the same state
-            _currentLua?.Dispose(); // dispose previous editor session if any
-            _currentLua = new Lua();
-            _currentLua.State.Encoding = Encoding.UTF8;
-            _integration.Register(_currentLua);
+        // Keep Lua VM alive so callback-based APIs (…Cb) can invoke into the same state
+        _currentLua?.Dispose(); // dispose previous editor session if any
+        _currentLua = new Lua();
+        _currentLua.State.Encoding = Encoding.UTF8;
+        _integration.Register(_currentLua);
 
-            if (!string.IsNullOrWhiteSpace(selectedAccountId))
-                _currentLua["selectedAccountId"] = selectedAccountId;
-            else
-                _currentLua["selectedAccountId"] = null;
-
-            // Execute user code synchronously; further async callbacks will target _currentLua
-            _currentLua.DoString(code);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Ошибка во время выполнения Lua-скрипта: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        // Execute user code synchronously; further async callbacks will target _currentLua
+        _currentLua.DoString(code);
         return Task.CompletedTask;
     }
 
-    public Task RunCodeWithBreakpointsAsync(string code, IEnumerable<int> breakpoints, DebugBreakHandler onBreak, string selectedAccountId = null)
+    public Task RunCodeWithBreakpointsAsync(string code, IEnumerable<int> breakpoints, DebugBreakHandler onBreak,
+        string selectedAccountId = null)
     {
         try
         {
@@ -200,28 +192,40 @@ debug.sethook(__pw_hook, 'l')
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Ошибка во время отладки Lua-скрипта: {ex.Message}", "Lua Debug", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Ошибка во время отладки Lua-скрипта: {ex.Message}", "Lua Debug", MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
+
         return Task.CompletedTask;
     }
 
     private class DebugBridge
     {
         private readonly DebugBreakHandler _onBreak;
-        public DebugBridge(DebugBreakHandler onBreak) { _onBreak = onBreak; }
+
+        public DebugBridge(DebugBreakHandler onBreak)
+        {
+            _onBreak = onBreak;
+        }
+
         public void OnBreak(object lineObj, object localsObj, object globalsObj)
         {
             try
             {
                 int line = 0;
-                if (lineObj is double d) line = (int)d; else if (lineObj is int i) line = i; else if (lineObj != null) int.TryParse(lineObj.ToString(), out line);
+                if (lineObj is double d) line = (int)d;
+                else if (lineObj is int i) line = i;
+                else if (lineObj != null) int.TryParse(lineObj.ToString(), out line);
                 var visited1 = new HashSet<object>(ReferenceEqualityComparer.Instance);
-                var locals = ConvertTable(localsObj, maxDepth: 6, currentDepth: 0, visited: visited1);
+                var locals = ConvertTable(localsObj, maxDepth: 7, currentDepth: 0, visited: visited1);
                 var visited2 = new HashSet<object>(ReferenceEqualityComparer.Instance);
-                var globals = ConvertTable(globalsObj, maxDepth: 5, currentDepth: 0, visited: visited2); // don't explode
+                var globals =
+                    ConvertTable(globalsObj, maxDepth: 6, currentDepth: 0, visited: visited2); // don't explode
                 _onBreak?.Invoke(line, locals, globals);
             }
-            catch { }
+            catch
+            {
+            }
         }
     }
 
@@ -280,6 +284,7 @@ debug.sethook(__pw_hook, 'l')
                     idx++;
                     if (idx > 200) break; // safety cap
                 }
+
                 listDict["Count"] = idx - 1;
                 return listDict;
             }
@@ -287,22 +292,40 @@ debug.sethook(__pw_hook, 'l')
             // General CLR object: reflect public readable properties
             var objDict = new Dictionary<string, object>();
             objDict["__type"] = type.Name;
-            foreach (var p in type.GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+            foreach (var p in type.GetProperties(System.Reflection.BindingFlags.Instance |
+                                                 System.Reflection.BindingFlags.Public))
             {
                 if (!p.CanRead) continue;
                 object v;
-                try { v = p.GetValue(val, null); }
-                catch { v = null; }
+                try
+                {
+                    v = p.GetValue(val, null);
+                }
+                catch
+                {
+                    v = null;
+                }
+
                 objDict[p.Name] = ConvertValue(v, maxDepth, currentDepth + 1, visited);
             }
+
             // Also include public fields if any
-            foreach (var f in type.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+            foreach (var f in type.GetFields(System.Reflection.BindingFlags.Instance |
+                                             System.Reflection.BindingFlags.Public))
             {
                 object v;
-                try { v = f.GetValue(val); }
-                catch { v = null; }
+                try
+                {
+                    v = f.GetValue(val);
+                }
+                catch
+                {
+                    v = null;
+                }
+
                 objDict[f.Name] = ConvertValue(v, maxDepth, currentDepth + 1, visited);
             }
+
             return objDict;
         }
         catch
@@ -313,10 +336,12 @@ debug.sethook(__pw_hook, 'l')
 
     private static bool IsSimple(object val)
     {
-        return val == null || val.GetType().IsPrimitive || val is string || val is decimal || val is DateTime || val is Guid;
+        return val == null || val.GetType().IsPrimitive || val is string || val is decimal || val is DateTime ||
+               val is Guid;
     }
 
-    private static IDictionary<string, object> ConvertTable(object tableObj, int maxDepth = 2, int currentDepth = 0, ISet<object> visited = null)
+    private static IDictionary<string, object> ConvertTable(object tableObj, int maxDepth = 2, int currentDepth = 0,
+        ISet<object> visited = null)
     {
         var dict = new Dictionary<string, object>();
         try
@@ -343,13 +368,23 @@ debug.sethook(__pw_hook, 'l')
                     var key = enumerator.Key;
                     var value = enumerator.Value;
                     string keyStr;
-                    try { keyStr = key?.ToString() ?? "<nil>"; }
-                    catch { keyStr = "<key>"; }
+                    try
+                    {
+                        keyStr = key?.ToString() ?? "<nil>";
+                    }
+                    catch
+                    {
+                        keyStr = "<key>";
+                    }
+
                     dict[keyStr] = ConvertValue(value, maxDepth, currentDepth + 1, visited);
                 }
             }
         }
-        catch { }
+        catch
+        {
+        }
+
         return dict;
     }
 
@@ -363,12 +398,14 @@ debug.sethook(__pw_hook, 'l')
             {
                 var direct = Path.Combine(baseDir, scriptPath);
                 var inScripts = Path.Combine(baseDir, "Scripts", scriptPath);
-                if (File.Exists(direct)) scriptPath = direct; else scriptPath = inScripts;
+                if (File.Exists(direct)) scriptPath = direct;
+                else scriptPath = inScripts;
             }
 
             if (!File.Exists(scriptPath))
             {
-                MessageBox.Show($"Скрипт модуля не найден: {module.Script}", "Модули", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Скрипт модуля не найден: {module.Script}", "Модули", MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return null;
             }
 
@@ -409,7 +446,8 @@ debug.sethook(__pw_hook, 'l')
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при выполнении модуля: {ex.Message}", "Модули", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка при выполнении модуля: {ex.Message}", "Модули", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
                 return null;
             }
 
@@ -418,7 +456,14 @@ debug.sethook(__pw_hook, 'l')
         }
         finally
         {
-            try { _currentLua?.Dispose(); } catch { }
+            try
+            {
+                _currentLua?.Dispose();
+            }
+            catch
+            {
+            }
+
             _currentLua = null;
             _currentTcs = null;
         }
@@ -431,16 +476,30 @@ debug.sethook(__pw_hook, 'l')
             _currentTcs?.TrySetResult(null);
             _currentLua?.Dispose();
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private class LuaCompleteBridge
     {
         private readonly TaskCompletionSource<string> _tcs;
-        public LuaCompleteBridge(TaskCompletionSource<string> tcs) { _tcs = tcs; }
+
+        public LuaCompleteBridge(TaskCompletionSource<string> tcs)
+        {
+            _tcs = tcs;
+        }
+
         public void Complete(object value)
         {
-            try { _tcs.TrySetResult(value?.ToString()); } catch { _tcs.TrySetResult(null); }
+            try
+            {
+                _tcs.TrySetResult(value?.ToString());
+            }
+            catch
+            {
+                _tcs.TrySetResult(null);
+            }
         }
     }
 }

@@ -14,7 +14,6 @@ public partial class EditAccountWindow
         InitializeComponent();
         _account = account;
         AccountNameTextBox.Text = account.Name;
-        EmailTextBox.Text = account.Email ?? string.Empty;
 
         // Bind servers list (if any). Two-way binding in XAML will update DefaultCharacterOptionId
         ServersList.ItemsSource = _account.Servers ?? new List<AccountServer>();

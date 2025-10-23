@@ -1,6 +1,15 @@
-local outOffFunction = 33
+local n = 1
+Print(tostring(n))
+
+n = 2
+Print(tostring(n))
 
 Account_GetAccountsCb(function(accounts)
-	local inFunction = 2
-    Print('accounts count: ' .. #accounts)
+
+    n = 3
+    Print(tostring(n))
+    
 end)
+
+n = 4
+Print(tostring(n))

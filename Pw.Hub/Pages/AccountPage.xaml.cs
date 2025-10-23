@@ -12,8 +12,6 @@ namespace Pw.Hub.Pages;
 
 public partial class AccountPage
 {
-    public Account Account { get; set; }
-
     public readonly IAccountManager AccountManager;
     public readonly IBrowser Browser;
     public LuaScriptRunner LuaRunner;
@@ -187,12 +185,10 @@ public partial class AccountPage
 
     private async void Wv_OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        if (Account == null)
+        if (AccountManager.CurrentAccount == null)
             return;
-        if (!string.IsNullOrEmpty(Account.ImageSource))
-            return;
-        var isAuth = await AccountManager.IsAuthorizedAsync();
-        if (!isAuth)
+        var exists = await Browser.WaitForElementExistsAsync(".auth_h > h2 > a > strong", 500);
+        if (!exists)
             return;
         var imgSrc =
             await Browser.ExecuteScriptAsync("document.querySelector(\"div.user_photo > span > a > img\").src");
@@ -200,58 +196,29 @@ public partial class AccountPage
             return;
         if (imgSrc.Contains("null"))
             return;
-        Account.ImageSource = imgSrc.Trim('"');
-        Account.LastVisit = DateTime.UtcNow;
+        var img = imgSrc.Trim('"');
+        var hasChanges = false;
+        if (img != AccountManager.CurrentAccount.ImageSource)
+        {
+            AccountManager.CurrentAccount.ImageSource = img;
+            hasChanges = true;
+        }
+        if (string.IsNullOrEmpty(AccountManager.CurrentAccount.SiteId))
+        {
+            AccountManager.CurrentAccount.SiteId = await AccountManager.GetSiteId();
+            hasChanges = true;
+        }
+        if (!hasChanges)
+            return;
         await using var db = new AppDbContext();
-        db.Update(Account);
-        await db.SaveChangesAsync();
-    }
-
-    public async Task<bool> ChangeAccount(Account account)
-    {
-        Account = account;
-        await AccountManager.ChangeAccountAsync(account.Id);
-        return await AccountManager.IsAuthorizedAsync();
-    }
-
-    // LUA buttons handlers
-    private async void OnLuaBrowserNavigate(object sender, RoutedEventArgs e)
-    {
-        await LuaRunner.RunAsync("browser_navigate.lua");
-    }
-    private async void OnLuaBrowserExecJs(object sender, RoutedEventArgs e)
-    {
-        await LuaRunner.RunAsync("browser_exec_js.lua");
-    }
-    private async void OnLuaBrowserReload(object sender, RoutedEventArgs e)
-    {
-        await LuaRunner.RunAsync("browser_reload.lua");
-    }
-    private async void OnLuaAccountGet(object sender, RoutedEventArgs e)
-    {
-        await LuaRunner.RunAsync("account_get_account.lua");
-    }
-    private async void OnLuaAccountIsAuthorized(object sender, RoutedEventArgs e)
-    {
-        await LuaRunner.RunAsync("account_is_authorized.lua");
-    }
-    private async void OnLuaAccountGetAccounts(object sender, RoutedEventArgs e)
-    {
-        await LuaRunner.RunAsync("account_get_accounts.lua");
-    }
-    private async void OnLuaAccountChange(object sender, RoutedEventArgs e)
-    {
-        await using var db = new AppDbContext();
-        var accounts = await db.Accounts.ToArrayAsync();
-        var id = accounts[0].Id.ToString();
-        await LuaRunner.RunAsync("account_change_account.lua", id);
-    }
-
-    private void OnOpenLuaEditor(object sender, RoutedEventArgs e)
-    {
-        var selectedId = Account?.Id.ToString();
-        var wnd = new LuaEditorWindow(LuaRunner);
-        wnd.Show();
-        wnd.Activate();
+        db.Update(AccountManager.CurrentAccount);
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch
+        {
+            
+        }
     }
 }

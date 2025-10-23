@@ -14,11 +14,11 @@ public class Account : INotifyPropertyChanged
         set => SetField(ref field, value);
     } = string.Empty;
 
-    public string Email
+    public string SiteId
     {
         get;
         set => SetField(ref field, value);
-    }
+    } = string.Empty;
 
     public string ImageSource
     {
