@@ -130,7 +130,11 @@ public partial class MainWindow
                 try
                 {
                     if (NavigationTree != null)
-                        NavigationTree.IsEnabled = !isChanging;
+                    {
+                        // Блокируем взаимодействие без изменения визуального состояния
+                        NavigationTree.IsHitTestVisible = !isChanging;
+                        NavigationTree.Focusable = !isChanging;
+                    }
                     if (StatusBarText != null)
                         StatusBarText.Text = isChanging ? "Смена аккаунта..." : string.Empty;
                 }

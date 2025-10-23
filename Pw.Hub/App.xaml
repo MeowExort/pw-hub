@@ -677,6 +677,9 @@
                                                                                             </Setter.Value>
                                                                                         </Setter>
                                                                                     </Trigger>
+                                                                                    <Trigger Property="IsEnabled" Value="False">
+                                                                                        <Setter TargetName="ExpandPath" Property="Fill" Value="{StaticResource TextDisabledBrush}"/>
+                                                                                    </Trigger>
                                                                                 </ControlTemplate.Triggers>
                                                                             </ControlTemplate>
                                                                         </Setter.Value>
@@ -719,8 +722,24 @@
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Opacity" Value="1"/>
+                                    </Trigger>
+                                </Style.Triggers>
                             </Style>
                         </Style.Resources>
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Padding" Value="4"/>
+                                <!-- Prevent lightening/dimming when disabled -->
+                                <Setter Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </Style.Triggers>
                     </Style>
 
                     <!-- Modern DataGrid Style -->

@@ -111,7 +111,7 @@
                                    FontSize="12"
                                    Foreground="{StaticResource AccentHighlightBrush}"/>
                     </Border>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8" Background="Transparent">
                         <TreeView x:Name="NavigationTree"
                                   Style="{StaticResource ModernTreeView}"
                                   ItemsSource="{Binding Squads}"
