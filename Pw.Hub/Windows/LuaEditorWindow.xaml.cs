@@ -433,9 +433,19 @@ end)", "Задержка с колбэком"),
                 OutputBox.Text = line;
             else
                 OutputBox.AppendText("\r\n" + line);
-            // Move caret to end and scroll
-            OutputBox.CaretIndex = OutputBox.Text.Length;
-            OutputBox.ScrollToEnd();
+
+            // Ensure scroll happens after layout pass to reliably keep view pinned to bottom
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    OutputBox.CaretIndex = OutputBox.Text?.Length ?? 0;
+                    OutputBox.UpdateLayout();
+                    OutputBox.ScrollToEnd();
+                    try { OutputScroll?.ScrollToBottom(); } catch { }
+                }
+                catch { }
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
         catch { }
     }
@@ -596,6 +606,31 @@ end)", "Задержка с колбэком"),
     private void OnClearOutputClick(object sender, RoutedEventArgs e)
     {
         OutputBox.Clear();
+    }
+
+    private void OutputBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        try
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<object, System.Windows.Controls.TextChangedEventArgs>(OutputBox_OnTextChanged), sender, e);
+                return;
+            }
+            // Schedule scroll after layout to ensure pinned to bottom even with outer ScrollViewer
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    OutputBox.CaretIndex = OutputBox.Text?.Length ?? 0;
+                    OutputBox.UpdateLayout();
+                    OutputBox.ScrollToEnd();
+                    try { OutputScroll?.ScrollToBottom(); } catch { }
+                }
+                catch { }
+            }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+        catch { }
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)

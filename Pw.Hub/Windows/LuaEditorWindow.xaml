@@ -124,7 +124,8 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource AccentHighlightBrush}" />
                     </Border>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer x:Name="OutputScroll"
+                                  VerticalScrollBarVisibility="Auto"
                                   Padding="8">
                         <TextBox x:Name="OutputBox"
                                  IsReadOnly="True"
@@ -138,7 +139,8 @@
                                  FontFamily="{StaticResource MonospaceFont}"
                                  FontSize="13"
                                  Padding="4"
-                                 MinHeight="100" />
+                                 MinHeight="100"
+                                 TextChanged="OutputBox_OnTextChanged" />
                     </ScrollViewer>
                 </DockPanel>
             </Border>

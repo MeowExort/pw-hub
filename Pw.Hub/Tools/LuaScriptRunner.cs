@@ -69,9 +69,34 @@ public class LuaScriptRunner
         _currentLua.State.Encoding = Encoding.UTF8;
         _integration.Register(_currentLua);
 
-        // Execute user code synchronously; further async callbacks will target _currentLua
-        _currentLua.DoString(code);
-        return Task.CompletedTask;
+        // Bridge completion so editor can keep Stop enabled until script signals completion
+        _currentTcs = new TaskCompletionSource<string>();
+        var bridge = new LuaCompleteBridge(_currentTcs);
+        var mi = typeof(LuaCompleteBridge).GetMethod(nameof(LuaCompleteBridge.Complete), new[] { typeof(object) });
+        if (mi != null)
+        {
+            _currentLua.RegisterFunction("Complete", bridge, mi);
+        }
+
+        // Execute user code on a worker to avoid blocking UI; async callbacks will continue to use _currentLua
+        return Task.Run(() =>
+        {
+            try
+            {
+                _currentLua!.DoString(code);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Stopped while running — consider completed
+                _currentTcs?.TrySetResult(null);
+            }
+            catch (Exception ex)
+            {
+                // Surface runtime error to user and complete
+                MessageBox.Show($"Ошибка Lua: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
+                _currentTcs?.TrySetResult(null);
+            }
+        }).ContinueWith(t => _currentTcs!.Task).Unwrap();
     }
 
     public Task RunCodeWithBreakpointsAsync(string code, IEnumerable<int> breakpoints, DebugBreakHandler onBreak,
@@ -101,6 +126,14 @@ public class LuaScriptRunner
             var bridge = new DebugBridge(onBreak);
             var mi = typeof(DebugBridge).GetMethod(nameof(DebugBridge.OnBreak));
             _currentLua.RegisterFunction("__pw_onbreak", bridge, mi);
+
+            // Also bridge completion for debug sessions
+            _currentTcs = new TaskCompletionSource<string>();
+            var cmi = typeof(LuaCompleteBridge).GetMethod(nameof(LuaCompleteBridge.Complete), new[] { typeof(object) });
+            if (cmi != null)
+            {
+                _currentLua.RegisterFunction("Complete", new LuaCompleteBridge(_currentTcs), cmi);
+            }
 
             // Inject Lua debug prelude
             var prelude = @"
@@ -190,13 +223,18 @@ debug.sethook(__pw_hook, 'l')
             _currentLua.DoString(prelude);
             _currentLua.DoString(code);
         }
+        catch (ObjectDisposedException)
+        {
+            _currentTcs?.TrySetResult(null);
+        }
         catch (Exception ex)
         {
             MessageBox.Show($"Ошибка во время отладки Lua-скрипта: {ex.Message}", "Lua Debug", MessageBoxButton.OK,
                 MessageBoxImage.Error);
+            _currentTcs?.TrySetResult(null);
         }
 
-        return Task.CompletedTask;
+        return _currentTcs?.Task ?? Task.CompletedTask;
     }
 
     private class DebugBridge
