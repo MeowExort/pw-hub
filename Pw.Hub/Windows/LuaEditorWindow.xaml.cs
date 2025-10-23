@@ -453,14 +453,15 @@ end)", "Задержка с колбэком"),
         {
             // Очистить вывод перед началом отладки
             OutputBox.Clear();
-            AppendLog("Отладка скрипта...");
+            AppendLog("Запуск отладки скрипта...");
             var code = Editor?.Text ?? string.Empty;
             var bps = _breakpoints.ToArray();
             await _runner.RunCodeWithBreakpointsAsync(code, bps, OnDebugBreak);
+            AppendLog("Отладка скрипта завершена!");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Не удалось запустить отладку: {ex.Message}", "Lua Debug", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppendLog($"Произошла ошибка при отладке скрипта: {ex.Message}");
         }
     }
 
