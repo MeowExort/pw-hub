@@ -387,7 +387,10 @@ public class LuaIntegration
     {
         var name = $"__{prefix}_{Guid.NewGuid():N}";
         _lua.NewTable(name);
-        return (LuaTable)_lua[name];
+        var table = (LuaTable)_lua[name];
+        // Remove the temporary global reference to avoid polluting _G (and debugger Globals)
+        try { _lua[name] = null; } catch { }
+        return table;
     }
 
     private LuaTable ToLuaAccount(Account acc)
