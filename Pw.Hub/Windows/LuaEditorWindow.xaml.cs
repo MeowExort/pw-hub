@@ -36,7 +36,7 @@ public partial class LuaEditorWindow : Window
     private static readonly ObjectType AccountType = new(
         "Account",
         // Fields based on Pw.Hub.Models.Account
-        "Id", "Name", "Email", "ImageSource", "LastVisit", "Servers", "ImageUri", "SquadId", "Squad"
+        "Id", "Name", "ImageSource", "LastVisit", "Servers", "ImageUri", "SquadId", "Squad"
     );
     private static readonly ObjectType AccountServerType = new(
         "AccountServer",

@@ -138,7 +138,6 @@ public partial class MainWindow
             var newAccount = new Account
             {
                 Name = dialog.AccountName,
-                Email = dialog.Email,
                 SquadId = selectedSquad.Id,
                 ImageSource = ""
             };
@@ -265,7 +264,6 @@ public partial class MainWindow
             // var currentSelection = NavigationTree.SelectedItem;
 
             selectedAccount.Name = dialog.AccountName;
-            selectedAccount.Email = dialog.Email;
 
             using var db = new AppDbContext();
             db.Update(selectedAccount);

@@ -401,7 +401,6 @@ public class LuaIntegration
             // Primitive/simple fields
             t["Id"] = acc?.Id;
             t["Name"] = acc?.Name;
-            t["Email"] = acc?.Email;
             t["ImageSource"] = acc?.ImageSource;
             t["LastVisit"] = acc?.LastVisit.ToString("o"); // ISO string for DateTime
             t["ImageUri"] = acc?.ImageUri?.ToString();

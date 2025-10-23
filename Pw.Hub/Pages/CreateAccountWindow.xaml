@@ -33,14 +33,6 @@
                         Padding="12,10"
                         MaxLength="50"
                         Margin="0,0,0,16"/>
-
-                <TextBlock Text="Email (необязательно)"
-                          Style="{StaticResource ModernTextBlock}"
-                          Margin="0,0,0,6"/>
-                <TextBox x:Name="EmailTextBox"
-                        Style="{StaticResource ModernTextBox}"
-                        Padding="12,10"
-                        MaxLength="100"/>
             </StackPanel>
 
             <!-- Actions -->

@@ -14,12 +14,6 @@ public class Account : INotifyPropertyChanged
         set => SetField(ref field, value);
     } = string.Empty;
 
-    public string Email
-    {
-        get;
-        set => SetField(ref field, value);
-    }
-
     public string ImageSource
     {
         get;

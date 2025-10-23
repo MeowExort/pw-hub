@@ -5,7 +5,6 @@ namespace Pw.Hub.Pages;
 public partial class CreateAccountWindow
 {
     public string AccountName { get; private set; } = string.Empty;
-    public string Email { get; private set; }
 
     public CreateAccountWindow()
     {
@@ -16,7 +15,6 @@ public partial class CreateAccountWindow
     private void OnCreateClick(object sender, RoutedEventArgs e)
     {
         var name = AccountNameTextBox.Text.Trim();
-        var email = EmailTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -26,7 +24,6 @@ public partial class CreateAccountWindow
         }
 
         AccountName = name;
-        Email = string.IsNullOrWhiteSpace(email) ? null : email;
         DialogResult = true;
         Close();
     }

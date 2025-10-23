@@ -31,7 +31,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.Email).HasMaxLength(100);
             entity.Property(e => e.ImageSource).HasMaxLength(256);
             entity.Property(e => e.LastVisit);
             entity.HasMany(e => e.Servers)
