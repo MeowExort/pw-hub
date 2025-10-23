@@ -30,12 +30,15 @@ public partial class AccountPage
 
     private void WvOnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        Browser.ExecuteScriptAsync(
-            """
-            $('.items_container input[type=checkbox]').unbind('click');
-            """);
         if (Browser.Source.AbsoluteUri.Contains("promo_items.php"))
         {
+            if (!Browser.Source.AbsoluteUri.Contains("do=activate"))
+            {
+                Browser.ExecuteScriptAsync(
+                    """
+                    $('.items_container input[type=checkbox]').unbind('click');
+                    """);
+            }
             Browser.ExecuteScriptAsync(
                 """
                 var element = document.createElement('div');

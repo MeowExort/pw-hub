@@ -25,7 +25,6 @@ public partial class EditAccountWindow
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         var name = AccountNameTextBox.Text.Trim();
-        var email = EmailTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -35,7 +34,6 @@ public partial class EditAccountWindow
         }
 
         AccountName = name;
-        Email = string.IsNullOrWhiteSpace(email) ? null : email;
         DialogResult = true;
         Close();
     }

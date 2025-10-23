@@ -20,6 +20,8 @@ public partial class LuaEditorWindow : Window
     private CompletionWindow _completionWindow;
     private readonly HashSet<int> _breakpoints = new();
     private BreakpointBackgroundRenderer _bpRenderer;
+    private bool _isRunning;
+    private bool _isDebugging;
 
     // Simple type model for Lua API objects (for autocomplete after '.')
     private sealed class ObjectType
@@ -195,6 +197,7 @@ end)", "Задержка с колбэком"),
         _runner.SetPrintSink(null);
         // Dispose current Lua VM used by editor so pending callbacks are cancelled and resources released
         try { _runner.Stop(); } catch { }
+        SetRunState(false, false);
     }
 
     private void EditorOnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -420,18 +423,40 @@ end)", "Задержка с колбэком"),
     {
         try
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<string>(AppendLog), text);
+                return;
+            }
             var line = $"[{DateTime.Now:HH:mm:ss}] {text}";
             if (OutputBox.Text.Length == 0)
                 OutputBox.Text = line;
             else
                 OutputBox.AppendText("\r\n" + line);
+            // Move caret to end and scroll
+            OutputBox.CaretIndex = OutputBox.Text.Length;
             OutputBox.ScrollToEnd();
+        }
+        catch { }
+    }
+
+    private void SetRunState(bool running, bool debugging)
+    {
+        _isRunning = running;
+        _isDebugging = debugging;
+        try
+        {
+            if (RunBtn != null) RunBtn.IsEnabled = !running && !debugging;
+            if (DebugBtn != null) DebugBtn.IsEnabled = !running && !debugging;
+            if (StopBtn != null) StopBtn.IsEnabled = running || debugging;
+            if (Editor != null) Editor.IsReadOnly = running || debugging;
         }
         catch { }
     }
 
     private async void OnRunClick(object sender, RoutedEventArgs e)
     {
+        SetRunState(true, false);
         try
         {
             // Очистить вывод перед новым запуском
@@ -445,10 +470,15 @@ end)", "Задержка с колбэком"),
         {
             AppendLog($"Произошла ошибка при выполнения скрипта: {ex.Message}");
         }
+        finally
+        {
+            SetRunState(false, false);
+        }
     }
 
     private async void OnDebugClick(object sender, RoutedEventArgs e)
     {
+        SetRunState(false, true);
         try
         {
             // Очистить вывод перед началом отладки
@@ -462,6 +492,24 @@ end)", "Задержка с колбэком"),
         catch (Exception ex)
         {
             AppendLog($"Произошла ошибка при отладке скрипта: {ex.Message}");
+        }
+        finally
+        {
+            SetRunState(false, false);
+        }
+    }
+
+    private void OnStopClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _runner.Stop();
+            AppendLog("[Остановлено пользователем]");
+        }
+        catch { }
+        finally
+        {
+            SetRunState(false, false);
         }
     }
 

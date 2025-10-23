@@ -8,8 +8,11 @@ public interface IAccountManager
     event Action<Account> CurrentAccountChanged;
     // Raised when any property of the current account changes (e.g., ImageSource)
     event Action<Account> CurrentAccountDataChanged;
+    // Raised when account change process starts (true) and ends (false)
+    event Action<bool> CurrentAccountChanging;
 
     Account CurrentAccount { get; }
+    bool IsChanging { get; }
     
     Task<Account[]> GetAccountsAsync();
     Task ChangeAccountAsync(string accountId);

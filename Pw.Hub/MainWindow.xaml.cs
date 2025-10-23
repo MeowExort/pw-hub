@@ -39,6 +39,8 @@ public partial class MainWindow
             AccountPage.AccountManager.CurrentAccountChanged += OnCurrentAccountChanged;
             // Subscribe to current account data/property changes to mirror updates (e.g., avatar) into VM
             AccountPage.AccountManager.CurrentAccountDataChanged += OnCurrentAccountDataChanged;
+            // Subscribe to account changing progress to block UI interactions during switch
+            AccountPage.AccountManager.CurrentAccountChanging += OnCurrentAccountChanging;
         }
         catch { }
         Loaded += (_, _) => LoadModules();
@@ -116,6 +118,26 @@ public partial class MainWindow
             {
             }
         });
+    }
+
+    private void OnCurrentAccountChanging(bool isChanging)
+    {
+        // Block TreeView interactions while account switching is in progress
+        try
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    if (NavigationTree != null)
+                        NavigationTree.IsEnabled = !isChanging;
+                    if (StatusBarText != null)
+                        StatusBarText.Text = isChanging ? "Смена аккаунта..." : string.Empty;
+                }
+                catch { }
+            });
+        }
+        catch { }
     }
 
     private static void CollapseSiblings(TreeViewItem item)
@@ -273,6 +295,9 @@ public partial class MainWindow
 
     private async void ControlsList_SelectedItemChanged()
     {
+        // Block account switching from TreeView while AccountManager is in progress
+        try { if (AccountPage?.AccountManager?.IsChanging == true) return; } catch { }
+
         if (NavigationTree.SelectedItem is Account account)
         {
             if (AccountPage.AccountManager.CurrentAccount?.Id != account.Id)

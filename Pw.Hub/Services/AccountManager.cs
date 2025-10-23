@@ -12,12 +12,21 @@ public class AccountManager(IBrowser browser) : IAccountManager
 {
     public event Action<Account> CurrentAccountChanged;
     public event Action<Account> CurrentAccountDataChanged;
+    public event Action<bool> CurrentAccountChanging;
     private const string CookieFileExtension = ".json";
     private const string CookieFolder = "Cookies";
 
     public Account CurrentAccount { get; private set; }
+    public bool IsChanging => _isChanging;
+    private volatile bool _isChanging;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
     private PropertyChangedEventHandler _accountPropertyChangedHandler;
+
+    private void SetChanging(bool value)
+    {
+        _isChanging = value;
+        try { CurrentAccountChanging?.Invoke(value); } catch { }
+    }
 
     public async Task<Account[]> GetAccountsAsync()
     {
@@ -31,51 +40,57 @@ public class AccountManager(IBrowser browser) : IAccountManager
     public async Task ChangeAccountAsync(string accountId)
     {
         await _semaphoreSlim.WaitAsync();
-        await SaveCookies();
-        await using var db = new AppDbContext();
-        var account = await db.Accounts.FindAsync(accountId);
-        // detach from previous account PropertyChanged
-        if (CurrentAccount is INotifyPropertyChanged oldInpc && _accountPropertyChangedHandler != null)
+        SetChanging(true);
+        try
         {
-            try { oldInpc.PropertyChanged -= _accountPropertyChangedHandler; } catch { }
-        }
-        CurrentAccount = account ?? throw new InvalidOperationException("Account not found");
-        // attach to new account PropertyChanged
-        AttachToCurrentAccountPropertyChanged();
+            await SaveCookies();
+            await using var db = new AppDbContext();
+            var account = await db.Accounts.FindAsync(accountId);
+            // detach from previous account PropertyChanged
+            if (CurrentAccount is INotifyPropertyChanged oldInpc && _accountPropertyChangedHandler != null)
+            {
+                try { oldInpc.PropertyChanged -= _accountPropertyChangedHandler; } catch { }
+            }
+            CurrentAccount = account ?? throw new InvalidOperationException("Account not found");
+            // attach to new account PropertyChanged
+            AttachToCurrentAccountPropertyChanged();
 
-        Cookie[] cookies;
-        if (!File.Exists(GetCookieFilePath()))
-        {
-            cookies = [];
-        }
-        else
-        {
-            var json = await File.ReadAllTextAsync(GetCookieFilePath());
-            cookies = JsonSerializer.Deserialize<Cookie[]>(json, JsonSerializerOptions.Web) ?? [];
-        }
+            Cookie[] cookies;
+            if (!File.Exists(GetCookieFilePath()))
+            {
+                cookies = [];
+            }
+            else
+            {
+                var json = await File.ReadAllTextAsync(GetCookieFilePath());
+                cookies = JsonSerializer.Deserialize<Cookie[]>(json, JsonSerializerOptions.Web) ?? [];
+            }
 
-        await browser.SetCookieAsync(cookies);
-        await browser.ReloadAsync();
-        var pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 30000);
-        if (!pageLoaded)
+            await browser.SetCookieAsync(cookies);
+            await browser.ReloadAsync();
+            var pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 30000);
+            if (!pageLoaded)
+            {
+                throw new InvalidOperationException("Page did not load in time");
+            }
+
+            var isAuthorized = await IsAuthorizedAsync();
+            if (!isAuthorized)
+            {
+                return;
+            }
+
+            await SaveCookies();
+            account.LastVisit = DateTime.UtcNow;
+            db.Update(account);
+            await db.SaveChangesAsync();
+            try { CurrentAccountChanged?.Invoke(account); } catch { }
+        }
+        finally
         {
+            SetChanging(false);
             _semaphoreSlim.Release();
-            throw new InvalidOperationException("Page did not load in time");
         }
-
-        var isAuthorized = await IsAuthorizedAsync();
-        if (!isAuthorized)
-        {
-            _semaphoreSlim.Release();
-            return;
-        }
-
-        await SaveCookies();
-        account.LastVisit = DateTime.UtcNow;
-        db.Update(account);
-        await db.SaveChangesAsync();
-        try { CurrentAccountChanged?.Invoke(account); } catch { }
-        _semaphoreSlim.Release();
     }
 
     public async Task<bool> IsAuthorizedAsync()

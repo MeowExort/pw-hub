@@ -23,18 +23,28 @@
                 Padding="12,8">
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Button Style="{StaticResource PrimaryButton}"
+                    <Button x:Name="RunBtn"
+                            Style="{StaticResource PrimaryButton}"
                             Content="▶ Запустить"
                             MinWidth="120"
                             Padding="16,8"
                             Margin="0,0,8,0"
                             Click="OnRunClick" />
-                    <Button Style="{StaticResource PrimaryButton}"
+                    <Button x:Name="DebugBtn"
+                            Style="{StaticResource PrimaryButton}"
                             Content="▶ Отладка"
                             MinWidth="120"
                             Padding="16,8"
                             Margin="0,0,8,0"
                             Click="OnDebugClick" />
+                    <Button x:Name="StopBtn"
+                            Style="{StaticResource ModernButton}"
+                            Content="⏹ Остановить"
+                            MinWidth="120"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Click="OnStopClick"
+                            IsEnabled="False" />
                     <Button Style="{StaticResource ModernButton}"
                             Content="🗑 Очистить вывод"
                             MinWidth="140"
