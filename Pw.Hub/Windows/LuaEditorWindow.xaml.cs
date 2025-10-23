@@ -145,7 +145,6 @@ public partial class LuaEditorWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Произошла ошибка при выполнения скрипта: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
             AppendLog($"Произошла ошибка при выполнения скрипта: {ex.Message}");
         }
     }
