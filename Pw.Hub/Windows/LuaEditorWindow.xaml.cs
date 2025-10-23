@@ -141,10 +141,12 @@ public partial class LuaEditorWindow : Window
             AppendLog("Запуск скрипта...");
             var code = Editor?.Text ?? string.Empty;
             await _runner.RunCodeAsync(code);
+            AppendLog("Выполнение скрипта завершено!");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Не удалось выполнить скрипт: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Произошла ошибка при выполнения скрипта: {ex.Message}", "Lua", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppendLog($"Произошла ошибка при выполнения скрипта: {ex.Message}");
         }
     }
 
