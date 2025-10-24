@@ -4,9 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Редактировать отряд" Height="600" Width="460"
+        Title="Редактировать отряд" MinHeight="200" Width="460"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        SizeToContent="Height"
         Style="{StaticResource ModernWindowChrome}">
     <Border Style="{StaticResource Card}" Margin="20">
         <Grid>

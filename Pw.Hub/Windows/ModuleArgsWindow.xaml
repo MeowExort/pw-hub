@@ -1,7 +1,8 @@
 ﻿<Window x:Class="Pw.Hub.Windows.ModuleArgsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Параметры модуля" Height="380" Width="520" WindowStartupLocation="CenterOwner"
+        Title="Параметры модуля" MinHeight="250" Width="520" WindowStartupLocation="CenterOwner"
+        SizeToContent="Height"
         Icon="/Assets/icon.png"
         Style="{StaticResource ModernWindowChrome}">
     <Border Style="{StaticResource Card}" Margin="20">

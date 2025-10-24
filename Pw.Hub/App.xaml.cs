@@ -5,6 +5,9 @@ using System.Windows.Forms;
 using Pw.Hub.Services;
 using NotifyIcon = NotifyIconEx.NotifyIcon;
 using System.IO;
+using System.Text;
+using System.Windows.Threading;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Pw.Hub;
 
@@ -73,5 +76,16 @@ public partial class App
     private async void OnClick(object sender, EventArgs e)
     {
         await _authService.CheckAccounts(true);
+    }
+
+    private void App_OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        var sbError = new StringBuilder();
+        sbError.AppendLine("Exception: " + e.Exception.Message);
+        sbError.AppendLine();
+        sbError.AppendLine("Stack trace: " + (e.Exception.StackTrace ?? "empty"));
+        File.WriteAllText("error.log", sbError.ToString());
+
+        MessageBox.Show(e.Exception.ToString());
     }
 }

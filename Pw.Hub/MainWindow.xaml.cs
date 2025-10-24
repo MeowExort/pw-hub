@@ -272,6 +272,41 @@ public partial class MainWindow
         }
     }
 
+    private void OnAddAccountInlineClick(object sender, RoutedEventArgs e)
+    {
+        // Inline add account button inside a Squad item (DataContext is Squad)
+        if (sender is not FrameworkElement fe || fe.DataContext is not Squad selectedSquad)
+        {
+            MessageBox.Show("Выберите отряд для добавления аккаунта", "Ошибка",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new CreateAccountWindow { Owner = this };
+        if (dialog.ShowDialog() == true)
+        {
+            using var db = new AppDbContext();
+            var newAccount = new Account
+            {
+                Name = dialog.AccountName,
+                SquadId = selectedSquad.Id,
+                ImageSource = string.Empty
+            };
+            db.Accounts.Add(newAccount);
+            db.SaveChanges();
+
+            // Try to keep the squad expanded after reload so the new account is visible
+            var wasExpanded = NavigationTree.ItemContainerGenerator.ContainerFromItem(selectedSquad) is TreeViewItem tvi && tvi.IsExpanded;
+            _vm.Reload();
+
+            var reloadedSquad = _vm.Squads.FirstOrDefault(s => s.Id == selectedSquad.Id);
+            if (reloadedSquad != null && NavigationTree.ItemContainerGenerator.ContainerFromItem(reloadedSquad) is TreeViewItem newTvi)
+            {
+                newTvi.IsExpanded = true;
+            }
+        }
+    }
+
     private void NavigationTree_OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (!AccountPage.IsCoreInitialized)

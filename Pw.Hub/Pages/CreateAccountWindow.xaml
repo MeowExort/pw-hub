@@ -4,7 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Создать аккаунт" Height="600" Width="460"
+        Title="Создать аккаунт" MinHeight="200" Width="460"
+        SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Style="{StaticResource ModernWindowChrome}">
@@ -33,14 +34,6 @@
                         Padding="12,10"
                         MaxLength="50"
                         Margin="0,0,0,16"/>
-
-                <TextBlock Text="Email (необязательно)"
-                          Style="{StaticResource ModernTextBlock}"
-                          Margin="0,0,0,6"/>
-                <TextBox x:Name="EmailTextBox"
-                        Style="{StaticResource ModernTextBox}"
-                        Padding="12,10"
-                        MaxLength="100"/>
             </StackPanel>
 
             <!-- Actions -->
