@@ -26,6 +26,8 @@ public class MainViewModel : BaseViewModel
             .Include(s => s.Accounts)
             .ThenInclude(x=> x.Servers)
             .ThenInclude(x=> x.Characters)
+            .OrderBy(s => s.OrderIndex)
+            .ThenBy(s => s.Name)
             .ToList();
 
         Squads.Clear();
@@ -40,6 +42,7 @@ public class MainViewModel : BaseViewModel
             {
                 Id = squad.Id,
                 Name = squad.Name,
+                OrderIndex = squad.OrderIndex,
                 Accounts = new ObservableCollection<Account>(orderedAccounts)
             };
             Squads.Add(observableSquad);

@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property<int>(nameof(Squad.OrderIndex)).HasDefaultValue(0);
             entity.HasMany(e => e.Accounts)
                 .WithOne(e => e.Squad)
                 .HasForeignKey(e => e.SquadId)

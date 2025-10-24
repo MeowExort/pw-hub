@@ -13,6 +13,13 @@ public class Squad : INotifyPropertyChanged
         set => SetField(ref field, value);
     } = string.Empty;
 
+    // New: order among squads (0-based)
+    public int OrderIndex
+    {
+        get;
+        set => SetField(ref field, value);
+    } = 0;
+
     public ObservableCollection<Account> Accounts { get; set; } = [];
 
     public override string ToString() => Name;

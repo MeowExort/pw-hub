@@ -30,6 +30,7 @@ public partial class MainWindow
     // Drag & drop state for reordering accounts
     private Point _dragStartPoint;
     private Account _draggedAccount;
+    private Squad _draggedSquad;
 
     // Drag visual feedback
     private TreeViewItem _adornerItem;
@@ -222,9 +223,11 @@ public partial class MainWindow
         if (dialog.ShowDialog() == true)
         {
             using var db = new AppDbContext();
+            var maxOrder = db.Squads.Select(s => (int?)s.OrderIndex).Max() ?? -1;
             var newSquad = new Squad
             {
-                Name = dialog.SquadName
+                Name = dialog.SquadName,
+                OrderIndex = maxOrder + 1
             };
 
             db.Squads.Add(newSquad);
@@ -325,14 +328,22 @@ public partial class MainWindow
         {
             _dragStartPoint = e.GetPosition(NavigationTree);
             _draggedAccount = null;
+            _draggedSquad = null;
 
-            // identify if we pressed on an Account item
+            // identify if we pressed on an Account or Squad item
             var element = e.OriginalSource as DependencyObject;
             while (element != null && element is not TreeViewItem)
                 element = VisualTreeHelper.GetParent(element);
-            if (element is TreeViewItem tvi && tvi.DataContext is Account acc)
+            if (element is TreeViewItem tvi)
             {
-                _draggedAccount = acc;
+                if (tvi.DataContext is Account acc)
+                {
+                    _draggedAccount = acc;
+                }
+                else if (tvi.DataContext is Squad sq)
+                {
+                    _draggedSquad = sq;
+                }
             }
         }
         catch { }
@@ -343,7 +354,7 @@ public partial class MainWindow
         try
         {
             if (e.LeftButton != MouseButtonState.Pressed) return;
-            if (_draggedAccount == null) return;
+            if (_draggedAccount == null && _draggedSquad == null) return;
             // Respect account switching lock
             try { if (AccountPage?.AccountManager?.IsChanging == true) return; } catch { }
 
@@ -352,8 +363,16 @@ public partial class MainWindow
             if (diff.X < SystemParameters.MinimumHorizontalDragDistance && diff.Y < SystemParameters.MinimumVerticalDragDistance)
                 return;
 
-            var data = new DataObject(typeof(Account), _draggedAccount);
-            DragDrop.DoDragDrop(NavigationTree, data, DragDropEffects.Move);
+            if (_draggedAccount != null)
+            {
+                var dataAcc = new DataObject(typeof(Account), _draggedAccount);
+                DragDrop.DoDragDrop(NavigationTree, dataAcc, DragDropEffects.Move);
+            }
+            else if (_draggedSquad != null)
+            {
+                var dataSq = new DataObject(typeof(Squad), _draggedSquad);
+                DragDrop.DoDragDrop(NavigationTree, dataSq, DragDropEffects.Move);
+            }
         }
         catch { }
     }
@@ -361,66 +380,52 @@ public partial class MainWindow
     private Account _dropTargetAccount;
     private bool _insertAbove;
 
+    // Squad DnD state
+    private Squad _dropTargetSquad;
+    private bool _insertAboveSquad;
+
     private void NavigationTree_OnDragOver(object sender, DragEventArgs e)
     {
         try
         {
-            if (!e.Data.GetDataPresent(typeof(Account))) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-            var dragged = (Account)e.Data.GetData(typeof(Account));
-            if (dragged == null) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-
-            // determine target under mouse
-            var target = GetAccountOrSquadUnderMouse(e.OriginalSource as DependencyObject);
-            if (target.squad == null) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-
-            // only allow within same squad
-            if (target.account != null)
+            // Account drag
+            if (e.Data.GetDataPresent(typeof(Account)))
             {
-                if (target.account.SquadId != dragged.SquadId) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-            }
-            else
-            {
-                if (target.squad.Id != dragged.SquadId) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-            }
+                var dragged = (Account)e.Data.GetData(typeof(Account));
+                if (dragged == null) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
 
-            e.Effects = DragDropEffects.Move;
+                // determine target under mouse
+                var target = GetAccountOrSquadUnderMouse(e.OriginalSource as DependencyObject);
+                if (target.squad == null) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
 
-            // Visualize insertion position
-            if (target.account != null)
-            {
-                var squadItem = NavigationTree.ItemContainerGenerator.ContainerFromItem(target.squad) as TreeViewItem;
-                TreeViewItem accItem = null;
-                if (squadItem != null)
+                // only allow within same squad
+                if (target.account != null)
                 {
-                    accItem = squadItem.ItemContainerGenerator.ContainerFromItem(target.account) as TreeViewItem;
-                }
-                if (accItem != null)
-                {
-                    var pos = e.GetPosition(accItem);
-                    var above = pos.Y < accItem.ActualHeight / 2;
-                    _dropTargetAccount = target.account;
-                    _insertAbove = above;
-                    UpdateInsertionAdorner(accItem, above);
+                    if (target.account.SquadId != dragged.SquadId) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
                 }
                 else
                 {
-                    ClearInsertionAdorner();
+                    if (target.squad.Id != dragged.SquadId) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
                 }
-            }
-            else
-            {
-                // dropping into squad (end). Show indicator at the end of last account if any
-                var squadVm = _vm.Squads.FirstOrDefault(s => s.Id == target.squad.Id);
-                if (squadVm != null && squadVm.Accounts.Count > 0)
+
+                e.Effects = DragDropEffects.Move;
+
+                // Visualize insertion position
+                if (target.account != null)
                 {
-                    var lastAcc = squadVm.Accounts.Last();
                     var squadItem = NavigationTree.ItemContainerGenerator.ContainerFromItem(target.squad) as TreeViewItem;
-                    var lastItem = squadItem?.ItemContainerGenerator.ContainerFromItem(lastAcc) as TreeViewItem;
-                    if (lastItem != null)
+                    TreeViewItem accItem = null;
+                    if (squadItem != null)
                     {
-                        _dropTargetAccount = lastAcc;
-                        _insertAbove = false; // after last
-                        UpdateInsertionAdorner(lastItem, false);
+                        accItem = squadItem.ItemContainerGenerator.ContainerFromItem(target.account) as TreeViewItem;
+                    }
+                    if (accItem != null)
+                    {
+                        var pos = e.GetPosition(accItem);
+                        var above = pos.Y < accItem.ActualHeight / 2;
+                        _dropTargetAccount = target.account;
+                        _insertAbove = above;
+                        UpdateInsertionAdorner(accItem, above);
                     }
                     else
                     {
@@ -429,11 +434,91 @@ public partial class MainWindow
                 }
                 else
                 {
-                    ClearInsertionAdorner();
+                    // dropping into squad (end). Show indicator at the end of last account if any
+                    var squadVm = _vm.Squads.FirstOrDefault(s => s.Id == target.squad.Id);
+                    if (squadVm != null && squadVm.Accounts.Count > 0)
+                    {
+                        var lastAcc = squadVm.Accounts.Last();
+                        var squadItem = NavigationTree.ItemContainerGenerator.ContainerFromItem(target.squad) as TreeViewItem;
+                        var lastItem = squadItem?.ItemContainerGenerator.ContainerFromItem(lastAcc) as TreeViewItem;
+                        if (lastItem != null)
+                        {
+                            _dropTargetAccount = lastAcc;
+                            _insertAbove = false; // after last
+                            UpdateInsertionAdorner(lastItem, false);
+                        }
+                        else
+                        {
+                            ClearInsertionAdorner();
+                        }
+                    }
+                    else
+                    {
+                        ClearInsertionAdorner();
+                    }
                 }
+
+                e.Handled = true;
+                return;
             }
 
-            e.Handled = true;
+            // Squad drag
+            if (e.Data.GetDataPresent(typeof(Squad)))
+            {
+                var draggedSquad = (Squad)e.Data.GetData(typeof(Squad));
+                if (draggedSquad == null) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
+
+                // find squad item under mouse
+                TreeViewItem targetItem = null;
+                Squad targetSquad = null;
+                var dep = e.OriginalSource as DependencyObject;
+                while (dep != null && dep is not TreeViewItem) dep = VisualTreeHelper.GetParent(dep);
+                if (dep is TreeViewItem tvi)
+                {
+                    if (tvi.DataContext is Squad sq)
+                    {
+                        targetItem = tvi; targetSquad = sq;
+                    }
+                }
+
+                e.Effects = DragDropEffects.Move;
+                if (targetItem != null && targetSquad != null)
+                {
+                    var pos = e.GetPosition(targetItem);
+                    var above = pos.Y < targetItem.ActualHeight / 2;
+                    _dropTargetSquad = targetSquad;
+                    _insertAboveSquad = above;
+                    UpdateInsertionAdorner(targetItem, above);
+                }
+                else
+                {
+                    // If not directly over an item, show below the last squad
+                    if (_vm.Squads.Count > 0)
+                    {
+                        var last = _vm.Squads.Last();
+                        var lastItem = NavigationTree.ItemContainerGenerator.ContainerFromItem(last) as TreeViewItem;
+                        if (lastItem != null)
+                        {
+                            _dropTargetSquad = last;
+                            _insertAboveSquad = false;
+                            UpdateInsertionAdorner(lastItem, false);
+                        }
+                        else
+                        {
+                            ClearInsertionAdorner();
+                        }
+                    }
+                    else
+                    {
+                        ClearInsertionAdorner();
+                    }
+                }
+
+                e.Handled = true;
+                return;
+            }
+
+            e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner();
         }
         catch { }
     }
@@ -442,55 +527,101 @@ public partial class MainWindow
     {
         try
         {
-            if (!e.Data.GetDataPresent(typeof(Account))) { ClearInsertionAdorner(); return; }
-            var dragged = (Account)e.Data.GetData(typeof(Account));
-            if (dragged == null) { ClearInsertionAdorner(); return; }
-
-            var target = GetAccountOrSquadUnderMouse(e.OriginalSource as DependencyObject);
-            if (target.squad == null) { ClearInsertionAdorner(); return; }
-
-            // must be same squad
-            if (target.account != null && target.account.SquadId != dragged.SquadId) { ClearInsertionAdorner(); return; }
-            if (target.account == null && target.squad.Id != dragged.SquadId) { ClearInsertionAdorner(); return; }
-
-            var squadVm = _vm.Squads.FirstOrDefault(s => s.Id == dragged.SquadId);
-            if (squadVm == null) { ClearInsertionAdorner(); return; }
-
-            var list = squadVm.Accounts;
-            var oldIndex = list.IndexOf(list.First(a => a.Id == dragged.Id));
-
-            int anchorIndex;
-            if (_dropTargetAccount != null)
+            // Account drop
+            if (e.Data.GetDataPresent(typeof(Account)))
             {
-                var anchor = list.FirstOrDefault(a => a.Id == _dropTargetAccount.Id);
-                anchorIndex = anchor != null ? list.IndexOf(anchor) : list.Count - 1;
+                var dragged = (Account)e.Data.GetData(typeof(Account));
+                if (dragged == null) { ClearInsertionAdorner(); return; }
+
+                var target = GetAccountOrSquadUnderMouse(e.OriginalSource as DependencyObject);
+                if (target.squad == null) { ClearInsertionAdorner(); return; }
+
+                // must be same squad
+                if (target.account != null && target.account.SquadId != dragged.SquadId) { ClearInsertionAdorner(); return; }
+                if (target.account == null && target.squad.Id != dragged.SquadId) { ClearInsertionAdorner(); return; }
+
+                var squadVm = _vm.Squads.FirstOrDefault(s => s.Id == dragged.SquadId);
+                if (squadVm == null) { ClearInsertionAdorner(); return; }
+
+                var list = squadVm.Accounts;
+                var oldIndex = list.IndexOf(list.First(a => a.Id == dragged.Id));
+
+                int anchorIndex;
+                if (_dropTargetAccount != null)
+                {
+                    var anchor = list.FirstOrDefault(a => a.Id == _dropTargetAccount.Id);
+                    anchorIndex = anchor != null ? list.IndexOf(anchor) : list.Count - 1;
+                }
+                else if (target.account != null)
+                {
+                    anchorIndex = list.IndexOf(list.First(a => a.Id == target.account.Id));
+                }
+                else
+                {
+                    anchorIndex = list.Count - 1; // end
+                }
+
+                int newIndex = _insertAbove ? anchorIndex : anchorIndex + 1;
+                if (newIndex < 0) newIndex = 0;
+                if (newIndex > list.Count) newIndex = list.Count; // allow insert at end
+
+                if (oldIndex < 0) { ClearInsertionAdorner(); return; }
+
+                // Adjust for removal when moving from a lower index to a higher target index
+                if (oldIndex < newIndex) newIndex--;
+                if (newIndex < 0) newIndex = 0;
+                if (newIndex > list.Count - 1) newIndex = list.Count - 1;
+
+                // Reorder observable collection
+                if (newIndex != oldIndex)
+                    list.Move(oldIndex, newIndex);
+
+                // Persist new order
+                PersistSquadOrderAsync(squadVm).ConfigureAwait(false);
+                return;
             }
-            else if (target.account != null)
+
+            // Squad drop
+            if (e.Data.GetDataPresent(typeof(Squad)))
             {
-                anchorIndex = list.IndexOf(list.First(a => a.Id == target.account.Id));
+                var draggedSquad = (Squad)e.Data.GetData(typeof(Squad));
+                if (draggedSquad == null) { ClearInsertionAdorner(); return; }
+
+                var list = _vm.Squads;
+                var oldIndex = list.IndexOf(list.First(s => s.Id == draggedSquad.Id));
+                if (oldIndex < 0) { ClearInsertionAdorner(); return; }
+
+                int anchorIndex = -1;
+                if (_dropTargetSquad != null)
+                {
+                    var anchor = list.FirstOrDefault(s => s.Id == _dropTargetSquad.Id);
+                    anchorIndex = anchor != null ? list.IndexOf(anchor) : list.Count - 1;
+                }
+                else
+                {
+                    // try find item under mouse
+                    var dep = e.OriginalSource as DependencyObject;
+                    while (dep != null && dep is not TreeViewItem) dep = VisualTreeHelper.GetParent(dep);
+                    if (dep is TreeViewItem tvi && tvi.DataContext is Squad sq)
+                    {
+                        anchorIndex = list.IndexOf(list.First(s => s.Id == sq.Id));
+                    }
+                    else
+                    {
+                        anchorIndex = list.Count - 1;
+                    }
+                }
+
+                int newIndex = _insertAboveSquad ? anchorIndex : anchorIndex + 1;
+                if (oldIndex < newIndex) newIndex--; // adjust for removal
+                newIndex = Math.Max(0, Math.Min(list.Count - 1, newIndex));
+
+                if (newIndex != oldIndex)
+                    list.Move(oldIndex, newIndex);
+
+                PersistAllSquadsOrderAsync().ConfigureAwait(false);
+                return;
             }
-            else
-            {
-                anchorIndex = list.Count - 1; // end
-            }
-
-            int newIndex = _insertAbove ? anchorIndex : anchorIndex + 1;
-            if (newIndex < 0) newIndex = 0;
-            if (newIndex > list.Count) newIndex = list.Count; // allow insert at end
-
-            if (oldIndex < 0) { ClearInsertionAdorner(); return; }
-
-            // Adjust for removal when moving from a lower index to a higher target index
-            if (oldIndex < newIndex) newIndex--;
-            if (newIndex < 0) newIndex = 0;
-            if (newIndex > list.Count - 1) newIndex = list.Count - 1;
-
-            // Reorder observable collection
-            if (newIndex != oldIndex)
-                list.Move(oldIndex, newIndex);
-
-            // Persist new order
-            PersistSquadOrderAsync(squadVm).ConfigureAwait(false);
         }
         catch { }
         finally
@@ -568,6 +699,8 @@ public partial class MainWindow
             _insertionAdorner = null;
             _adornerItem = null;
             _dropTargetAccount = null;
+            _dropTargetSquad = null;
+            _insertAboveSquad = false;
         }
     }
 
@@ -593,6 +726,27 @@ public partial class MainWindow
         catch
         {
             // On error, reload from DB to keep consistency
+            try { _vm.Reload(); } catch { }
+        }
+    }
+
+    private async Task PersistAllSquadsOrderAsync()
+    {
+        try
+        {
+            await using var db = new AppDbContext();
+            // Map current order by VM
+            var orderMap = _vm.Squads.Select((s, idx) => new { s.Id, Index = idx })
+                                     .ToDictionary(x => x.Id, x => x.Index);
+            var squads = db.Squads.ToList();
+            foreach (var s in squads)
+            {
+                if (orderMap.TryGetValue(s.Id, out var idx)) s.OrderIndex = idx;
+            }
+            await db.SaveChangesAsync();
+        }
+        catch
+        {
             try { _vm.Reload(); } catch { }
         }
     }
