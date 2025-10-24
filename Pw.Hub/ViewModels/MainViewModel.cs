@@ -32,11 +32,15 @@ public class MainViewModel : BaseViewModel
         foreach (var squad in squads)
         {
             // Преобразуем List в ObservableCollection для аккаунтов
+            var orderedAccounts = squad.Accounts
+                .OrderBy(a => a.OrderIndex)
+                .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
             var observableSquad = new Squad
             {
                 Id = squad.Id,
                 Name = squad.Name,
-                Accounts = new ObservableCollection<Account>(squad.Accounts)
+                Accounts = new ObservableCollection<Account>(orderedAccounts)
             };
             Squads.Add(observableSquad);
         }

@@ -36,6 +36,13 @@ public class Account : INotifyPropertyChanged
         set => SetField(ref field, value);
     } = DateTime.MinValue;
 
+    // New: order within squad (0-based)
+    public int OrderIndex
+    {
+        get;
+        set => SetField(ref field, value);
+    } = 0;
+
     // Convenience property for accessing servers as objects
     public List<AccountServer> Servers
     {

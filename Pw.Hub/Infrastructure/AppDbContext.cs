@@ -34,6 +34,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SiteId).HasMaxLength(100);
             entity.Property(e => e.ImageSource).HasMaxLength(256);
             entity.Property(e => e.LastVisit);
+            entity.Property(e => e.OrderIndex).HasDefaultValue(0);
             entity.HasMany(e => e.Servers)
                 .WithOne(e => e.Account)
                 .HasForeignKey(e => e.AccountId)

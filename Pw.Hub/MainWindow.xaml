@@ -122,6 +122,12 @@
                                       Style="{StaticResource ModernTreeView}"
                                       ItemsSource="{Binding Squads}"
                                       Background="Transparent"
+                                      AllowDrop="True"
+                                      PreviewMouseLeftButtonDown="NavigationTree_OnPreviewMouseLeftButtonDown"
+                                      PreviewMouseMove="NavigationTree_OnPreviewMouseMove"
+                                      DragOver="NavigationTree_OnDragOver"
+                                      Drop="NavigationTree_OnDrop"
+                                      DragLeave="NavigationTree_OnDragLeave"
                                       PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp">
                                 <TreeView.ContextMenu>
                                     <ContextMenu x:Name="NavigationContextMenu"
