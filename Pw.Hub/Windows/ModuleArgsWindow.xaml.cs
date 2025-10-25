@@ -23,10 +23,20 @@ public partial class ModuleArgsWindow : Window
     private void BuildUi()
     {
         InputsPanel.Children.Clear();
+        var sp = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
 
+        if (_module.Inputs.Count == 0)
+        {
+            var lbl = new TextBlock { Text = "Модуль не требует аргументов запуска." };
+            // Apply application style to label
+            if (TryFindResource("ModernTextBlock") is Style lblStyle)
+                lbl.Style = lblStyle;
+            lbl.TextAlignment = TextAlignment.Center;
+            sp.Children.Add(lbl);
+        }
+        
         foreach (var input in _module.Inputs)
         {
-            var sp = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
             var lbl = new TextBlock { Text = string.IsNullOrWhiteSpace(input.Label) ? input.Name : input.Label };
             // Apply application style to label
             if (TryFindResource("ModernTextBlock") is Style lblStyle)
@@ -61,8 +71,9 @@ public partial class ModuleArgsWindow : Window
             editor.Tag = input;
             _inputs[input.Name] = editor;
             sp.Children.Add(editor);
-            InputsPanel.Children.Add(sp);
         }
+        
+        InputsPanel.Children.Add(sp);
     }
 
     private void Ok_Click(object sender, RoutedEventArgs e)

@@ -32,6 +32,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
     {
         await using var db = new AppDbContext();
         return db.Accounts
+            .Include(x=> x.Squad)
             .Include(x => x.Servers)
             .ThenInclude(x => x.Characters)
             .ToArray();

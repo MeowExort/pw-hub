@@ -58,6 +58,7 @@
                     <Button Style="{StaticResource ModernButton}"
                             Background="{StaticResource AccentBlueBrush}"
                             BorderThickness="0"
+                            Visibility="Collapsed"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Left"
                             Padding="16,14"

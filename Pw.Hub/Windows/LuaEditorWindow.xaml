@@ -7,7 +7,7 @@
 
         mc:Ignorable="d"
         Icon="/Assets/icon.png"
-        Title="Lua Editor" Height="850" Width="1500" WindowStartupLocation="CenterOwner"
+        Title="Lua Editor" Height="1000" Width="1800" WindowStartupLocation="CenterOwner"
         Style="{StaticResource ModernWindowChrome}">
     <Grid>
         <Grid.RowDefinitions>
@@ -51,6 +51,13 @@
                             Padding="16,8"
                             Margin="0,0,8,0"
                             Click="OnClearOutputClick" />
+                    <Button x:Name="AiToggleBtn"
+                            Style="{StaticResource ModernButton}"
+                            Content="🤖 AI"
+                            MinWidth="100"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Click="OnAiToggleClick" />
                     <Button Style="{StaticResource ModernButton}"
                             Content="✖ Закрыть"
                             MinWidth="100"
@@ -61,87 +68,217 @@
                     <TextBlock Text="⚫ F9 — поставить/снять брейкпоинт на текущей строке  "
                                Style="{StaticResource ModernTextBlock}"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="12"/>
+                               FontSize="12" />
                     <TextBlock x:Name="BpCountText"
                                Text="(0 точек)"
                                Style="{StaticResource ModernTextBlock}"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="12"/>
+                               FontSize="12" />
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- Editor and Output -->
+        <!-- Editor and Output + AI Chat -->
         <Grid Grid.Row="1" Margin="16">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="2*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="AiPaneColumn" Width="0" MinWidth="0" />
+            </Grid.ColumnDefinitions>
 
-            <!-- Code Editor -->
-            <Border Grid.Row="0"
-                    Style="{StaticResource Card}"
-                    Padding="0"
-                    Margin="0,0,0,8">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top"
-                            Background="{StaticResource BackgroundTertiaryBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="12,8">
-                        <TextBlock Text="📝 Редактор кода Lua"
-                                   Style="{StaticResource ModernTextBlock}"
-                                   FontWeight="SemiBold" />
-                    </Border>
-                    <avalonedit:TextEditor x:Name="Editor"
-                                           ShowLineNumbers="True"
-                                           FontFamily="{StaticResource MonospaceFont}"
-                                           FontSize="14"
-                                           HorizontalScrollBarVisibility="Auto"
-                                           VerticalScrollBarVisibility="Auto"
-                                           Background="{StaticResource BackgroundSecondaryBrush}"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           LineNumbersForeground="{StaticResource TextSecondaryBrush}"
-                                           Padding="8"
-                                           MinHeight="150" />
-                </DockPanel>
-            </Border>
+            <!-- Left: Editor and Output -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-            <!-- Output Console -->
-            <Border Grid.Row="2"
-                    Style="{StaticResource Card}"
-                    Padding="0"
-                    Margin="0,8,0,0">
+                <!-- Code Editor -->
+                <Border Grid.Row="0"
+                        Style="{StaticResource Card}"
+                        Padding="0"
+                        Margin="0,0,0,8">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                Background="{StaticResource BackgroundTertiaryBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <TextBlock Text="📝 Редактор кода Lua"
+                                       Style="{StaticResource ModernTextBlock}"
+                                       FontWeight="SemiBold" />
+                        </Border>
+                        <avalonedit:TextEditor x:Name="Editor"
+                                               ShowLineNumbers="True"
+                                               FontFamily="{StaticResource MonospaceFont}"
+                                               FontSize="14"
+                                               HorizontalScrollBarVisibility="Auto"
+                                               VerticalScrollBarVisibility="Auto"
+                                               Background="{StaticResource BackgroundSecondaryBrush}"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               LineNumbersForeground="{StaticResource TextSecondaryBrush}"
+                                               Padding="8"
+                                               MinHeight="150" />
+                    </DockPanel>
+                </Border>
+
+                <!-- Output Console -->
+                <Border Grid.Row="2"
+                        Style="{StaticResource Card}"
+                        Padding="0"
+                        Margin="0,8,0,0">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                Background="{StaticResource AccentBlueBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <TextBlock Text="📟 Консоль вывода (Print)"
+                                       Style="{StaticResource ModernTextBlock}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentHighlightBrush}" />
+                        </Border>
+                        <ScrollViewer x:Name="OutputScroll"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Padding="8">
+                            <TextBox x:Name="OutputBox"
+                                     IsReadOnly="True"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     FontFamily="{StaticResource MonospaceFont}"
+                                     FontSize="13"
+                                     Padding="4"
+                                     MinHeight="100"
+                                     TextChanged="OutputBox_OnTextChanged" />
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- Splitter -->
+            <GridSplitter x:Name="MainSplitter"
+                          Grid.Column="1"
+                          Width="5"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"
+                          ShowsPreview="False"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          DragStarted="OnSplitterDragStarted"
+                          DragCompleted="OnSplitterDragCompleted">
+                <GridSplitter.Style>
+                    <Style TargetType="GridSplitter">
+                        <Setter Property="IsEnabled" Value="True" />
+                        <Setter Property="Visibility" Value="Visible" />
+                        <!-- Disable and hide splitter when AI pane root is not visible to avoid NRE -->
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=AiPaneRoot, Path=IsVisible}" Value="False">
+                                <Setter Property="IsEnabled" Value="False" />
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </GridSplitter.Style>
+            </GridSplitter>
+
+            <!-- Right: AI Pane -->
+            <Border x:Name="AiPaneRoot" Grid.Column="2" Style="{StaticResource Card}" Padding="0" Margin="8,0,0,0"
+                    Visibility="Collapsed"
+                    MinWidth="600">
                 <DockPanel>
-                    <Border DockPanel.Dock="Top"
-                            Background="{StaticResource AccentBlueBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="12,8">
-                        <TextBlock Text="📟 Консоль вывода (Print)"
-                                   Style="{StaticResource ModernTextBlock}"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource AccentHighlightBrush}" />
+                    <Border DockPanel.Dock="Top" Background="{StaticResource BackgroundTertiaryBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,8">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🤖 AI помощник"
+                                       Style="{StaticResource ModernTextBlock}" FontWeight="SemiBold" />
+                            <Button Content="Новая сессия" Style="{StaticResource ModernButton}"
+                                    Margin="8,0,0,0" Padding="8,4" Click="OnAiNewSessionClick" />
+                        </StackPanel>
                     </Border>
-                    <ScrollViewer x:Name="OutputScroll"
-                                  VerticalScrollBarVisibility="Auto"
-                                  Padding="8">
-                        <TextBox x:Name="OutputBox"
-                                 IsReadOnly="True"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"
-                                 BorderThickness="0"
-                                 Background="Transparent"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto"
-                                 FontFamily="{StaticResource MonospaceFont}"
-                                 FontSize="13"
-                                 Padding="4"
-                                 MinHeight="100"
-                                 TextChanged="OutputBox_OnTextChanged" />
-                    </ScrollViewer>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <!-- Messages -->
+                        <ScrollViewer x:Name="AiMessagesScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="AiMessagesPanel" Margin="8" />
+                        </ScrollViewer>
+                        <!-- Splitter: resize messages vs diff preview -->
+                        <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="{StaticResource BorderBrush}" ShowsPreview="False"
+                                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+                        <!-- Diff Preview -->
+                        <Border Grid.Row="2" Background="{StaticResource BackgroundSecondaryBrush}" BorderThickness="1"
+                                BorderBrush="{StaticResource BorderBrush}" Margin="8,4" Padding="8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0">
+                                    <TextBlock Text="Предпросмотр изменений" Style="{StaticResource ModernTextBlock}"
+                                               DockPanel.Dock="Left" />
+                                    <TextBlock Text=" ⤢ перетяните разделители, чтобы изменить высоту областей"
+                                               Style="{StaticResource ModernTextBlock}"
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                               Margin="8,0,0,0" />
+                                </DockPanel>
+                                <RichTextBox x:Name="AiDiffBox" Grid.Row="1" IsReadOnly="True"
+                                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                             Margin="0,4,0,0"
+                                             Background="{StaticResource BackgroundSecondaryBrush}" BorderThickness="0"
+                                             FontFamily="{StaticResource MonospaceFont}" />
+                            </Grid>
+                        </Border>
+                        <!-- Splitter: resize diff preview vs input -->
+                        <GridSplitter Grid.Row="3" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="{StaticResource BorderBrush}" ShowsPreview="False"
+                                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+                        <!-- Input -->
+                        <Grid Grid.Row="4" Margin="8" Height="200">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBox x:Name="AiInput" Grid.Row="0" MinWidth="200" AcceptsReturn="True" MinHeight="60"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                     Style="{StaticResource ModernTextBox}"
+                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" 
+                                          x:Name="AiBraveCheck" Content="AI brave" Margin="12,0,0,0"
+                                          VerticalAlignment="Center"
+                                          ToolTip="AI будет сам вносить изменения в код"
+                                          Style="{StaticResource ModernCheckBox}"
+                                          Checked="OnAiBraveToggled" Unchecked="OnAiBraveToggled" />
+                                <StackPanel Grid.Column="1" 
+                                            Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                    <Button x:Name="AiSendBtn" Content="Отправить"
+                                            Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                                            MinWidth="120" Click="OnAiSendClick" />
+                                    <Button x:Name="AiApplyBtn" Content="Вставить изменения"
+                                            Style="{StaticResource ModernButton}"
+                                            MinWidth="160" Click="OnAiApplyClick" IsEnabled="False" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Grid>
                 </DockPanel>
             </Border>
         </Grid>
