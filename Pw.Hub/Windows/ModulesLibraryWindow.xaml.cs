@@ -11,14 +11,13 @@ namespace Pw.Hub.Windows
     {
         private readonly ModulesApiClient _api;
         private ModuleDto _selected;
-        private readonly string _userId;
+        private string _userId;
         private readonly ModuleService _moduleService = new();
 
         public ModulesLibraryWindow(string apiBaseUrl = null, string userId = null)
         {
             InitializeComponent();
             _api = new ModulesApiClient(apiBaseUrl);
-            _userId = AuthState.CurrentUser.UserId ?? throw new ArgumentNullException(nameof(AuthState.CurrentUser.UserId));
             Loaded += async (_, _) => await InitAsync();
         }
 
@@ -36,6 +35,13 @@ namespace Pw.Hub.Windows
             {
                 // ignore, we'll try to load anyway
             }
+
+            // Ensure user is loaded from /me so that _userId is available
+            if (_api.CurrentUser == null)
+            {
+                await _api.MeAsync();
+            }
+            _userId = _api.CurrentUser?.UserId;
 
             await UpdateDevPanelAsync();
             await SearchAndBindAsync();

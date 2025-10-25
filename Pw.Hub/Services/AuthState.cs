@@ -19,7 +19,8 @@ public static class AuthState
             var json = File.ReadAllText(FilePath);
             var dto = JsonSerializer.Deserialize<AuthPersisted>(json);
             Token = dto?.Token;
-            CurrentUser = dto?.User;
+            // Do not restore user from disk; always fetch via /me
+            CurrentUser = null;
         }
         catch { }
     }
@@ -29,7 +30,7 @@ public static class AuthState
         try
         {
             Directory.CreateDirectory(Folder);
-            var dto = new AuthPersisted { Token = Token, User = CurrentUser };
+            var dto = new AuthPersisted { Token = Token };
             var json = JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(FilePath, json);
         }
@@ -47,6 +48,5 @@ public static class AuthState
     private class AuthPersisted
     {
         public string Token { get; set; }
-        public UserDto User { get; set; }
     }
 }

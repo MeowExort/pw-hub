@@ -31,7 +31,7 @@ namespace Pw.Hub.Services
                 {
                     Token = AuthState.Token;
                     ApplyAuthHeader();
-                    CurrentUser = AuthState.CurrentUser;
+                    // Do not restore user from disk; it must be fetched via /me
                 }
             }
             catch { }
