@@ -26,19 +26,19 @@ async function render(pageContext) {
       <meta charset="UTF-8" />
     
       <!-- Favicon -->
-      <link rel="shortcut icon" href="/images/logo.jpg" />
-      <link rel="apple-touch-icon" href="/images/logo.jpg" />
+      <link rel="shortcut icon" href="/images/logo-64.png" />
+      <link rel="apple-touch-icon" href="/images/logo-64.png" />
       <!-- Дополнительные иконки для разных устройств -->
-      <link rel="icon" type="image/jpeg" href="/images/logo.jpg" sizes="32x32" />
-      <link rel="icon" type="image/jpeg" href="/images/logo.jpg" sizes="192x192" />
-      <link rel="apple-touch-icon" href="/images/logo.jpg" />
+      <link rel="icon" type="image/jpeg" href="/images/logo-64.png" sizes="32x32" />
+      <link rel="icon" type="image/jpeg" href="/images/logo-256.png" sizes="192x192" />
+      <link rel="apple-touch-icon" href="/images/logo-64.png" />
       
       <!-- Цвет браузера -->
       <meta name="msapplication-TileColor" content="#ffb300" />
       <meta name="theme-color" content="#ffb300" />
       
       <!-- Для Windows -->
-      <meta name="msapplication-TileImage" content="/images/logo.jpg" />
+      <meta name="msapplication-TileImage" content="/images/logo-64.png" />
       
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>${title}</title>
@@ -52,7 +52,7 @@ async function render(pageContext) {
       <meta property="og:title" content="${title}" />
       <meta property="og:description" content="${desc}" />
       <meta property="og:type" content="website" />
-      <meta property="og:image" content="/og-image.jpg" />
+      <meta property="og:image" content="/images/og-image-64.png" />
       
       <!-- Twitter -->
       <meta name="twitter:card" content="summary_large_image" />
