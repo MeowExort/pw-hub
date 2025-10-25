@@ -405,7 +405,14 @@ public class LuaIntegration
             t["ImageSource"] = acc?.ImageSource;
             t["LastVisit"] = acc?.LastVisit.ToString("o"); // ISO string for DateTime
             t["ImageUri"] = acc?.ImageUri?.ToString();
-            t["SquadId"] = acc?.SquadId.ToString();
+            t["SquadId"] = acc?.SquadId; // avoid ToString on null
+            t["OrderIndex"] = acc?.OrderIndex;
+
+            // Squad (if present)
+            if (acc?.Squad != null)
+            {
+                t["Squad"] = ToLuaSquad(acc.Squad);
+            }
 
             // Servers -> table of server tables
             var serversTable = CreateLuaTable("servers");
@@ -460,6 +467,20 @@ public class LuaIntegration
             t["Name"] = c?.Name;
             t["ServerId"] = c?.ServerId;
             // Avoid including back-reference to Server to prevent deep cycles
+        }
+        catch { }
+        return t;
+    }
+
+    private LuaTable ToLuaSquad(Squad s)
+    {
+        var t = CreateLuaTable("squad");
+        try
+        {
+            t["Id"] = s?.Id;
+            t["Name"] = s?.Name;
+            t["OrderIndex"] = s?.OrderIndex;
+            // Do NOT include Accounts to avoid cycles and heavy payloads
         }
         catch { }
         return t;

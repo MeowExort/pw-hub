@@ -52,7 +52,7 @@ public class Account : INotifyPropertyChanged
 
     public Uri ImageUri => string.IsNullOrEmpty(ImageSource) ? null : new Uri(ImageSource);
 
-    public Guid SquadId { get; set; }
+    public string SquadId { get; set; }
     public Squad Squad { get; set; }
 
     public override string ToString() => Name;

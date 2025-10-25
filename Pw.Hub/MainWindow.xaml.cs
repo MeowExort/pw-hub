@@ -398,16 +398,7 @@ public partial class MainWindow
                 var target = GetAccountOrSquadUnderMouse(e.OriginalSource as DependencyObject);
                 if (target.squad == null) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
 
-                // only allow within same squad
-                if (target.account != null)
-                {
-                    if (target.account.SquadId != dragged.SquadId) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-                }
-                else
-                {
-                    if (target.squad.Id != dragged.SquadId) { e.Effects = DragDropEffects.None; e.Handled = true; ClearInsertionAdorner(); return; }
-                }
-
+                // allow dropping into any squad; just require a squad target exists
                 e.Effects = DragDropEffects.Move;
 
                 // Visualize insertion position
@@ -536,48 +527,71 @@ public partial class MainWindow
                 var target = GetAccountOrSquadUnderMouse(e.OriginalSource as DependencyObject);
                 if (target.squad == null) { ClearInsertionAdorner(); return; }
 
-                // must be same squad
-                if (target.account != null && target.account.SquadId != dragged.SquadId) { ClearInsertionAdorner(); return; }
-                if (target.account == null && target.squad.Id != dragged.SquadId) { ClearInsertionAdorner(); return; }
+                // determine source and target squads in VM
+                var sourceSquadVm = _vm.Squads.FirstOrDefault(s => s.Id == dragged.SquadId);
+                var targetSquadVm = _vm.Squads.FirstOrDefault(s => s.Id == (target.account?.SquadId ?? target.squad.Id));
+                if (sourceSquadVm == null || targetSquadVm == null) { ClearInsertionAdorner(); return; }
 
-                var squadVm = _vm.Squads.FirstOrDefault(s => s.Id == dragged.SquadId);
-                if (squadVm == null) { ClearInsertionAdorner(); return; }
-
-                var list = squadVm.Accounts;
-                var oldIndex = list.IndexOf(list.First(a => a.Id == dragged.Id));
-
+                // compute anchor and index within target list
+                var targetList = targetSquadVm.Accounts;
                 int anchorIndex;
                 if (_dropTargetAccount != null)
                 {
-                    var anchor = list.FirstOrDefault(a => a.Id == _dropTargetAccount.Id);
-                    anchorIndex = anchor != null ? list.IndexOf(anchor) : list.Count - 1;
+                    var anchor = targetList.FirstOrDefault(a => a.Id == _dropTargetAccount.Id);
+                    anchorIndex = anchor != null ? targetList.IndexOf(anchor) : targetList.Count - 1;
                 }
                 else if (target.account != null)
                 {
-                    anchorIndex = list.IndexOf(list.First(a => a.Id == target.account.Id));
+                    anchorIndex = targetList.IndexOf(targetList.First(a => a.Id == target.account.Id));
                 }
                 else
                 {
-                    anchorIndex = list.Count - 1; // end
+                    anchorIndex = targetList.Count - 1; // end
                 }
 
                 int newIndex = _insertAbove ? anchorIndex : anchorIndex + 1;
                 if (newIndex < 0) newIndex = 0;
-                if (newIndex > list.Count) newIndex = list.Count; // allow insert at end
+                if (newIndex > targetList.Count) newIndex = targetList.Count; // allow insert at end
 
-                if (oldIndex < 0) { ClearInsertionAdorner(); return; }
+                // Remove from source and insert into target
+                var sourceList = sourceSquadVm.Accounts;
+                var sourceIdx = sourceList.IndexOf(sourceList.First(a => a.Id == dragged.Id));
+                if (sourceIdx < 0) { ClearInsertionAdorner(); return; }
 
-                // Adjust for removal when moving from a lower index to a higher target index
-                if (oldIndex < newIndex) newIndex--;
+                // If moving within the same list, adjust for removal
+                if (ReferenceEquals(sourceList, targetList) && sourceIdx < newIndex) newIndex--;
+                sourceList.RemoveAt(sourceIdx);
                 if (newIndex < 0) newIndex = 0;
-                if (newIndex > list.Count - 1) newIndex = list.Count - 1;
+                if (newIndex > targetList.Count) newIndex = targetList.Count;
+                targetList.Insert(newIndex, dragged);
 
-                // Reorder observable collection
-                if (newIndex != oldIndex)
-                    list.Move(oldIndex, newIndex);
+                // Update model to new squad if changed
+                var movedAcrossSquads = sourceSquadVm.Id != targetSquadVm.Id;
+                if (movedAcrossSquads)
+                {
+                    dragged.SquadId = targetSquadVm.Id;
+                }
 
-                // Persist new order
-                PersistSquadOrderAsync(squadVm).ConfigureAwait(false);
+                // Persist ordering for both squads, including SquadId change if any
+                PersistAccountMoveAsync(dragged, sourceSquadVm, targetSquadVm).ConfigureAwait(false);
+
+                // Select moved account in UI
+                try
+                {
+                    if (NavigationTree.ItemContainerGenerator.ContainerFromItem(targetSquadVm) is TreeViewItem tvi)
+                    {
+                        tvi.IsExpanded = true;
+                        // Force generator to realize containers
+                        tvi.UpdateLayout();
+                        var accItem = tvi.ItemContainerGenerator.ContainerFromItem(dragged) as TreeViewItem;
+                        if (accItem != null)
+                        {
+                            accItem.IsSelected = true;
+                            accItem.BringIntoView();
+                        }
+                    }
+                }
+                catch { }
                 return;
             }
 
@@ -744,6 +758,61 @@ public partial class MainWindow
                 if (orderMap.TryGetValue(s.Id, out var idx)) s.OrderIndex = idx;
             }
             await db.SaveChangesAsync();
+        }
+        catch
+        {
+            try { _vm.Reload(); } catch { }
+        }
+    }
+
+    private async Task PersistAccountMoveAsync(Account moved, Squad source, Squad target)
+    {
+        try
+        {
+            await using var db = new AppDbContext();
+            await using var tx = await db.Database.BeginTransactionAsync();
+
+            // Update SquadId if changed
+            var acc = await db.Accounts.FirstOrDefaultAsync(a => a.Id == moved.Id);
+            if (acc != null)
+            {
+                acc.SquadId = target.Id;
+            }
+
+            if (source.Id == target.Id)
+            {
+                // Reindex one squad (same list)
+                var map = target.Accounts.Select((a, idx) => new { a.Id, idx })
+                                         .ToDictionary(x => x.Id, x => x.idx);
+                var dbAccs = db.Accounts.Where(a => a.SquadId == target.Id).ToList();
+                foreach (var a in dbAccs)
+                {
+                    if (map.TryGetValue(a.Id, out var idx)) a.OrderIndex = idx;
+                }
+            }
+            else
+            {
+                // Reindex source squad
+                var sourceMap = source.Accounts.Select((a, idx) => new { a.Id, idx })
+                                              .ToDictionary(x => x.Id, x => x.idx);
+                var sourceDbAccs = db.Accounts.Where(a => a.SquadId == source.Id).ToList();
+                foreach (var a in sourceDbAccs)
+                {
+                    if (sourceMap.TryGetValue(a.Id, out var idx)) a.OrderIndex = idx;
+                }
+
+                // Reindex target squad (includes moved account at new position)
+                var targetMap = target.Accounts.Select((a, idx) => new { a.Id, idx })
+                                              .ToDictionary(x => x.Id, x => x.idx);
+                var targetDbAccs = db.Accounts.Where(a => a.SquadId == target.Id).ToList();
+                foreach (var a in targetDbAccs)
+                {
+                    if (targetMap.TryGetValue(a.Id, out var idx)) a.OrderIndex = idx;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
         }
         catch
         {
