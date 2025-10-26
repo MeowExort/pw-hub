@@ -1,7 +1,10 @@
 ﻿using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Models;
+using Pw.Hub.Infrastructure;
 
 namespace Pw.Hub.Windows;
 
@@ -72,6 +75,48 @@ public partial class ModuleArgsWindow : Window
                         pb.Style = pbStyle;
                     editor = pb;
                     break;
+                case "отряд":
+                case "squad":
+                    var cbSquad = new ComboBox();
+                    if (TryFindResource("ModernComboBox") is Style comboStyle)
+                        cbSquad.Style = comboStyle;
+                    try
+                    {
+                        using var db = new AppDbContext();
+                        var squads = db.Squads
+                            .Include(s => s.Accounts)
+                                .ThenInclude(a => a.Servers)
+                                    .ThenInclude(sv => sv.Characters)
+                            .OrderBy(s => s.OrderIndex)
+                            .ThenBy(s => s.Name)
+                            .ToList();
+                        cbSquad.ItemsSource = squads;
+                        cbSquad.DisplayMemberPath = nameof(Squad.Name);
+                    }
+                    catch { }
+                    editor = cbSquad;
+                    break;
+                case "отряды":
+                case "squads":
+                    var lbSquads = new ListBox { SelectionMode = SelectionMode.Extended, Height = 160 };
+                    if (TryFindResource("ModernListBox") is Style lbStyle)
+                        lbSquads.Style = lbStyle;
+                    try
+                    {
+                        using var db2 = new AppDbContext();
+                        var squads2 = db2.Squads
+                            .Include(s => s.Accounts)
+                                .ThenInclude(a => a.Servers)
+                                    .ThenInclude(sv => sv.Characters)
+                            .OrderBy(s => s.OrderIndex)
+                            .ThenBy(s => s.Name)
+                            .ToList();
+                        lbSquads.ItemsSource = squads2;
+                        lbSquads.DisplayMemberPath = nameof(Squad.Name);
+                    }
+                    catch { }
+                    editor = lbSquads;
+                    break;
                 default:
                     var tb = new TextBox { Text = input.Default ?? string.Empty };
                     if (TryFindResource("ModernTextBox") is Style tbStyle2)
@@ -111,6 +156,41 @@ public partial class ModuleArgsWindow : Window
                 else if (editor is PasswordBox pb)
                 {
                     pb.Password = saved ?? string.Empty;
+                }
+                else if (editor is ComboBox combo && (type == "отряд" || type == "squad"))
+                {
+                    try
+                    {
+                        var id = saved;
+                        if (!string.IsNullOrWhiteSpace(id) && combo.ItemsSource is System.Collections.IEnumerable items)
+                        {
+                            foreach (var item in items)
+                            {
+                                if (item is Squad s && string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    combo.SelectedItem = item;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                else if (editor is ListBox list && (type == "отряды" || type == "squads"))
+                {
+                    try
+                    {
+                        var ids = (saved ?? string.Empty).Split(new[]{',',';',' '}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        var set = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+                        foreach (var item in list.Items)
+                        {
+                            if (item is Squad s && set.Contains(s.Id))
+                            {
+                                list.SelectedItems.Add(item);
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
         }
@@ -163,8 +243,22 @@ public partial class ModuleArgsWindow : Window
                 value = text;
                 stringValue = text;
             }
+            else if (editor is ComboBox combo && (type == "отряд" || type == "squad"))
+            {
+                var selectedSquad = combo.SelectedItem as Squad;
+                value = selectedSquad; // keep as object; LuaScriptRunner will convert to Lua table
+                stringValue = selectedSquad?.Id ?? string.Empty; // persist Squad Id
+            }
+            else if (editor is ListBox list && (type == "отряды" || type == "squads"))
+            {
+                var squads = list.SelectedItems.Cast<object>().OfType<Squad>().ToList();
+                value = squads; // list of squads; integration will convert to Lua table
+                stringValue = string.Join(",", squads.Select(s => s.Id ?? string.Empty));
+            }
 
-            if (def.Required && (value == null || (value is string s && string.IsNullOrWhiteSpace(s))))
+            if (def.Required && (value == null 
+                                 || (value is string str && string.IsNullOrWhiteSpace(str))
+                                 || (value is System.Collections.ICollection col && col.Count == 0)))
             {
                 MessageBox.Show($"Заполните поле: {def.Label ?? def.Name}", "Параметры модуля", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;

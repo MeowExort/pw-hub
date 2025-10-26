@@ -456,7 +456,15 @@ debug.sethook(__pw_hook, 'l')
             var tbl = (LuaTable)_currentLua["args"];
             foreach (var kv in args)
             {
-                tbl[kv.Key] = kv.Value;
+                try
+                {
+                    var luaValue = _integration.ConvertToLuaValue(kv.Value);
+                    tbl[kv.Key] = luaValue;
+                }
+                catch
+                {
+                    tbl[kv.Key] = kv.Value;
+                }
             }
 
             // Register completion bridge for async/callback-based scripts

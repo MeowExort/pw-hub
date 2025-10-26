@@ -306,6 +306,8 @@
                                             <sys:String>number</sys:String>
                                             <sys:String>bool</sys:String>
                                             <sys:String>password</sys:String>
+                                            <sys:String>squad</sys:String>
+                                            <sys:String>squads</sys:String>
                                         </x:Array>
                                     </DataGridComboBoxColumn.ItemsSource>
                                     <DataGridComboBoxColumn.EditingElementStyle>

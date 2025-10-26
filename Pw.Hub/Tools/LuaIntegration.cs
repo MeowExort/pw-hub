@@ -350,6 +350,44 @@ public class LuaIntegration
         }
     }
 
+    // Public converter for passing .NET values into Lua args table
+    public object ConvertToLuaValue(object value)
+    {
+        try
+        {
+            if (value == null) return null;
+            if (value is Squad squad)
+                return ToLuaSquad(squad);
+            // Handle collections of Squad (IEnumerable)
+            if (value is System.Collections.IEnumerable en && value is not string)
+            {
+                // Attempt to detect element type as Squad and convert accordingly
+                var list = new List<object>();
+                foreach (var item in en)
+                {
+                    if (item is Squad sq)
+                        list.Add(ToLuaSquad(sq));
+                    else
+                        list.Add(item);
+                }
+                // If we gathered any items, create a Lua table and fill 1-based
+                var table = CreateLuaTable("list");
+                int i = 1;
+                foreach (var it in list)
+                {
+                    table[i++] = it;
+                }
+                return table;
+            }
+            // pass through other primitive and complex types; NLua can marshal common CLR types
+            return value;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     // Callback-based non-blocking APIs for Account
     public void Account_GetAccountCb(LuaFunction callback)
     {
@@ -449,11 +487,8 @@ public class LuaIntegration
             t["SquadId"] = acc?.SquadId; // avoid ToString on null
             t["OrderIndex"] = acc?.OrderIndex;
 
-            // Squad (if present)
-            if (acc?.Squad != null)
-            {
-                t["Squad"] = ToLuaSquad(acc.Squad);
-            }
+            // Note: Do NOT include acc.Squad to avoid cyclic references (Squad -> Accounts -> Account -> Squad ...)
+            // Keep only SquadId as a primitive reference.
 
             // Servers -> table of server tables
             var serversTable = CreateLuaTable("servers");
@@ -532,7 +567,18 @@ public class LuaIntegration
             t["Id"] = s?.Id;
             t["Name"] = s?.Name;
             t["OrderIndex"] = s?.OrderIndex;
-            // Do NOT include Accounts to avoid cycles and heavy payloads
+
+            // Include Accounts with nested Servers and Characters
+            var accountsTable = CreateLuaTable("accounts");
+            int i = 1;
+            if (s?.Accounts != null)
+            {
+                foreach (var acc in s.Accounts)
+                {
+                    accountsTable[i++] = ToLuaAccount(acc);
+                }
+            }
+            t["Accounts"] = accountsTable;
         }
         catch
         {
