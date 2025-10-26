@@ -79,6 +79,7 @@ public class ModuleService
             existing.Description = module.Description;
             existing.Script = module.Script;
             existing.Inputs = module.Inputs ?? new List<ModuleInput>();
+                        existing.LastArgs = module.LastArgs ?? existing.LastArgs ?? new Dictionary<string, string>();
         }
         SaveModules(list);
     }

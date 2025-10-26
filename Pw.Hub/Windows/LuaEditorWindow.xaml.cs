@@ -770,6 +770,14 @@ end)", "Задержка с колбэком"),
                 var config = JsonSerializer.Deserialize<AIConfig>(File.ReadAllText(configPath));
                 _aiApiKey = config?.OllamaApiKey ?? _aiApiKey;
             }
+            else
+            {
+                var settingsWindow = new ApiKeySettingsWindow(_aiApiKey);
+                if (settingsWindow.ShowDialog() == true)
+                {
+                    _aiApiKey = settingsWindow.ApiKey;
+                }
+            }
         }
         catch
         {
@@ -1281,6 +1289,7 @@ DelayCb(ms, cb) - асинхронная задержка
 ReportProgress(percent) - отчет о прогрессе
 ReportProgressMsg(percent, message) - отчет с сообщением
 Complete(result) - завершить выполнение модуля (если скрипт запущен как модуль)
+Net_PostJsonCb(url, jsonBody, contentType, cb) - отправить POST запрос (возвращает Success, ResponseBody, Error)
 
 === СТРУКТУРА ДАННЫХ ===
 Аккаунт: {Id, Name, OrderIndex, Squad, Servers[]}

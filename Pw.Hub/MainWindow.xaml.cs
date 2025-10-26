@@ -2,6 +2,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Linq;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -42,6 +43,7 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
+        
         DataContext = _vm;
         try
         {
@@ -1083,6 +1085,14 @@ public partial class MainWindow
         var argsWindow = new Windows.ModuleArgsWindow(module) { Owner = this };
         if (argsWindow.ShowDialog() != true)
             return;
+
+        // Persist last used arguments for this module
+        try
+        {
+            module.LastArgs = argsWindow.StringValues;
+            _moduleService.AddOrUpdateModule(module);
+        }
+        catch { }
 
         var runner = new LuaScriptRunner(AccountPage.AccountManager, AccountPage.Browser);
         var logWindow = new Windows.ScriptLogWindow(module.Name) { Owner = this };

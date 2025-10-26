@@ -11,6 +11,8 @@ public partial class ModuleArgsWindow : Window
     private readonly Dictionary<string, FrameworkElement> _inputs = new();
 
     public Dictionary<string, object> Values { get; } = new();
+    // Stringified values for persistence (LastArgs)
+    public Dictionary<string, string> StringValues { get; } = new();
 
     public ModuleArgsWindow(ModuleDefinition module)
     {
@@ -18,6 +20,7 @@ public partial class ModuleArgsWindow : Window
         _module = module;
         Title = string.IsNullOrWhiteSpace(module.Name) ? "Параметры модуля" : module.Name;
         BuildUi();
+        PrefillFromLastArgs();
     }
 
     private void BuildUi()
@@ -61,6 +64,14 @@ public partial class ModuleArgsWindow : Window
                         tbNum.Style = tbStyle1;
                     editor = tbNum;
                     break;
+                case "password":
+                case "пароль":
+                    var pb = new PasswordBox();
+                    if (!string.IsNullOrEmpty(input.Default)) pb.Password = input.Default;
+                    if (TryFindResource("ModernPasswordBox") is Style pbStyle)
+                        pb.Style = pbStyle;
+                    editor = pb;
+                    break;
                 default:
                     var tb = new TextBox { Text = input.Default ?? string.Empty };
                     if (TryFindResource("ModernTextBox") is Style tbStyle2)
@@ -76,19 +87,53 @@ public partial class ModuleArgsWindow : Window
         InputsPanel.Children.Add(sp);
     }
 
+    private void PrefillFromLastArgs()
+    {
+        try
+        {
+            var last = _module.LastArgs ?? new Dictionary<string, string>();
+            foreach (var kv in _inputs)
+            {
+                var name = kv.Key;
+                var editor = kv.Value;
+                var def = (ModuleInput)editor.Tag;
+                if (!last.TryGetValue(name, out var saved)) continue;
+                var type = (def.Type ?? "string").ToLowerInvariant();
+                if (editor is CheckBox cb)
+                {
+                    if (bool.TryParse(saved, out var b)) cb.IsChecked = b;
+                }
+                else if (editor is TextBox tb)
+                {
+                    // Keep saved string as-is; for numbers, ensure it is formatted invariant
+                    tb.Text = saved ?? string.Empty;
+                }
+                else if (editor is PasswordBox pb)
+                {
+                    pb.Password = saved ?? string.Empty;
+                }
+            }
+        }
+        catch { }
+    }
+
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
         Values.Clear();
+        StringValues.Clear();
         foreach (var kv in _inputs)
         {
             var name = kv.Key;
             var editor = kv.Value;
             var def = (ModuleInput)editor.Tag;
             object value = null;
+            string stringValue = string.Empty;
             var type = (def.Type ?? "string").ToLowerInvariant();
             if (editor is CheckBox cb)
             {
-                value = cb.IsChecked == true;
+                var b = cb.IsChecked == true;
+                value = b;
+                stringValue = b ? "true" : "false";
             }
             else if (editor is TextBox tb)
             {
@@ -96,14 +141,27 @@ public partial class ModuleArgsWindow : Window
                 if (type is "number" or "int" or "double")
                 {
                     if (double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
+                    {
                         value = d;
+                        stringValue = d.ToString(CultureInfo.InvariantCulture);
+                    }
                     else
+                    {
                         value = 0d;
+                        stringValue = "0";
+                    }
                 }
                 else
                 {
                     value = text;
+                    stringValue = text;
                 }
+            }
+            else if (editor is PasswordBox pb)
+            {
+                var text = pb.Password ?? string.Empty;
+                value = text;
+                stringValue = text;
             }
 
             if (def.Required && (value == null || (value is string s && string.IsNullOrWhiteSpace(s))))
@@ -112,6 +170,7 @@ public partial class ModuleArgsWindow : Window
                 return;
             }
             Values[name] = value;
+            StringValues[name] = stringValue ?? string.Empty;
         }
         DialogResult = true;
         Close();

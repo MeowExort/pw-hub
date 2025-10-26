@@ -1,4 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using Markdig;
@@ -99,6 +101,14 @@ namespace Pw.Hub.Windows
 
         private void OnSaveClick(object sender, RoutedEventArgs e)
         {
+            // Commit any pending edits in the grid so bindings (e.g., Type) are pushed to the underlying object
+            try
+            {
+                InputsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                InputsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            }
+            catch { }
+
             if (string.IsNullOrWhiteSpace(NameText.Text) || string.IsNullOrWhiteSpace(ScriptText.Text))
             {
                 MessageBox.Show(this, "Имя и скрипт обязательны");
@@ -313,13 +323,52 @@ namespace Pw.Hub.Windows
             catch { }
         }
 
-        private class InputItem
+        private class InputItem : INotifyPropertyChanged
         {
-            public string Name { get; set; } = string.Empty;
-            public string Label { get; set; } = string.Empty;
-            public string Type { get; set; } = "string"; // string|number|bool
-            public string Default { get; set; }
-            public bool Required { get; set; }
+            public string Name
+            {
+                get;
+                set => SetField(ref field, value);
+            } = string.Empty;
+
+            public string Label
+            {
+                get;
+                set => SetField(ref field, value);
+            } = string.Empty;
+
+            public string Type
+            {
+                get;
+                set => SetField(ref field, value);
+            } = "string"; // string|number|bool|password
+
+            public string Default
+            {
+                get;
+                set => SetField(ref field, value);
+            }
+
+            public bool Required
+            {
+                get;
+                set => SetField(ref field, value);
+            }
+
+            public event PropertyChangedEventHandler PropertyChanged;
+
+            protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            }
+
+            protected bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
+            {
+                if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+                field = value;
+                OnPropertyChanged(propertyName);
+                return true;
+            }
         }
     }
 }

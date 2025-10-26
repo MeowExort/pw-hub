@@ -1,4 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using System.Windows;
 using NLua;
 using Pw.Hub.Abstractions;
@@ -10,6 +13,7 @@ public class LuaIntegration
 {
     private readonly IAccountManager _accountManager;
     private readonly IBrowser _browser;
+    private readonly HttpClient _client = new();
     private readonly TaskCompletionSource<string> _tcs;
     private Lua _lua; // keep reference to current Lua state for creating tables
     private Action<string> _printSink; // optional sink for Print routing
@@ -43,8 +47,6 @@ public class LuaIntegration
             GetType().GetMethod(nameof(Account_GetAccountCb), new[] { typeof(LuaFunction) }));
         lua.RegisterFunction("Account_IsAuthorizedCb", this,
             GetType().GetMethod(nameof(Account_IsAuthorizedCb), new[] { typeof(LuaFunction) }));
-        lua.RegisterFunction("Account_GetAccountsJsonCb", this,
-            GetType().GetMethod(nameof(Account_GetAccountsJsonCb), new[] { typeof(LuaFunction) }));
         lua.RegisterFunction("Account_GetAccountsCb", this,
             GetType().GetMethod(nameof(Account_GetAccountsCb), new[] { typeof(LuaFunction) }));
         lua.RegisterFunction("Account_ChangeAccountCb", this,
@@ -77,6 +79,11 @@ public class LuaIntegration
             GetType().GetMethod(nameof(ReportProgress), new[] { typeof(int) }));
         lua.RegisterFunction("ReportProgressMsg", this,
             GetType().GetMethod(nameof(ReportProgressMsg), new[] { typeof(int), typeof(string) }));
+
+        // Net api
+        lua.RegisterFunction("Net_PostJsonCb", this,
+            GetType().GetMethod(nameof(NetPostJsonSb),
+                new[] { typeof(string), typeof(string), typeof(string), typeof(LuaFunction) }));
     }
 
     public void SetPrintSink(Action<string> sink)
@@ -227,6 +234,45 @@ public class LuaIntegration
         }
     }
 
+    // UI thread helpers
+    private static void UiInvoke(Action action)
+    {
+        try
+        {
+            var app = Application.Current;
+            if (app?.Dispatcher != null)
+            {
+                app.Dispatcher.Invoke(() =>
+                {
+                    try { action(); } catch { }
+                });
+            }
+            else
+            {
+                try { action(); } catch { }
+            }
+        }
+        catch { }
+    }
+
+    private static T UiInvoke<T>(Func<T> func)
+    {
+        try
+        {
+            var app = Application.Current;
+            if (app?.Dispatcher != null)
+            {
+                return app.Dispatcher.Invoke(() =>
+                {
+                    try { return func(); } catch { return default; }
+                });
+            }
+
+            try { return func(); } catch { return default; }
+        }
+        catch { return default; }
+    }
+
     // Internal helper: ensure Lua callback is executed on UI thread (no return expected)
     private static void CallLuaVoid(LuaFunction callback, params object[] args)
     {
@@ -336,22 +382,6 @@ public class LuaIntegration
         });
     }
 
-    public void Account_GetAccountsJsonCb(LuaFunction callback)
-    {
-        _accountManager.GetAccountsAsync().ContinueWith(t =>
-        {
-            try
-            {
-                var list = t.IsCompletedSuccessfully ? t.Result : [];
-                var json = JsonSerializer.Serialize(list, JsonSerializerOptions.Web);
-                CallLuaVoid(callback, json);
-            }
-            catch
-            {
-            }
-        });
-    }
-
     public void Account_GetAccountsCb(LuaFunction callback)
     {
         _accountManager.GetAccountsAsync().ContinueWith((Task<Account[]> t) =>
@@ -385,12 +415,23 @@ public class LuaIntegration
 
     private LuaTable CreateLuaTable(string prefix)
     {
-        var name = $"__{prefix}_{Guid.NewGuid():N}";
-        _lua.NewTable(name);
-        var table = (LuaTable)_lua[name];
-        // Remove the temporary global reference to avoid polluting _G (and debugger Globals)
-        try { _lua[name] = null; } catch { }
-        return table;
+        return UiInvoke(() =>
+        {
+            if (_lua == null) return null;
+            var name = $"__{prefix}_{Guid.NewGuid():N}";
+            _lua.NewTable(name);
+            var table = (LuaTable)_lua[name];
+            // Remove the temporary global reference to avoid polluting _G (and debugger Globals)
+            try
+            {
+                _lua[name] = null;
+            }
+            catch
+            {
+            }
+
+            return table;
+        });
     }
 
     private LuaTable ToLuaAccount(Account acc)
@@ -424,9 +465,13 @@ public class LuaIntegration
                     serversTable[i++] = ToLuaServer(s);
                 }
             }
+
             t["Servers"] = serversTable;
         }
-        catch { }
+        catch
+        {
+        }
+
         return t;
     }
 
@@ -451,9 +496,13 @@ public class LuaIntegration
                     charsTable[i++] = ToLuaCharacter(c);
                 }
             }
+
             t["Characters"] = charsTable;
         }
-        catch { }
+        catch
+        {
+        }
+
         return t;
     }
 
@@ -468,7 +517,10 @@ public class LuaIntegration
             t["ServerId"] = c?.ServerId;
             // Avoid including back-reference to Server to prevent deep cycles
         }
-        catch { }
+        catch
+        {
+        }
+
         return t;
     }
 
@@ -482,7 +534,10 @@ public class LuaIntegration
             t["OrderIndex"] = s?.OrderIndex;
             // Do NOT include Accounts to avoid cycles and heavy payloads
         }
-        catch { }
+        catch
+        {
+        }
+
         return t;
     }
 
@@ -569,6 +624,76 @@ public class LuaIntegration
             }
             catch
             {
+            }
+        });
+    }
+
+    public void NetPostJsonSb(string url, string jsonBody, string contentType, LuaFunction callback)
+    {
+        var client = new HttpClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        var content = new StringContent(jsonBody, Encoding.UTF8, contentType);
+        request.Content = content;
+
+        void DisposeAll()
+        {
+            try { content.Dispose(); } catch { }
+            try { request.Dispose(); } catch { }
+            try { client.Dispose(); } catch { }
+        }
+
+        object CreateResponseContainer()
+        {
+            if (_lua != null)
+            {
+                return CreateLuaTable("response");
+            }
+            // Fallback when _lua is not set: use a .NET dictionary
+            return new Dictionary<string, object?>();
+        }
+
+        void SetField(object tableOrDict, string key, object? value)
+        {
+            try
+            {
+                if (tableOrDict is LuaTable lt)
+                {
+                    lt[key] = value;
+                }
+                else if (tableOrDict is IDictionary<string, object?> ds)
+                {
+                    ds[key] = value;
+                }
+                else if (tableOrDict is System.Collections.IDictionary d)
+                {
+                    d[key] = value;
+                }
+            }
+            catch { }
+        }
+
+        client.SendAsync(request).ContinueWith(t =>
+        {
+            if (t.IsCompletedSuccessfully && t.Result.IsSuccessStatusCode)
+            {
+                t.Result.Content.ReadAsStringAsync().ContinueWith(r =>
+                {
+                    var res = CreateResponseContainer();
+                    SetField(res, "Success", t.IsCompletedSuccessfully && t.Result.IsSuccessStatusCode);
+                    SetField(res, "ResponseBody", r.IsCompletedSuccessfully ? r.Result : "");
+                    SetField(res, "Error", null);
+                    CallLuaVoid(callback, res);
+                    DisposeAll();
+                });
+            }
+            else
+            {
+                var res = CreateResponseContainer();
+                SetField(res, "Success", t.IsCompletedSuccessfully && t.Result.IsSuccessStatusCode);
+                SetField(res, "ResponseBody", null);
+                SetField(res, "Error", t.IsCompletedSuccessfully ? t.Result.ReasonPhrase : (t.IsFaulted ? t.Exception?.GetBaseException()?.Message : "Cancelled"));
+                CallLuaVoid(callback, res);
+                DisposeAll();
             }
         });
     }

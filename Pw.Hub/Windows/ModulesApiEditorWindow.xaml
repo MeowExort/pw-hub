@@ -299,12 +299,13 @@
                                         </Style>
                                     </DataGridTextColumn.EditingElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridComboBoxColumn Header="Type" SelectedItemBinding="{Binding Type}" Width="140" MinWidth="140">
+                                <DataGridComboBoxColumn Header="Type" SelectedItemBinding="{Binding Type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" MinWidth="140">
                                     <DataGridComboBoxColumn.ItemsSource>
                                         <x:Array Type="{x:Type sys:String}">
                                             <sys:String>string</sys:String>
                                             <sys:String>number</sys:String>
                                             <sys:String>bool</sys:String>
+                                            <sys:String>password</sys:String>
                                         </x:Array>
                                     </DataGridComboBoxColumn.ItemsSource>
                                     <DataGridComboBoxColumn.EditingElementStyle>
@@ -339,7 +340,7 @@
                                         </Style>
                                     </DataGridTextColumn.EditingElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridCheckBoxColumn Header="Required" Binding="{Binding Required}" Width="90" MinWidth="90">
+                                <DataGridCheckBoxColumn Header="Required" Binding="{Binding Required, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="90" MinWidth="90">
                                     <DataGridCheckBoxColumn.ElementStyle>
                                         <Style TargetType="CheckBox">
                                             <Setter Property="HorizontalAlignment" Value="Center"/>
