@@ -23,9 +23,16 @@ public partial class AccountPage
         InitializeComponent();
         Wv.Source = new Uri("https://pwonline.ru/promo_items.php");
         Wv.NavigationCompleted += WvOnNavigationCompleted;
+        Wv.NavigationStarting += WvOnNavigationStarting;
         Browser = new WebCoreBrowser(Wv);
         AccountManager = new AccountManager(Browser);
         LuaRunner = new LuaScriptRunner(AccountManager, Browser);
+    }
+
+    private void WvOnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (!e.Uri.StartsWith("https://pwonline.ru"))
+            e.Cancel = true;
     }
 
     private void WvOnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -39,6 +46,7 @@ public partial class AccountPage
                     $('.items_container input[type=checkbox]').unbind('click');
                     """);
             }
+
             Browser.ExecuteScriptAsync(
                 """
                 var element = document.createElement('div');
@@ -212,11 +220,13 @@ public partial class AccountPage
             AccountManager.CurrentAccount.ImageSource = img;
             hasChanges = true;
         }
+
         if (string.IsNullOrEmpty(AccountManager.CurrentAccount.SiteId))
         {
             AccountManager.CurrentAccount.SiteId = await AccountManager.GetSiteId();
             hasChanges = true;
         }
+
         if (!hasChanges)
             return;
         await using var db = new AppDbContext();
@@ -227,7 +237,6 @@ public partial class AccountPage
         }
         catch
         {
-            
         }
     }
 }
