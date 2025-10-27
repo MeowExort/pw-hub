@@ -64,6 +64,7 @@ public partial class AccountPage
 
                 var selectAll = document.createElement('button');
                 selectAll.innerText = 'Выбрать все';
+                selectAll.id = 'selectAllBtn';
                 selectAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
                 selectAll.onclick = function() {
                     var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
@@ -75,6 +76,7 @@ public partial class AccountPage
 
                 var clearAll = document.createElement('button');
                 clearAll.innerText = 'Снять все';
+                clearAll.id = 'clearAllBtn';
                 clearAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
                 clearAll.onclick = function() {
                     var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
@@ -124,6 +126,7 @@ public partial class AccountPage
 
                 var selectAmulets = document.createElement('button');
                 selectAmulets.innerText = 'Хирки';
+                selectAmulets.id = 'selectAmuletsBtn';
                 selectAmulets.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
                 selectAmulets.onclick = function() {
                     selectByLabelTextRegexes([/платино.* амул.*/, /золот.* амул.*/, /серебр.* амул.*/, /бронзов.* амул.*/]);
@@ -133,6 +136,7 @@ public partial class AccountPage
 
                 var selectPass = document.createElement('button');
                 selectPass.innerText = 'Проходки';
+                selectPass.id = 'selectPassBtn';
                 selectPass.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
                 selectPass.onclick = function() {
                     selectByLabelTexts(['Самоцвет грез']);
@@ -141,6 +145,7 @@ public partial class AccountPage
 
                 var inputCustomSearch = document.createElement('input');
                 inputCustomSearch.type = 'text';
+                inputCustomSearch.id = 'customSearchInput';
                 inputCustomSearch.placeholder = 'Поиск...';
                 inputCustomSearch.style = 'padding: 8px 16px; border-radius: 24px; border: 1px solid #ccc; font-size: 14px; line-height: 24px; outline: none; flex-grow: 1;';
 
@@ -153,6 +158,7 @@ public partial class AccountPage
 
                 var selectCustom = document.createElement('button');
                 selectCustom.innerText = 'Выбрать';
+                selectCustom.id = 'selectCustomBtn';
                 selectCustom.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
                 selectCustom.onclick = function() {
                     selectByCustomSearch();
