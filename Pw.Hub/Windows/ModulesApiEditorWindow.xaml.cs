@@ -13,6 +13,7 @@ namespace Pw.Hub.Windows
         private readonly ModuleDto _existing;
         private readonly ObservableCollection<InputItem> _inputs = new();
         private CancellationTokenSource _previewCts;
+        private string _script = string.Empty;
 
         public ModulesApiEditorWindow(ModuleDto existing = null)
         {
@@ -35,7 +36,7 @@ namespace Pw.Hub.Windows
                 NameText.Text = existing.Name;
                 VersionText.Text = string.IsNullOrWhiteSpace(existing.Version) ? "1.0.0" : existing.Version;
                 DescriptionEditor.Text = existing.Description ?? string.Empty;
-                ScriptText.Text = existing.Script;
+                _script = existing.Script ?? string.Empty;
                 foreach (var i in existing.Inputs ?? Array.Empty<InputDefinitionDto>())
                 {
                     _inputs.Add(new InputItem
@@ -48,6 +49,10 @@ namespace Pw.Hub.Windows
                     });
                 }
                 Title = $"Редактирование: {existing.Name}";
+            }
+            else
+            {
+                _script = string.Empty;
             }
         }
 
@@ -94,7 +99,7 @@ namespace Pw.Hub.Windows
                 Name = NameText.Text?.Trim() ?? string.Empty,
                 Version = string.IsNullOrWhiteSpace(VersionText.Text) ? "1.0.0" : VersionText.Text.Trim(),
                 Description = DescriptionEditor.Text,
-                Script = ScriptText.Text ?? string.Empty,
+                Script = _script ?? string.Empty,
                 Inputs = inputs
             };
         }
@@ -109,7 +114,7 @@ namespace Pw.Hub.Windows
             }
             catch { }
 
-            if (string.IsNullOrWhiteSpace(NameText.Text) || string.IsNullOrWhiteSpace(ScriptText.Text))
+            if (string.IsNullOrWhiteSpace(NameText.Text) || string.IsNullOrWhiteSpace(_script))
             {
                 MessageBox.Show(this, "Имя и скрипт обязательны");
                 return;
@@ -120,6 +125,40 @@ namespace Pw.Hub.Windows
         private void AddInput_Click(object sender, RoutedEventArgs e)
         {
             _inputs.Add(new InputItem { Name = "param", Label = "Параметр", Type = "string", Default = string.Empty, Required = false });
+        }
+
+        private void OpenLuaEditor_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (Application.Current.MainWindow is not Pw.Hub.MainWindow mainWindow) return;
+                var runner = mainWindow.AccountPage?.LuaRunner;
+                if (runner == null)
+                {
+                    MessageBox.Show(this, "Lua Runner недоступен", "Lua", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var editor = new LuaEditorWindow(runner) { Owner = this };
+                editor.SetCode(_script ?? string.Empty);
+                // Pass current inputs to request arguments on run/debug
+                var apiInputs = _inputs.Select(i => new InputDefinitionDto
+                {
+                    Name = i.Name ?? string.Empty,
+                    Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
+                    Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                    Default = i.Default,
+                    Required = i.Required
+                }).ToList();
+                editor.ApiInputs = apiInputs;
+
+                // Show editor as dialog; allow user to run/debug and then return with edited code
+                editor.ShowDialog();
+                _script = editor.GetCode();
+            }
+            catch
+            {
+            }
         }
 
         private void RemoveInput_Click(object sender, RoutedEventArgs e)

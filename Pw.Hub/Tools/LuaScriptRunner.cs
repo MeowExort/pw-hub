@@ -63,11 +63,39 @@ public class LuaScriptRunner
 
     public Task RunCodeAsync(string code)
     {
+        return RunCodeAsync(code, null);
+    }
+
+    public Task RunCodeAsync(string code, Dictionary<string, object> args)
+    {
         // Keep Lua VM alive so callback-based APIs (…Cb) can invoke into the same state
         _currentLua?.Dispose(); // dispose previous editor session if any
         _currentLua = new Lua();
         _currentLua.State.Encoding = Encoding.UTF8;
         _integration.Register(_currentLua);
+
+        // Inject args table if provided
+        if (args != null)
+        {
+            try
+            {
+                _currentLua.NewTable("args");
+                var tbl = (LuaTable)_currentLua["args"];
+                foreach (var kv in args)
+                {
+                    try
+                    {
+                        var luaValue = _integration.ConvertToLuaValue(kv.Value);
+                        tbl[kv.Key] = luaValue;
+                    }
+                    catch
+                    {
+                        tbl[kv.Key] = kv.Value;
+                    }
+                }
+            }
+            catch { }
+        }
 
         // Bridge completion so editor can keep Stop enabled until script signals completion
         _currentTcs = new TaskCompletionSource<string>();
@@ -102,12 +130,41 @@ public class LuaScriptRunner
     public Task RunCodeWithBreakpointsAsync(string code, IEnumerable<int> breakpoints, DebugBreakHandler onBreak,
         string selectedAccountId = null)
     {
+        return RunCodeWithBreakpointsAsync(code, breakpoints, onBreak, null, selectedAccountId);
+    }
+
+    public Task RunCodeWithBreakpointsAsync(string code, IEnumerable<int> breakpoints, DebugBreakHandler onBreak,
+        Dictionary<string, object> args, string selectedAccountId = null)
+    {
         try
         {
             _currentLua?.Dispose();
             _currentLua = new Lua();
             _currentLua.State.Encoding = Encoding.UTF8;
             _integration.Register(_currentLua);
+
+            // Inject args table if provided
+            if (args != null)
+            {
+                try
+                {
+                    _currentLua.NewTable("args");
+                    var tbl = (LuaTable)_currentLua["args"];
+                    foreach (var kv in args)
+                    {
+                        try
+                        {
+                            var luaValue = _integration.ConvertToLuaValue(kv.Value);
+                            tbl[kv.Key] = luaValue;
+                        }
+                        catch
+                        {
+                            tbl[kv.Key] = kv.Value;
+                        }
+                    }
+                }
+                catch { }
+            }
 
             if (!string.IsNullOrWhiteSpace(selectedAccountId))
                 _currentLua["selectedAccountId"] = selectedAccountId;

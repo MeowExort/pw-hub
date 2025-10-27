@@ -217,20 +217,23 @@
 
                 <!-- Script -->
                 <Border Style="{StaticResource Card}">
-                    <StackPanel>
-                        <TextBlock Text="Lua скрипт"
-                                  Style="{StaticResource HeaderSmall}"/>
-                        <TextBox x:Name="ScriptText"
-                                Style="{StaticResource ModernTextBox}"
-                                AcceptsReturn="True"
-                                TextWrapping="NoWrap"
-                                FontFamily="{StaticResource MonospaceFont}"
-                                FontSize="13"
-                                Padding="12"
-                                Height="150"
-                                VerticalScrollBarVisibility="Auto"
-                                HorizontalScrollBarVisibility="Auto"/>
-                    </StackPanel>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <TextBlock Text="Lua скрипт"
+                                      Style="{StaticResource HeaderSmall}"/>
+                            <TextBlock Text="Редактирование скрипта выполняется во встроенном Lua-редакторе"
+                                      Style="{StaticResource ModernTextBlock}"
+                                      Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <Button x:Name="OpenLuaEditorButton"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Content="🧩 Редактор скрипта"
+                                    MinWidth="180"
+                                    Padding="12,8"
+                                    Click="OpenLuaEditor_Click"/>
+                        </StackPanel>
+                    </DockPanel>
                 </Border>
 
                 <!-- Parameters -->

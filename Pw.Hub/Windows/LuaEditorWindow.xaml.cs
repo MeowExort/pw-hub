@@ -172,6 +172,18 @@ end)", "Задержка с колбэком"),
         InitAiConfig();
     }
 
+    public void SetCode(string code)
+    {
+        try { if (Editor != null) Editor.Text = code ?? string.Empty; } catch { }
+    }
+
+    public string GetCode()
+    {
+        try { return Editor?.Text ?? string.Empty; } catch { return string.Empty; }
+    }
+
+    public List<Pw.Hub.Services.InputDefinitionDto> ApiInputs { get; set; }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         // Initialize AI brave UI state
@@ -557,7 +569,35 @@ end)", "Задержка с колбэком"),
             OutputBox.Clear();
             AppendLog("Запуск скрипта...");
             var code = Editor?.Text ?? string.Empty;
-            await _runner.RunCodeAsync(code);
+
+            Dictionary<string, object> args = null;
+            if (ApiInputs != null && ApiInputs.Count > 0)
+            {
+                // Build a temporary ModuleDefinition and show args dialog
+                var moduleDef = new Pw.Hub.Models.ModuleDefinition
+                {
+                    Name = "Ввод параметров",
+                    Script = "<inline>",
+                    Inputs = ApiInputs.Select(i => new Pw.Hub.Models.ModuleInput
+                    {
+                        Name = i.Name ?? string.Empty,
+                        Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
+                        Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                        Default = i.Default,
+                        Required = i.Required
+                    }).ToList()
+                };
+                var dlg = new ModuleArgsWindow(moduleDef) { Owner = this };
+                var ok = dlg.ShowDialog();
+                if (ok != true)
+                {
+                    AppendLog("Запуск отменён пользователем (не введены параметры)");
+                    return;
+                }
+                args = dlg.Values;
+            }
+
+            await _runner.RunCodeAsync(code, args);
             AppendLog("Выполнение скрипта завершено!");
         }
         catch (Exception ex)
@@ -580,7 +620,34 @@ end)", "Задержка с колбэком"),
             AppendLog("Запуск отладки скрипта...");
             var code = Editor?.Text ?? string.Empty;
             var bps = _breakpoints.ToArray();
-            await _runner.RunCodeWithBreakpointsAsync(code, bps, OnDebugBreak);
+
+            Dictionary<string, object> args = null;
+            if (ApiInputs != null && ApiInputs.Count > 0)
+            {
+                var moduleDef = new Pw.Hub.Models.ModuleDefinition
+                {
+                    Name = "Ввод параметров",
+                    Script = "<inline>",
+                    Inputs = ApiInputs.Select(i => new Pw.Hub.Models.ModuleInput
+                    {
+                        Name = i.Name ?? string.Empty,
+                        Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
+                        Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                        Default = i.Default,
+                        Required = i.Required
+                    }).ToList()
+                };
+                var dlg = new ModuleArgsWindow(moduleDef) { Owner = this };
+                var ok = dlg.ShowDialog();
+                if (ok != true)
+                {
+                    AppendLog("Отладка отменена пользователем (не введены параметры)");
+                    return;
+                }
+                args = dlg.Values;
+            }
+
+            await _runner.RunCodeWithBreakpointsAsync(code, bps, OnDebugBreak, args);
             AppendLog("Отладка скрипта завершена!");
         }
         catch (Exception ex)
