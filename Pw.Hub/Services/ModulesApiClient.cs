@@ -90,6 +90,29 @@ namespace Pw.Hub.Services
             return me;
         }
 
+        public async Task<UserDto> UpdateUsernameAsync(string username)
+        {
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/auth/username";
+            var payload = new { username };
+            var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json"));
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = await resp.Content.ReadAsStringAsync();
+            var user = JsonSerializer.Deserialize<UserDto>(json, JsonOptions);
+            if (user != null)
+                CurrentUser = user;
+            return user;
+        }
+
+        public async Task<bool> ChangePasswordAsync(string currentPassword, string newPassword)
+        {
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/auth/password";
+            var payload = new { currentPassword, newPassword };
+            var resp = await _http.PostAsync(url, new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json"));
+            return resp.IsSuccessStatusCode;
+        }
+
         public async Task<PagedModulesResponse> SearchAsync(string q = null, string tags = null, string sort = null, string order = null, int page = 1, int pageSize = 20)
         {
             var ub = new UriBuilder(BaseUrl + "/api/modules");

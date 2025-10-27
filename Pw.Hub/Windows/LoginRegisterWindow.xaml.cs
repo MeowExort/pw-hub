@@ -6,16 +6,19 @@ namespace Pw.Hub.Windows;
 public partial class LoginRegisterWindow : Window
 {
     private readonly ModulesApiClient _api;
+    private readonly bool _skipAutoLogin;
 
-    public LoginRegisterWindow()
+    public LoginRegisterWindow(bool skipAutoLogin = false)
     {
         InitializeComponent();
         _api = new ModulesApiClient();
+        _skipAutoLogin = skipAutoLogin;
         Loaded += async (_, _) => await TryAutoLoginAsync();
     }
 
     private async Task TryAutoLoginAsync()
     {
+        if (_skipAutoLogin) return;
         try
         {
             if (!string.IsNullOrWhiteSpace(AuthState.Token))

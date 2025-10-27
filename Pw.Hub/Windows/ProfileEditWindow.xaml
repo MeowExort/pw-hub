@@ -1,0 +1,51 @@
+﻿<Window x:Class="Pw.Hub.Windows.ProfileEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Профиль" MinHeight="320" Width="460"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/Assets/icon.png"
+        Style="{StaticResource ModernWindowChrome}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <Border Background="{StaticResource AccentBlueBrush}" Padding="12" CornerRadius="6">
+            <StackPanel>
+                <TextBlock Text="Имя пользователя" Style="{StaticResource ModernTextBlock}"/>
+                <TextBox x:Name="UsernameBox" Style="{StaticResource ModernTextBox}" Margin="0,6,0,0"/>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button x:Name="SaveUsernameBtn" Content="Сохранить имя" Style="{StaticResource PrimaryButton}" Click="SaveUsernameBtn_OnClick"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Margin="0,12,0,0" Background="{StaticResource AccentBlueBrush}" Padding="12" CornerRadius="6">
+            <StackPanel>
+                <TextBlock Text="Смена пароля" Style="{StaticResource ModernTextBlock}"/>
+                <TextBlock Text="Текущий пароль" Style="{StaticResource ModernTextBlock}"/>
+                <PasswordBox x:Name="CurrentPasswordBox" Margin="0,6,0,0" Style="{StaticResource ModernPasswordBox}"/>
+                <TextBlock Text="Новый пароль" Margin="0,6,0,0" Style="{StaticResource ModernTextBlock}"/>
+                <PasswordBox x:Name="NewPasswordBox" Margin="0,6,0,0" Style="{StaticResource ModernPasswordBox}"/>
+                <TextBlock Text="Повторите новый пароль" Margin="0,6,0,0" Style="{StaticResource ModernTextBlock}"/>
+                <PasswordBox x:Name="ConfirmPasswordBox" Margin="0,6,0,0" Style="{StaticResource ModernPasswordBox}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button x:Name="ChangePasswordBtn" Content="Сменить пароль" Style="{StaticResource PrimaryButton}" Click="ChangePasswordBtn_OnClick"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Stretch" Margin="0,12,0,0">
+            <Button Content="Сменить аккаунт" Width="140" Style="{StaticResource ModernButton}" Click="SwitchAccountBtn_OnClick"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Закрыть" Width="100" Margin="8,0,0,0" Click="Close_OnClick" Style="{StaticResource ModernButton}"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

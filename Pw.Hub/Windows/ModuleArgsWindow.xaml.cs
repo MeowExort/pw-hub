@@ -98,6 +98,15 @@ public partial class ModuleArgsWindow : Window
                     break;
                 case "отряды":
                 case "squads":
+                    var panelSquads = new StackPanel { Orientation = Orientation.Vertical };
+                    var buttonsSquads = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,6), HorizontalAlignment = HorizontalAlignment.Right };
+                    var btnSelectAllSquads = new Button { Content = "Выбрать все", Margin = new Thickness(0,0,6,0) };
+                    var btnClearAllSquads = new Button { Content = "Снять все" };
+                    if (TryFindResource("ModernButton") is Style btnStyleSq)
+                    {
+                        btnSelectAllSquads.Style = btnStyleSq;
+                        btnClearAllSquads.Style = btnStyleSq;
+                    }
                     var lbSquads = new ListBox { SelectionMode = SelectionMode.Extended, Height = 160 };
                     if (TryFindResource("ModernListBox") is Style lbStyle)
                         lbSquads.Style = lbStyle;
@@ -115,8 +124,86 @@ public partial class ModuleArgsWindow : Window
                         lbSquads.DisplayMemberPath = nameof(Squad.Name);
                     }
                     catch { }
-                    editor = lbSquads;
+                    btnSelectAllSquads.Click += (_, __) =>
+                    {
+                        try { lbSquads.SelectAll(); } catch { }
+                    };
+                    btnClearAllSquads.Click += (_, __) =>
+                    {
+                        try { lbSquads.UnselectAll(); } catch { }
+                    };
+                    buttonsSquads.Children.Add(btnSelectAllSquads);
+                    buttonsSquads.Children.Add(btnClearAllSquads);
+                    panelSquads.Children.Add(buttonsSquads);
+                    panelSquads.Children.Add(lbSquads);
+                    editor = panelSquads;
+                    // Store reference to list box for value handling; ensure Tag is set on the actual selector too
+                    editor.Tag = input;
+                    lbSquads.Tag = input;
+                    _inputs[input.Name] = lbSquads; // map the actual selector control
+                    sp.Children.Add(editor);
+                    continue; // already added panel; skip default add below
+                case "аккаунт":
+                case "account":
+                    var cbAccount = new ComboBox();
+                    if (TryFindResource("ModernComboBox") is Style comboStyle2)
+                        cbAccount.Style = comboStyle2;
+                    try
+                    {
+                        using var db3 = new AppDbContext();
+                        var accounts = db3.Accounts
+                            .Include(a => a.Servers)
+                                .ThenInclude(s => s.Characters)
+                            .Include(a => a.Squad)
+                            .OrderBy(a => a.OrderIndex)
+                            .ThenBy(a => a.Name)
+                            .ToList();
+                        cbAccount.ItemsSource = accounts;
+                        cbAccount.DisplayMemberPath = nameof(Account.Name);
+                    }
+                    catch { }
+                    editor = cbAccount;
                     break;
+                case "аккаунты":
+                case "accounts":
+                    var panelAccounts = new StackPanel { Orientation = Orientation.Vertical };
+                    var buttonsAccounts = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,6), HorizontalAlignment = HorizontalAlignment.Right };
+                    var btnSelectAllAcc = new Button { Content = "Выбрать все", Margin = new Thickness(0,0,6,0) };
+                    var btnClearAllAcc = new Button { Content = "Снять все" };
+                    if (TryFindResource("ModernButton") is Style btnStyleAcc)
+                    {
+                        btnSelectAllAcc.Style = btnStyleAcc;
+                        btnClearAllAcc.Style = btnStyleAcc;
+                    }
+                    var lbAccounts = new ListBox { SelectionMode = SelectionMode.Extended, Height = 200 };
+                    if (TryFindResource("ModernListBox") is Style lbStyleAcc)
+                        lbAccounts.Style = lbStyleAcc;
+                    try
+                    {
+                        using var db4 = new AppDbContext();
+                        var accounts2 = db4.Accounts
+                            .Include(a => a.Servers)
+                                .ThenInclude(s => s.Characters)
+                            .Include(a => a.Squad)
+                            .OrderBy(a => a.OrderIndex)
+                            .ThenBy(a => a.Name)
+                            .ToList();
+                        lbAccounts.ItemsSource = accounts2;
+                        lbAccounts.DisplayMemberPath = nameof(Account.Name);
+                    }
+                    catch { }
+                    btnSelectAllAcc.Click += (_, __) => { try { lbAccounts.SelectAll(); } catch { } };
+                    btnClearAllAcc.Click += (_, __) => { try { lbAccounts.UnselectAll(); } catch { } };
+                    buttonsAccounts.Children.Add(btnSelectAllAcc);
+                    buttonsAccounts.Children.Add(btnClearAllAcc);
+                    panelAccounts.Children.Add(buttonsAccounts);
+                    panelAccounts.Children.Add(lbAccounts);
+                    editor = panelAccounts;
+                    editor.Tag = input;
+                    lbAccounts.Tag = input;
+                    _inputs[input.Name] = lbAccounts; // map to underlying selector
+                    sp.Children.Add(editor);
+                    continue;
                 default:
                     var tb = new TextBox { Text = input.Default ?? string.Empty };
                     if (TryFindResource("ModernTextBox") is Style tbStyle2)
@@ -192,6 +279,41 @@ public partial class ModuleArgsWindow : Window
                     }
                     catch { }
                 }
+                else if (editor is ComboBox comboAcc && (type == "аккаунт" || type == "account"))
+                {
+                    try
+                    {
+                        var id = saved;
+                        if (!string.IsNullOrWhiteSpace(id) && comboAcc.ItemsSource is System.Collections.IEnumerable items)
+                        {
+                            foreach (var item in items)
+                            {
+                                if (item is Account a && string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    comboAcc.SelectedItem = item;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                else if (editor is ListBox listAcc && (type == "аккаунты" || type == "accounts"))
+                {
+                    try
+                    {
+                        var ids = (saved ?? string.Empty).Split(new[]{',',';',' '}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        var set = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+                        foreach (var item in listAcc.Items)
+                        {
+                            if (item is Account a && set.Contains(a.Id))
+                            {
+                                listAcc.SelectedItems.Add(item);
+                            }
+                        }
+                    }
+                    catch { }
+                }
             }
         }
         catch { }
@@ -254,6 +376,18 @@ public partial class ModuleArgsWindow : Window
                 var squads = list.SelectedItems.Cast<object>().OfType<Squad>().ToList();
                 value = squads; // list of squads; integration will convert to Lua table
                 stringValue = string.Join(",", squads.Select(s => s.Id ?? string.Empty));
+            }
+            else if (editor is ComboBox comboAcc && (type == "аккаунт" || type == "account"))
+            {
+                var selectedAccount = comboAcc.SelectedItem as Account;
+                value = selectedAccount; // convert later to Lua table
+                stringValue = selectedAccount?.Id ?? string.Empty; // persist Account Id
+            }
+            else if (editor is ListBox listAcc && (type == "аккаунты" || type == "accounts"))
+            {
+                var accounts = listAcc.SelectedItems.Cast<object>().OfType<Account>().ToList();
+                value = accounts; // list of accounts
+                stringValue = string.Join(",", accounts.Select(a => a.Id ?? string.Empty));
             }
 
             if (def.Required && (value == null 

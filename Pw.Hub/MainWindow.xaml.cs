@@ -58,13 +58,19 @@ public partial class MainWindow
         Loaded += (_, _) => LoadModules();
     }
 
-    private void OpenAIGenerator_Click(object sender, RoutedEventArgs e)
+    private void OpenProfile_Click(object sender, RoutedEventArgs e)
     {
-        var win = new Pw.Hub.Windows.AIGeneratorWindow
+        try
         {
-            Owner = this
-        };
-        win.Show();
+            var win = new Pw.Hub.Windows.ProfileEditWindow
+            {
+                Owner = this
+            };
+            win.ShowDialog();
+        }
+        catch
+        {
+        }
     }
 
     private void OnCurrentAccountChanged(Account account)
@@ -1036,41 +1042,6 @@ public partial class MainWindow
         }
         catch
         {
-        }
-    }
-
-    private void OnReloadModulesClick(object sender, RoutedEventArgs e)
-    {
-        LoadModules();
-    }
-
-    private void OnCreateModuleClick(object sender, RoutedEventArgs e)
-    {
-        var editor = new Windows.ModuleEditorWindow();
-        editor.Owner = this;
-        if (editor.ShowDialog() == true)
-        {
-            _moduleService.AddOrUpdateModule(editor.Module);
-            LoadModules();
-            // select the new/updated module
-            ModulesList.SelectedItem = _modules.FirstOrDefault(m => m.Id == editor.Module.Id);
-        }
-    }
-
-    private void OnEditModuleClick(object sender, RoutedEventArgs e)
-    {
-        if (ModulesList.SelectedItem is not ModuleDefinition selected)
-        {
-            MessageBox.Show("Выберите модуль для редактирования", "Модули");
-            return;
-        }
-
-        var editor = new Windows.ModuleEditorWindow(selected) { Owner = this };
-        if (editor.ShowDialog() == true)
-        {
-            _moduleService.AddOrUpdateModule(editor.Module);
-            LoadModules();
-            ModulesList.SelectedItem = _modules.FirstOrDefault(m => m.Id == editor.Module.Id);
         }
     }
 

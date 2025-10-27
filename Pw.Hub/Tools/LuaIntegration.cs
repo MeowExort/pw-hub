@@ -358,24 +358,23 @@ public class LuaIntegration
             if (value == null) return null;
             if (value is Squad squad)
                 return ToLuaSquad(squad);
-            // Handle collections of Squad (IEnumerable)
+            if (value is Account account)
+                return ToLuaAccount(account, includeSquad: true);
+            // Handle collections (IEnumerable)
             if (value is System.Collections.IEnumerable en && value is not string)
             {
-                // Attempt to detect element type as Squad and convert accordingly
-                var list = new List<object>();
-                foreach (var item in en)
-                {
-                    if (item is Squad sq)
-                        list.Add(ToLuaSquad(sq));
-                    else
-                        list.Add(item);
-                }
-                // If we gathered any items, create a Lua table and fill 1-based
                 var table = CreateLuaTable("list");
                 int i = 1;
-                foreach (var it in list)
+                foreach (var item in en)
                 {
-                    table[i++] = it;
+                    object converted;
+                    if (item is Squad sq)
+                        converted = ToLuaSquad(sq);
+                    else if (item is Account acc)
+                        converted = ToLuaAccount(acc, includeSquad: true);
+                    else
+                        converted = item;
+                    table[i++] = converted;
                 }
                 return table;
             }
@@ -434,7 +433,8 @@ public class LuaIntegration
                     int i = 1; // Lua is 1-based
                     foreach (var acc in list)
                     {
-                        accountsTable[i++] = ToLuaAccount(acc);
+                        // Include Squad (slim, without Accounts) for each account
+                        accountsTable[i++] = ToLuaAccount(acc, includeSquad: true);
                     }
 
                     CallLuaVoid(callback, accountsTable);
@@ -474,6 +474,11 @@ public class LuaIntegration
 
     private LuaTable ToLuaAccount(Account acc)
     {
+        return ToLuaAccount(acc, includeSquad: false);
+    }
+
+    private LuaTable ToLuaAccount(Account acc, bool includeSquad)
+    {
         var t = CreateLuaTable("account");
         try
         {
@@ -487,8 +492,27 @@ public class LuaIntegration
             t["SquadId"] = acc?.SquadId; // avoid ToString on null
             t["OrderIndex"] = acc?.OrderIndex;
 
-            // Note: Do NOT include acc.Squad to avoid cyclic references (Squad -> Accounts -> Account -> Squad ...)
-            // Keep only SquadId as a primitive reference.
+            // Optional: include slim Squad info without Accounts to avoid cycles
+            if (includeSquad)
+            {
+                var squadSlim = CreateLuaTable("squad");
+                try
+                {
+                    if (acc?.Squad != null)
+                    {
+                        squadSlim["Id"] = acc.Squad.Id;
+                        squadSlim["Name"] = acc.Squad.Name;
+                        squadSlim["OrderIndex"] = acc.Squad.OrderIndex;
+                    }
+                    else
+                    {
+                        // If only SquadId is known, return minimal stub
+                        squadSlim["Id"] = acc?.SquadId;
+                    }
+                }
+                catch { }
+                t["Squad"] = squadSlim;
+            }
 
             // Servers -> table of server tables
             var serversTable = CreateLuaTable("servers");
@@ -561,6 +585,11 @@ public class LuaIntegration
 
     private LuaTable ToLuaSquad(Squad s)
     {
+        return ToLuaSquad(s, includeAccounts: true);
+    }
+
+    private LuaTable ToLuaSquad(Squad s, bool includeAccounts)
+    {
         var t = CreateLuaTable("squad");
         try
         {
@@ -568,17 +597,21 @@ public class LuaIntegration
             t["Name"] = s?.Name;
             t["OrderIndex"] = s?.OrderIndex;
 
-            // Include Accounts with nested Servers and Characters
-            var accountsTable = CreateLuaTable("accounts");
-            int i = 1;
-            if (s?.Accounts != null)
+            if (includeAccounts)
             {
-                foreach (var acc in s.Accounts)
+                // Include Accounts with nested Servers and Characters
+                var accountsTable = CreateLuaTable("accounts");
+                int i = 1;
+                if (s?.Accounts != null)
                 {
-                    accountsTable[i++] = ToLuaAccount(acc);
+                    foreach (var acc in s.Accounts)
+                    {
+                        // For accounts inside squad, include a slim Squad reference (without Accounts)
+                        accountsTable[i++] = ToLuaAccount(acc, includeSquad: true);
+                    }
                 }
+                t["Accounts"] = accountsTable;
             }
-            t["Accounts"] = accountsTable;
         }
         catch
         {

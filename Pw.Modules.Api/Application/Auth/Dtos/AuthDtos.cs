@@ -12,6 +12,17 @@ public sealed class LoginRequest
     public string Password { get; set; } = string.Empty;
 }
 
+public sealed class UpdateUsernameRequest
+{
+    public string Username { get; set; } = string.Empty;
+}
+
+public sealed class ChangePasswordRequest
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+}
+
 public sealed class AuthResponse
 {
     public string UserId { get; set; } = string.Empty;

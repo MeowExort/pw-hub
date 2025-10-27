@@ -8,6 +8,8 @@ public static class AuthEndpoints
         Register.RegisterEndpoint.Map(group);
         Login.LoginEndpoint.Map(group);
         Me.MeEndpoint.Map(group);
+        UpdateUsernameEndpoint.Map(group);
+        ChangePasswordEndpoint.Map(group);
         return group;
     }
 }

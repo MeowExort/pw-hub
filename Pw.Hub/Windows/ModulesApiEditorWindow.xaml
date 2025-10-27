@@ -308,6 +308,8 @@
                                             <sys:String>password</sys:String>
                                             <sys:String>squad</sys:String>
                                             <sys:String>squads</sys:String>
+                                            <sys:String>account</sys:String>
+                                            <sys:String>accounts</sys:String>
                                         </x:Array>
                                     </DataGridComboBoxColumn.ItemsSource>
                                     <DataGridComboBoxColumn.EditingElementStyle>
