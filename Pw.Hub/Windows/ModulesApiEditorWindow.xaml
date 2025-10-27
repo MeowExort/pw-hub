@@ -128,6 +128,14 @@
                                    ToolTip="Код"
                                    FontFamily="{StaticResource MonospaceFont}"
                                    Click="Code_Click"/>
+                            <Separator Style="{StaticResource ModernSeparator}" Width="2" Height="20" Margin="8,0,8,0"/>
+                            <Button x:Name="GenerateDescriptionBtn"
+                                   Style="{StaticResource ModernButton}"
+                                   Content="🤖 Сгенерировать описание"
+                                   MinWidth="200"
+                                   Padding="12,8"
+                                   ToolTip="Сгенерировать описание модуля с помощью AI"
+                                   Click="GenerateDescription_Click"/>
                         </StackPanel>
 
                         <Grid MinHeight="250" MaxHeight="500">

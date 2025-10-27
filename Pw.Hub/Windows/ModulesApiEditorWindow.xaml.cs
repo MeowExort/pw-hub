@@ -1,6 +1,12 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Markdig;
@@ -14,6 +20,26 @@ namespace Pw.Hub.Windows
         private readonly ObservableCollection<InputItem> _inputs = new();
         private CancellationTokenSource _previewCts;
         private string _script = string.Empty;
+        private string _aiApiKey;
+
+        // AI DTOs (local minimal types)
+        private sealed class AiMessage
+        {
+            public string role { get; set; }
+            public string content { get; set; }
+        }
+
+        private sealed class AiChatRequest
+        {
+            public string model { get; set; }
+            public List<AiMessage> messages { get; set; }
+            public bool stream { get; set; }
+        }
+
+        private sealed class AiChatResponse
+        {
+            public List<AiMessage> messages { get; set; }
+        }
 
         public ModulesApiEditorWindow(ModuleDto existing = null)
         {
@@ -48,6 +74,7 @@ namespace Pw.Hub.Windows
                         Required = i.Required
                     });
                 }
+
                 Title = $"Редактирование: {existing.Name}";
             }
             else
@@ -64,21 +91,22 @@ namespace Pw.Hub.Windows
                 {
                     await PreviewWebView.EnsureCoreWebView2Async();
                 }
-                
+
                 // Update clipping on size change
                 PreviewWebView.SizeChanged += (s, e) => UpdateWebViewClipping();
                 PreviewContainer.SizeChanged += (s, e) => UpdateWebViewClipping();
                 this.SizeChanged += (s, e) => UpdateWebViewClipping();
             }
-            catch { }
+            catch
+            {
+            }
+
             await UpdatePreviewAsync();
             UpdatePreviewVisibility();
-            
+
             // Initial clipping update
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                UpdateWebViewClipping();
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            Dispatcher.BeginInvoke(new Action(() => { UpdateWebViewClipping(); }),
+                System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         public CreateOrUpdateModule GetRequest()
@@ -112,19 +140,23 @@ namespace Pw.Hub.Windows
                 InputsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 InputsGrid.CommitEdit(DataGridEditingUnit.Row, true);
             }
-            catch { }
+            catch
+            {
+            }
 
             if (string.IsNullOrWhiteSpace(NameText.Text) || string.IsNullOrWhiteSpace(_script))
             {
                 MessageBox.Show(this, "Имя и скрипт обязательны");
                 return;
             }
+
             DialogResult = true;
         }
 
         private void AddInput_Click(object sender, RoutedEventArgs e)
         {
-            _inputs.Add(new InputItem { Name = "param", Label = "Параметр", Type = "string", Default = string.Empty, Required = false });
+            _inputs.Add(new InputItem
+                { Name = "param", Label = "Параметр", Type = "string", Default = string.Empty, Required = false });
         }
 
         private void OpenLuaEditor_Click(object sender, RoutedEventArgs e)
@@ -169,6 +201,151 @@ namespace Pw.Hub.Windows
             }
         }
 
+        private async void GenerateDescription_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (GenerateDescriptionBtn != null) GenerateDescriptionBtn.IsEnabled = false;
+                InitAiConfig();
+                var name = NameText.Text?.Trim();
+                var versionStr = string.IsNullOrWhiteSpace(VersionText.Text) ? "1.0.0" : VersionText.Text.Trim();
+                var version = Version.Parse(versionStr);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    MessageBox.Show(this, "Введите название модуля", "AI", MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (_existing != null)
+                {
+                    var prevVersion = Version.Parse(_existing.Version);
+                    if (prevVersion.CompareTo(version) >= 0)
+                    {
+                        MessageBox.Show(this, "Версия должна быть выше предыдущей", "AI", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+
+                var inputs = _inputs.Select(i => $"- {i.Name} ({i.Type}) — {i.Label}").ToArray();
+                var inputsBlock = inputs.Length == 0 ? "(параметров нет)" : string.Join("\n", inputs);
+
+                // Текущий скрипт (фрагмент)
+                var scriptInfo = string.IsNullOrWhiteSpace(_script)
+                    ? "(скрипт ещё не задан)"
+                    : "Фрагмент:\n\n" + _script;
+
+                // Предыдущие версия описания/скрипта, если редактируем существующий модуль
+                var prevDescription = _existing?.Description;
+                var prevScript = _existing?.Script;
+                var prevDescInfo = string.IsNullOrWhiteSpace(prevDescription) ? "(нет)" : prevDescription;
+                var prevScriptInfo = string.IsNullOrWhiteSpace(prevScript)
+                    ? "(нет)"
+                    : "Фрагмент:\n\n" + prevScript;
+
+                var systemPrompt =
+                    "Ты помощник по документации. Пиши кратко и по делу на русском языке. Используй Markdown. Не придумывай функционал, которого нет. Если дан контекст предыдущей версии, добавь раздел 'История изменений' по сравнению с текущей версией.";
+                var userPrompt =
+                    $@"Сгенерируй краткое описание модуля для каталога. Структура: 1) Краткое резюме (1-2 предложения), 2) Параметры, 3) Пример запуска (если уместно), 4) Предупреждения/требования, 5) История изменений (если есть предыдущая версия).
+
+Название: {name}
+Версия: {version}
+Параметры:
+{inputsBlock}
+
+Текущий скрипт (фрагмент):
+{scriptInfo}
+
+Предыдущее описание:
+{prevDescInfo}
+
+Предыдущий скрипт (фрагмент):
+{prevScriptInfo}
+
+Требования к ответу:
+- Формат — Markdown, без лишних преамбул вроде ""Вот описание"".
+- Если параметров нет — явно напиши, что модуль не требует ввода.
+- Раздел 'История изменений' должен отражать отличия между предыдущей и текущей версиями (кратко: что улучшено, добавлено, удалено).
+- Не используй HTML.
+";
+
+                var aiResponse = await CallAiAsync(systemPrompt, userPrompt);
+                DescriptionEditor.Text = aiResponse.message.content;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Не удалось сгенерировать описание: " + ex.Message, "AI", MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (GenerateDescriptionBtn != null) GenerateDescriptionBtn.IsEnabled = true;
+            }
+        }
+
+        private void InitAiConfig()
+        {
+            _aiApiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY") ?? _aiApiKey;
+
+            try
+            {
+                var configPath = Path.Combine(AppContext.BaseDirectory, "config", "ai_settings.json");
+                if (File.Exists(configPath))
+                {
+                    var config = JsonSerializer.Deserialize<AIConfig>(File.ReadAllText(configPath));
+                    _aiApiKey = config?.OllamaApiKey ?? _aiApiKey;
+                }
+                else
+                {
+                    var settingsWindow = new ApiKeySettingsWindow(_aiApiKey);
+                    if (settingsWindow.ShowDialog() == true)
+                    {
+                        _aiApiKey = settingsWindow.ApiKey;
+                    }
+                }
+            }
+            catch
+            {
+                // Игнорируем ошибки чтения конфига
+            }
+        }
+
+        private async Task<OllamaResponse> CallAiAsync(string systemPrompt, string userPrompt)
+        {
+            var endpoint = "https://ollama.com/api/chat";
+            var apiKey = _aiApiKey;
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException(
+                    "Не задан API-ключ.");
+            }
+
+            var model =  "deepseek-v3.1:671b"; // sensible default for Ollama Cloud
+
+
+            var messages = new List<object> { new { role = "system", content = systemPrompt } };
+            
+            messages.Add(new { role = "user", content = userPrompt });
+
+            var req = new
+            {
+                model = "deepseek-v3.1:671b",
+                messages = messages,
+                stream = false
+            };
+
+            var json = JsonSerializer.Serialize(req,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+            http.DefaultRequestHeaders.Remove("Authorization");
+            http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_aiApiKey}");
+            var resp = await http.PostAsync(endpoint, content);
+            var respText = await resp.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<OllamaResponse>(respText);
+            return result;
+        }
+
         private void DescriptionEditor_OnTextChanged(object sender, TextChangedEventArgs e)
         {
             DebouncePreview();
@@ -181,7 +358,7 @@ namespace Pw.Hub.Windows
             {
                 DebouncePreview();
                 // Update clipping when preview is shown
-                Dispatcher.BeginInvoke(new Action(() => UpdateWebViewClipping()), 
+                Dispatcher.BeginInvoke(new Action(() => UpdateWebViewClipping()),
                     System.Windows.Threading.DispatcherPriority.Loaded);
             }
         }
@@ -197,10 +374,13 @@ namespace Pw.Hub.Windows
                     Dispatcher.BeginInvoke(new Action(UpdatePreviewVisibility));
                     return;
                 }
+
                 var visible = ShowPreviewCheck.IsChecked == true;
                 PreviewContainer.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private void MainScrollViewer_OnScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
@@ -213,28 +393,30 @@ namespace Pw.Hub.Windows
         {
             try
             {
-                if (PreviewWebView?.CoreWebView2 == null || MainScrollViewer == null || PreviewContainer == null || PreviewHeader == null)
+                if (PreviewWebView?.CoreWebView2 == null || MainScrollViewer == null || PreviewContainer == null ||
+                    PreviewHeader == null)
                     return;
 
                 // Get the position of PreviewContainer relative to ScrollViewer content
-                var relativePos = PreviewContainer.TransformToAncestor(MainScrollViewer).Transform(new System.Windows.Point(0, 0));
-                
+                var relativePos = PreviewContainer.TransformToAncestor(MainScrollViewer)
+                    .Transform(new System.Windows.Point(0, 0));
+
                 var scrollViewerHeight = MainScrollViewer.ActualHeight;
                 var containerHeight = PreviewContainer.ActualHeight;
                 var headerHeight = PreviewHeader.ActualHeight;
-                
+
                 // Calculate how much the container is clipped at top and bottom
                 // If relativePos.Y is negative, container top is above viewport (scrolled up)
                 var containerClipTop = Math.Max(0, -relativePos.Y);
-                
+
                 // WebView2 should be clipped less because header takes some space
                 // Only clip WebView if the clipping goes beyond the header
                 var webViewClipTop = Math.Max(0, containerClipTop - headerHeight);
-                
+
                 // If container bottom is below viewport, clip from bottom
                 var containerBottom = relativePos.Y + containerHeight;
                 var clipBottom = Math.Max(0, containerBottom - scrollViewerHeight);
-                
+
                 // Apply visual clipping to container
                 if (containerClipTop > 0 || clipBottom > 0)
                 {
@@ -242,7 +424,7 @@ namespace Pw.Hub.Windows
                     var clipRect = new System.Windows.Media.RectangleGeometry(
                         new System.Windows.Rect(0, containerClipTop, PreviewContainer.ActualWidth, visibleHeight));
                     PreviewContainer.Clip = clipRect;
-                    
+
                     // Set margin on WebView2 accounting for header height
                     PreviewWebView.Margin = new System.Windows.Thickness(0, webViewClipTop, 0, clipBottom);
                 }
@@ -252,7 +434,9 @@ namespace Pw.Hub.Windows
                     PreviewWebView.Margin = new System.Windows.Thickness(0);
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private void DebouncePreview()
@@ -270,7 +454,9 @@ namespace Pw.Hub.Windows
                         await Dispatcher.InvokeAsync(async () => await UpdatePreviewAsync());
                     }
                 }
-                catch { }
+                catch
+                {
+                }
             });
         }
 
@@ -284,6 +470,7 @@ namespace Pw.Hub.Windows
                 {
                     await PreviewWebView.EnsureCoreWebView2Async();
                 }
+
                 var css = @"html{height:100%;margin:0;padding:0;overflow:auto;}
                     body{margin:0;padding:8px 12px 12px 12px;font-family:Segoe UI,Arial,sans-serif;background:#171A21;color:#C7D5E0;box-sizing:border-box;}
                     *{box-sizing:border-box;max-width:100%;}
@@ -296,14 +483,17 @@ namespace Pw.Hub.Windows
                     th,td{border:1px solid #2A475E;padding:6px;text-align:left;}
                     ul,ol{padding-left:22px;margin:8px 0;}
                     p{margin:0.5em 0;}";
-                var doc = $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
+                var doc =
+                    $"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{html}</body></html>";
                 PreviewWebView.NavigateToString(doc);
-                
+
                 // Update clipping after content loads
                 await Task.Delay(100); // Small delay to let content render
                 UpdateWebViewClipping();
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         // Toolbar helpers
@@ -326,7 +516,9 @@ namespace Pw.Hub.Windows
                 tb.SelectionStart = start + left.Length;
                 tb.SelectionLength = sel.Length;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private void PrefixSelection(string prefix)
@@ -338,7 +530,9 @@ namespace Pw.Hub.Windows
                 tb.Select(lineStart, 0);
                 tb.SelectedText = prefix;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private void PrefixEachLine(string prefix)
@@ -355,11 +549,14 @@ namespace Pw.Hub.Windows
                     PrefixSelection(prefix);
                     return;
                 }
+
                 var lines = sel.Replace("\r", string.Empty).Split('\n');
                 var transformed = string.Join("\n", lines.Select(l => string.IsNullOrWhiteSpace(l) ? l : prefix + l));
                 tb.SelectedText = transformed;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private class InputItem : INotifyPropertyChanged
@@ -408,6 +605,11 @@ namespace Pw.Hub.Windows
                 OnPropertyChanged(propertyName);
                 return true;
             }
+        }
+
+        private class AIConfig
+        {
+            public string OllamaApiKey { get; set; }
         }
     }
 }

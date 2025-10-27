@@ -1830,3 +1830,23 @@ internal class FieldCompletionData : ICompletionData
         textArea.Caret.Offset = Math.Max(0, Math.Min(docLen, desiredOffset));
     }
 }
+
+
+public class OllamaResponse
+{
+    public string model { get; set; }
+    public string created_at { get; set; }
+    public Message message { get; set; }
+    public bool done { get; set; }
+    public string done_reason { get; set; }
+    public long total_duration { get; set; }
+    public int prompt_eval_count { get; set; }
+    public int eval_count { get; set; }
+}
+
+public class Message
+{
+    public string role { get; set; }
+    public string content { get; set; }
+}
+
