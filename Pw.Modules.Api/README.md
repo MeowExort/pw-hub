@@ -13,7 +13,14 @@ dotnet run -p Pw.Modules.Api
 - Swagger UI доступен на корневом пути (например, http://localhost:5000/).
 
 ## Эндпоинты
-- `/api/app/stats` — сводная статистика (активные пользователи, модули, запуски).
+- Аутентификация и профиль (`/api/auth`):
+  - `POST /register` — регистрация (username, password).
+  - `POST /login` — вход (username, password).
+  - `GET /me` — текущий пользователь (заголовок `X-Auth-Token`).
+  - `POST /username` — изменение имени пользователя (заголовок `X-Auth-Token`).
+  - `POST /password` — смена пароля (заголовок `X-Auth-Token`).
+- Модули (`/api/modules`) — CRUD и счётчики установок/запусков (см. Swagger).
+- Приложение (`/api/app/stats`) — сводная статистика (активные пользователи, модули, запуски).
 - `/healthz` — Health Checks.
 
 ## CORS

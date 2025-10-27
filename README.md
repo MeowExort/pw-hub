@@ -2,6 +2,10 @@
 
 Русскоязычная документация по проектам репозитория и быстрые ссылки.
 
+## Последний релиз
+- Release Notes: [RELEASE_NOTES_0.0.10.md](RELEASE_NOTES_0.0.10.md)
+- Предыдущий релиз: [RELEASE_NOTES_0.0.9.md](RELEASE_NOTES_0.0.9.md)
+
 ## Проекты
 - Pw.Hub — WPF‑приложение для работы с аккаунтами и модулями. [Документация](Pw.Hub/README.md) · [Changelog](Pw.Hub/CHANGELOG.md)
 - Pw.Modules.Api — ASP.NET Core Minimal API для модуля‑маркетплейса и статистики. [Документация](Pw.Modules.Api/README.md) · [Changelog](Pw.Modules.Api/CHANGELOG.md)
