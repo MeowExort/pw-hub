@@ -40,11 +40,24 @@ public partial class MainWindow
     private readonly ModuleService _moduleService = new();
     private List<ModuleDefinition> _modules = new();
 
+    private readonly ModulesApiClient _modulesApi = new();
+    private DateTime _lastUpdateCheck = DateTime.MinValue;
+    private List<string> _lastUpdates = new();
+
     public MainWindow()
     {
         InitializeComponent();
         
         DataContext = _vm;
+        
+        // Reposition updates popup when window size or position changes
+        try
+        {
+            SizeChanged += (_, _) => { try { if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup(); } catch { } };
+            LocationChanged += (_, _) => { try { if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup(); } catch { } };
+            StateChanged += (_, _) => { try { if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup(); } catch { } };
+        }
+        catch { }
         try
         {
             // Subscribe to account change events to sync TreeView selection
@@ -55,7 +68,138 @@ public partial class MainWindow
             AccountPage.AccountManager.CurrentAccountChanging += OnCurrentAccountChanging;
         }
         catch { }
-        Loaded += (_, _) => LoadModules();
+        Loaded += async (_, _) =>
+        {
+            try { LoadModules(); } catch { }
+            try { await SyncInstalledModulesAsync(); } catch { }
+        };
+    }
+
+    private async Task SyncInstalledModulesAsync()
+    {
+        try
+        {
+            // Ensure we know who the user is
+            if (_modulesApi.CurrentUser == null)
+            {
+                try { await _modulesApi.MeAsync(); } catch { }
+            }
+            var userId = _modulesApi.CurrentUser?.UserId;
+            if (string.IsNullOrWhiteSpace(userId))
+                return; // not authenticated — nothing to sync
+
+            // Load server list of installed modules
+            var serverInstalled = await _modulesApi.GetInstalledAsync(userId);
+            var serverIds = new HashSet<Guid>(serverInstalled.Select(m => m.Id));
+
+            // Load local list
+            var locals = _moduleService.LoadModules();
+            var localIds = new HashSet<Guid>(locals
+                .Select(m => Guid.TryParse(m.Id, out var g) ? g : Guid.Empty)
+                .Where(g => g != Guid.Empty));
+
+            // Determine diffs
+            var toInstall = serverIds.Except(localIds).ToList();
+            var toRemove = localIds.Except(serverIds).ToList();
+
+            var changed = false;
+
+            // Install missing locally
+            if (toInstall.Count > 0)
+            {
+                foreach (var id in toInstall)
+                {
+                    var dto = serverInstalled.FirstOrDefault(x => x.Id == id);
+                    if (dto != null)
+                    {
+                        try { InstallModuleLocally(dto); changed = true; } catch { }
+                    }
+                }
+            }
+
+            // Remove extras locally
+            if (toRemove.Count > 0)
+            {
+                foreach (var id in toRemove)
+                {
+                    try { RemoveModuleLocally(id); changed = true; } catch { }
+                }
+            }
+
+            if (changed)
+            {
+                // Refresh UI list
+                try { LoadModules(); } catch { }
+            }
+        }
+        catch
+        {
+            // swallow sync errors silently
+        }
+    }
+
+    private void InstallModuleLocally(Pw.Hub.Services.ModuleDto module)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var scriptsDir = System.IO.Path.Combine(baseDir, "Scripts");
+            System.IO.Directory.CreateDirectory(scriptsDir);
+            var fileName = module.Id.ToString() + ".lua";
+            var scriptPath = System.IO.Path.Combine(scriptsDir, fileName);
+            System.IO.File.WriteAllText(scriptPath, module.Script ?? string.Empty);
+
+            var def = new Pw.Hub.Models.ModuleDefinition
+            {
+                Id = module.Id.ToString(),
+                Name = module.Name,
+                Version = string.IsNullOrWhiteSpace(module.Version) ? "1.0.0" : module.Version,
+                Description = module.Description ?? string.Empty,
+                Script = fileName,
+                Inputs = module.Inputs?.Select(i => new Pw.Hub.Models.ModuleInput
+                {
+                    Name = i.Name,
+                    Label = string.IsNullOrWhiteSpace(i.Label) ? i.Name : i.Label,
+                    Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                    Default = string.IsNullOrWhiteSpace(i.Default) ? null : i.Default,
+                    Required = i.Required
+                }).ToList() ?? new List<Pw.Hub.Models.ModuleInput>()
+            };
+
+            _moduleService.AddOrUpdateModule(def);
+        }
+        catch
+        {
+        }
+    }
+
+    private void RemoveModuleLocally(Guid id)
+    {
+        try
+        {
+            var svc = _moduleService;
+            var list = svc.LoadModules();
+            var existing = list.FirstOrDefault(x => string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                // Try delete script file if under Scripts
+                try
+                {
+                    var baseDir = AppContext.BaseDirectory;
+                    var candidate1 = System.IO.Path.Combine(baseDir, existing.Script);
+                    var candidate2 = System.IO.Path.Combine(baseDir, "Scripts", existing.Script);
+                    if (System.IO.File.Exists(candidate1)) System.IO.File.Delete(candidate1);
+                    else if (System.IO.File.Exists(candidate2)) System.IO.File.Delete(candidate2);
+                }
+                catch { }
+
+                list.Remove(existing);
+                svc.SaveModules(list);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private void OpenProfile_Click(object sender, RoutedEventArgs e)
@@ -1029,7 +1173,176 @@ public partial class MainWindow
     private void MainWindow_OnClosing(object sender, CancelEventArgs e)
     {
         e.Cancel = true;
+        if (UpdatesPopup.IsOpen)
+            UpdatesPopup.IsOpen = false;
         Hide();
+    }
+
+    private async void MainWindow_OnActivated(object sender, EventArgs e)
+    {
+        // Debounce checks: not more often than once per 60 seconds
+        if ((DateTime.UtcNow - _lastUpdateCheck) < TimeSpan.FromSeconds(60))
+            return;
+        _lastUpdateCheck = DateTime.UtcNow;
+
+        try
+        {
+            // Load local modules
+            var locals = _moduleService.LoadModules();
+            if (locals == null || locals.Count == 0)
+            {
+                UpdatesPopup.IsOpen = false;
+                return;
+            }
+
+            // Get server modules (first page, enough size)
+            var resp = await _modulesApi.SearchAsync(null, null, null, null, 1, 100);
+            var items = resp?.Items ?? new List<Services.ModuleDto>();
+
+            // Build list of updates
+            var updates = new List<string>();
+            foreach (var local in locals)
+            {
+                if (!Guid.TryParse(local.Id, out var id))
+                    continue;
+                var remote = items.FirstOrDefault(i => i.Id == id);
+                if (remote == null) continue;
+                if (IsUpdateAvailable(local.Version ?? "1.0.0", remote.Version ?? "1.0.0"))
+                {
+                    updates.Add(local.Name ?? local.Id);
+                }
+            }
+
+            // Avoid re-showing the same list repeatedly
+            if (updates.SequenceEqual(_lastUpdates))
+                return;
+            _lastUpdates = updates;
+
+            if (updates.Count > 0)
+            {
+                var list = string.Join(Environment.NewLine, updates.Take(5));
+                if (updates.Count > 5) list += $" и ещё {updates.Count - 5}";
+                UpdatesPopupText.Text = $"Доступны обновления для модулей: {Environment.NewLine} {list}";
+                UpdatesPopup.IsOpen = true;
+                try { PositionUpdatesPopup(); } catch { }
+            }
+            else
+            {
+                UpdatesPopup.IsOpen = false;
+            }
+        }
+        catch
+        {
+            // On any failure, do not bother user
+            try { UpdatesPopup.IsOpen = false; } catch { }
+        }
+    }
+
+    private void UpdatesPopup_CloseClick(object sender, RoutedEventArgs e)
+    {
+        try { UpdatesPopup.IsOpen = false; } catch { }
+    }
+
+    // Close updates popup when window loses activation (user switches to other app)
+    private void MainWindow_OnDeactivated(object sender, EventArgs e)
+    {
+        try { if (UpdatesPopup?.IsOpen == true) UpdatesPopup.IsOpen = false; } catch { }
+    }
+
+    // Close updates popup when window is minimized; otherwise keep it positioned
+    private void MainWindow_OnStateChanged(object sender, EventArgs e)
+    {
+        try
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                if (UpdatesPopup?.IsOpen == true) UpdatesPopup.IsOpen = false;
+            }
+            else
+            {
+                if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup();
+            }
+        }
+        catch { }
+    }
+
+    private void PositionUpdatesPopup()
+    {
+        try
+        {
+            if (RootGrid == null || UpdatesPopup == null)
+                return;
+
+            // Desired margins from right/bottom edges
+            const double rightMargin = 30;
+            const double bottomMargin = 40;
+
+            // Ensure absolute placement so popup tracks window movement precisely
+            try
+            {
+                UpdatesPopup.Placement = PlacementMode.AbsolutePoint;
+                // Break any PlacementTarget binding to avoid relative positioning glitches
+                UpdatesPopup.PlacementTarget = null;
+            }
+            catch { }
+
+            // Determine popup size (fallback when not yet measured)
+            var child = UpdatesPopup.Child as FrameworkElement;
+            double popupWidth = child?.ActualWidth > 0 ? child.ActualWidth : 320;
+            double popupHeight = child?.ActualHeight > 0 ? child.ActualHeight : 140;
+
+            // Compute bottom-right point inside RootGrid in screen coordinates (pixels)
+            var gridWidth = RootGrid.ActualWidth;
+            var gridHeight = RootGrid.ActualHeight;
+            if (gridWidth <= 0 || gridHeight <= 0)
+                return;
+
+            var bottomRight = new Point(Math.Max(0, gridWidth - popupWidth - rightMargin),
+                                        Math.Max(0, gridHeight - popupHeight - bottomMargin));
+
+            // Convert from element coordinates to screen pixels
+            var screenPoint = RootGrid.PointToScreen(bottomRight);
+
+            // Convert device pixels to WPF DIPs
+            var source = PresentationSource.FromVisual(this);
+            if (source?.CompositionTarget != null)
+            {
+                var transform = source.CompositionTarget.TransformFromDevice;
+                var dipPoint = transform.Transform(new Point(screenPoint.X, screenPoint.Y));
+                UpdatesPopup.HorizontalOffset = dipPoint.X;
+                UpdatesPopup.VerticalOffset = dipPoint.Y;
+            }
+            else
+            {
+                // Fallback: assume 1:1
+                UpdatesPopup.HorizontalOffset = screenPoint.X;
+                UpdatesPopup.VerticalOffset = screenPoint.Y;
+            }
+        }
+        catch { }
+    }
+
+    private static string NormalizeSemVer(string v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return "0.0.0";
+        var core = v.Split('+')[0];
+        core = core.Split('-')[0];
+        return core.Trim();
+    }
+
+    private static bool TryParseVersion(string v, out Version ver)
+    {
+        return Version.TryParse(NormalizeSemVer(v), out ver);
+    }
+
+    private static bool IsUpdateAvailable(string local, string server)
+    {
+        if (TryParseVersion(local, out var lv) && TryParseVersion(server, out var sv))
+        {
+            return sv > lv;
+        }
+        // fallback string compare
+        return !string.Equals(local, server, StringComparison.Ordinal);
     }
     
     public void LoadModules()
@@ -1153,8 +1466,17 @@ public partial class MainWindow
 
     private void OpenModulesLibrary_Click(object sender, RoutedEventArgs e)
     {
-        var win = new Windows.ModulesLibraryWindow() { Owner = this };
-        win.ShowDialog();
+        try
+        {
+            var win = new Windows.ModulesLibraryWindow() { Owner = this };
+            // Show modeless so it doesn't block MainWindow/UI
+            win.Show();
+            // Hide popup if it was open
+            try { if (UpdatesPopup != null) UpdatesPopup.IsOpen = false; } catch { }
+        }
+        catch
+        {
+        }
     }
 
     private async Task IncrementRunIfApiModuleAsync(ModuleDefinition module)

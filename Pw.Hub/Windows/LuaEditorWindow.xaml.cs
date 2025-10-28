@@ -23,7 +23,8 @@ namespace Pw.Hub.Windows;
 public partial class LuaEditorWindow : Window
 {
     // ==== AI Chat integration fields ====
-    private readonly HttpClient _aiHttp = new HttpClient() { Timeout = TimeSpan.FromSeconds(120) };
+    private readonly HttpClient _aiHttp = new HttpClient() { Timeout = TimeSpan.FromSeconds(600) };
+    //private const string OllamaCloudUrl = "http://localhost:11434/api/chat"; 
     private const string OllamaCloudUrl = "https://ollama.com/api/chat";
     private string _aiApiKey = "your-ollama-cloud-api-key";
     private readonly List<AiMessage> _aiMessages = new();
@@ -958,6 +959,7 @@ end)", "Задержка с колбэком"),
             var req = new
             {
                 model = "deepseek-v3.1:671b",
+                //model = "qwen3-coder:30b",
                 messages = messages,
                 stream = false
             };

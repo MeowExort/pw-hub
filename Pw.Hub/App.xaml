@@ -53,16 +53,15 @@
                         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                         <Setter Property="FontFamily" Value="{StaticResource DefaultFont}"/>
                         <Setter Property="FontSize" Value="13"/>
-                        <Setter Property="UseLayoutRounding" Value="True"/>
                         <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
                         <Setter Property="WindowStyle" Value="None"/>
-                        <Setter Property="AllowsTransparency" Value="False"/>
                         <Setter Property="ResizeMode" Value="CanResize"/>
+                        <Setter Property="AllowsTransparency" Value="False"/>
                         <Setter Property="WindowChrome.WindowChrome">
                             <Setter.Value>
                                 <WindowChrome CaptionHeight="32"
                                             ResizeBorderThickness="5"
-                                            GlassFrameThickness="0"
+                                            GlassFrameThickness="5"
                                             CornerRadius="0"
                                             UseAeroCaptionButtons="False"/>
                             </Setter.Value>

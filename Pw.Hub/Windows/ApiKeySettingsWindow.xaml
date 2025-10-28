@@ -4,6 +4,8 @@
         Title="Настройки AI API" Height="200" Width="400"
         Style="{StaticResource ModernWindowChrome}"
         Icon="/Assets/icon.png"
+        MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
+        MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
         <Grid.RowDefinitions>

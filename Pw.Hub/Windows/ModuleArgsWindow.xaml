@@ -4,6 +4,8 @@
         Title="Параметры модуля" MinHeight="250" Width="520" WindowStartupLocation="CenterOwner"
         SizeToContent="Height"
         Icon="/Assets/icon.png"
+        MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
+        MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Style="{StaticResource ModernWindowChrome}">
     <Border Style="{StaticResource Card}" Margin="20">
         <Grid>

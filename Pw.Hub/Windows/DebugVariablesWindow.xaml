@@ -10,6 +10,8 @@
         Height="850" Width="1500"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
+        MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
+        MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Style="{StaticResource ModernWindowChrome}">
     <Window.Resources>
         <HierarchicalDataTemplate x:Key="DebugVarTemplate" DataType="{x:Type local:DebugVarNode}"

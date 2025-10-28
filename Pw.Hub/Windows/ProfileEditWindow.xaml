@@ -6,6 +6,8 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/Assets/icon.png"
+        MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
+        MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Style="{StaticResource ModernWindowChrome}">
     <Grid Margin="12">
         <Grid.RowDefinitions>

@@ -31,7 +31,7 @@ public partial class AccountPage
 
     private void WvOnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        if (!e.Uri.StartsWith("https://pwonline.ru"))
+        if (!e.Uri.StartsWith("https://pwonline.ru") && !e.Uri.StartsWith("http://pwonline.ru"))
             e.Cancel = true;
     }
 

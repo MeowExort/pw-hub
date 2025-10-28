@@ -4,6 +4,8 @@
         Title="Вход в PW Modules" Width="480" MinHeight="500" WindowStartupLocation="CenterScreen" SizeToContent="Height"
         ResizeMode="NoResize"
         Icon="/Assets/icon.png"
+        MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
+        MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Style="{StaticResource ModernWindowChrome}">
     <Border Style="{StaticResource Card}" Margin="24">
         <Grid>

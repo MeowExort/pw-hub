@@ -11,11 +11,40 @@
         mc:Ignorable="d"
         WindowState="Maximized"
         Title="PW Hub" Height="900" Width="1900" WindowStartupLocation="CenterScreen"
-        Style="{StaticResource ModernWindowChrome}">
+        Activated="MainWindow_OnActivated"
+        Deactivated="MainWindow_OnDeactivated"
+        StateChanged="MainWindow_OnStateChanged">
             <Window.Resources>
                 <conv:SelectedSquadEmptyConverter x:Key="SelectedSquadEmptyConverter" />
+                
+                <!-- Close button style matching the window titlebar close button -->
+                <Style x:Key="PopupCloseButtonStyle" TargetType="Button">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="border" Background="{TemplateBinding Background}">
+                                    <Path Width="10" Height="10"
+                                         Data="M 0,0 L 10,10 M 0,10 L 10,0"
+                                         Stroke="{TemplateBinding Foreground}"
+                                         StrokeThickness="1"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="border" Property="Background" Value="#C42B1C"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
             </Window.Resources>
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -314,5 +343,50 @@
                           Foreground="{StaticResource TextSecondaryBrush}"/>
             </StatusBarItem>
         </StatusBar>
+        
+
+        <!-- Updates popup overlay (Popup to appear above WebView2) -->
+        <Popup x:Name="UpdatesPopup"
+               PlacementTarget="{Binding ElementName=RootGrid}"
+               Placement="Relative"
+               StaysOpen="True"
+               AllowsTransparency="True"
+               IsOpen="False">
+            <Border
+                Background="#DD1B2838"
+                BorderBrush="#2A475E" BorderThickness="1"
+                CornerRadius="8"
+                MinWidth="400"
+                SnapsToDevicePixels="True">
+                <StackPanel Orientation="Vertical" Margin="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="Доступны обновления модулей"
+                                   FontWeight="SemiBold"
+                                   Style="{StaticResource ModernTextBlock}" />
+                        <Button Grid.Column="1"
+                                Width="46" Height="32"
+                                Margin="8,0,0,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource PopupCloseButtonStyle}"
+                                Click="UpdatesPopup_CloseClick"/>
+                    </Grid>
+                    <TextBlock x:Name="UpdatesPopupText"
+                               Margin="0,16,0,10"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource ModernTextBlock}"/>
+                    <Button Content="Обновить"
+                            Style="{StaticResource PrimaryButton}"
+                            HorizontalAlignment="Right"
+                            Click="OpenModulesLibrary_Click"/>
+                </StackPanel>
+            </Border>
+        </Popup>
     </Grid>
 </Window>

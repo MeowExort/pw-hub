@@ -171,7 +171,11 @@ namespace Pw.Hub.Windows
                     return;
                 }
 
-                var editor = new LuaEditorWindow(runner) { Owner = this };
+                // Close this modal editor before opening Lua editor to avoid blocking MainWindow
+                try { this.DialogResult = false; } catch { }
+                try { this.Close(); } catch { }
+
+                var editor = new LuaEditorWindow(runner) { Owner = Application.Current.MainWindow };
                 editor.SetCode(_script ?? string.Empty);
                 // Pass current inputs to request arguments on run/debug
                 var apiInputs = _inputs.Select(i => new InputDefinitionDto
@@ -184,9 +188,18 @@ namespace Pw.Hub.Windows
                 }).ToList();
                 editor.ApiInputs = apiInputs;
 
-                // Show editor as dialog; allow user to run/debug and then return with edited code
-                editor.ShowDialog();
-                _script = editor.GetCode();
+                // Open editor modeless so MainWindow stays responsive for Lua API operations
+                editor.Closed += (o, args2) =>
+                {
+                    try
+                    {
+                        _script = editor.GetCode();
+                        // Bring module editor back to front after closing Lua editor
+                        try { this.Activate(); } catch { }
+                    }
+                    catch { }
+                };
+                editor.Show();
             }
             catch
             {

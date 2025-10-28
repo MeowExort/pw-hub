@@ -196,6 +196,16 @@ namespace Pw.Hub.Services
             }
             return null;
         }
+
+        public async Task<List<ModuleDto>> GetInstalledAsync(string userId)
+        {
+            var url = $"{BaseUrl}/api/modules/installed?userId={Uri.EscapeDataString(userId ?? string.Empty)}";
+            ApplyAuthHeader();
+            using var resp = await _http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode) return new List<ModuleDto>();
+            var json = await resp.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<List<ModuleDto>>(json, JsonOptions) ?? new List<ModuleDto>();
+        }
     }
 
     public class PagedModulesResponse
