@@ -8,5 +8,11 @@ public sealed class User
     public string PasswordSalt { get; set; } = string.Empty;
     public bool Developer { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+
+    // Telegram link fields
+    public long? TelegramId { get; set; }
+    public string? TelegramUsername { get; set; }
+    public DateTimeOffset? TelegramLinkedAt { get; set; }
+
     public List<Session> Sessions { get; set; } = new();
 }

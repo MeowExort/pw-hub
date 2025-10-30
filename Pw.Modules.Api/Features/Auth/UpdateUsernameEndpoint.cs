@@ -28,6 +28,6 @@ public static class UpdateUsernameEndpoint
         user.Username = newUsername;
         await db.SaveChangesAsync();
 
-        return Results.Ok(new UserDto { UserId = user.Id, Username = user.Username, Developer = user.Developer });
+        return Results.Ok(new UserDto { UserId = user.Id, Username = user.Username, Developer = user.Developer, TelegramId = user.TelegramId, TelegramUsername = user.TelegramUsername, TelegramLinkedAt = user.TelegramLinkedAt });
     }
 }

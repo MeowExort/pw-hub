@@ -113,6 +113,36 @@ namespace Pw.Hub.Services
             return resp.IsSuccessStatusCode;
         }
 
+        public sealed class TelegramLinkInfo
+        {
+            public string Link { get; set; }
+            public string State { get; set; }
+            public string BotUsername { get; set; }
+            public DateTimeOffset ExpiresAt { get; set; }
+        }
+
+        public async Task<TelegramLinkInfo> GenerateTelegramLinkAsync()
+        {
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/auth/telegram/link";
+            var resp = await _http.PostAsync(url, new StringContent(string.Empty, Encoding.UTF8, "application/json"));
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = await resp.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TelegramLinkInfo>(json, JsonOptions);
+        }
+
+        public async Task<UserDto> UnlinkTelegramAsync()
+        {
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/auth/telegram/unlink";
+            var resp = await _http.PostAsync(url, new StringContent(string.Empty, Encoding.UTF8, "application/json"));
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = await resp.Content.ReadAsStringAsync();
+            var me = JsonSerializer.Deserialize<UserDto>(json, JsonOptions);
+            if (me != null) CurrentUser = me;
+            return me;
+        }
+
         public async Task<PagedModulesResponse> SearchAsync(string q = null, string tags = null, string sort = null, string order = null, int page = 1, int pageSize = 20)
         {
             var ub = new UriBuilder(BaseUrl + "/api/modules");
@@ -264,5 +294,8 @@ namespace Pw.Hub.Services
         public string UserId { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public bool Developer { get; set; }
+        public long? TelegramId { get; set; }
+        public string? TelegramUsername { get; set; }
+        public DateTimeOffset? TelegramLinkedAt { get; set; }
     }
 }

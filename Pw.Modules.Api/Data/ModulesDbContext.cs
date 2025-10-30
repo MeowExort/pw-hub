@@ -9,6 +9,7 @@ namespace Pw.Modules.Api.Data
         public DbSet<UserModule> UserModules => Set<UserModule>();
         public DbSet<User> Users => Set<User>();
         public DbSet<Session> Sessions => Set<Session>();
+        public DbSet<TelegramLinkState> TelegramLinkStates => Set<TelegramLinkState>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,6 +51,12 @@ namespace Pw.Modules.Api.Data
                 b.Property(x => x.PasswordSalt).IsRequired();
                 b.Property(x => x.Developer).HasDefaultValue(false);
                 b.Property(x => x.CreatedAt);
+
+                // Telegram link mapping
+                b.Property(x => x.TelegramId);
+                b.Property(x => x.TelegramUsername);
+                b.Property(x => x.TelegramLinkedAt);
+                b.HasIndex(x => x.TelegramId).IsUnique().HasFilter("\"TelegramId\" IS NOT NULL");
             });
 
             modelBuilder.Entity<Session>(b =>
@@ -61,6 +68,17 @@ namespace Pw.Modules.Api.Data
                 b.HasOne(x => x.User).WithMany(u => u.Sessions).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
                 b.Property(x => x.CreatedAt);
                 b.Property(x => x.ExpiresAt);
+            });
+
+            modelBuilder.Entity<TelegramLinkState>(b =>
+            {
+                b.HasKey(x => x.Id);
+                b.Property(x => x.State).IsRequired().HasMaxLength(200);
+                b.HasIndex(x => x.State).IsUnique();
+                b.Property(x => x.UserId).IsRequired();
+                b.Property(x => x.CreatedAt);
+                b.Property(x => x.ExpiresAt);
+                b.Property(x => x.ConsumedAt);
             });
         }
     }

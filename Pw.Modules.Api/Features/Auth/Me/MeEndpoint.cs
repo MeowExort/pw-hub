@@ -15,6 +15,6 @@ public static class MeEndpoint
         var token = request.Headers["X-Auth-Token"].FirstOrDefault();
         var user = await Features.Auth.AuthUtils.GetUserByTokenAsync(db, token);
         if (user == null) return Results.Unauthorized();
-        return Results.Ok(new UserDto { UserId = user.Id, Username = user.Username, Developer = user.Developer });
+        return Results.Ok(new UserDto { UserId = user.Id, Username = user.Username, Developer = user.Developer, TelegramId = user.TelegramId, TelegramUsername = user.TelegramUsername, TelegramLinkedAt = user.TelegramLinkedAt });
     }
 }

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.HttpLogging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Pw.Modules.Api.Infrastructure.Telegram;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,6 +67,9 @@ builder.Services.Configure<FormOptions>(o =>
 {
     o.MultipartBodyLengthLimit = MaxRequestSizeBytes;
 });
+
+// Telegram bot hosted service (starts only if TELEGRAM_BOT_TOKEN is set)
+builder.Services.AddHostedService<TelegramBotHostedService>();
 
 // Custom ActivitySource for the application
 var moduleActivitySource = new ActivitySource("Modules");
@@ -138,5 +142,11 @@ app.MapApp();
 
 // Health endpoints
 app.MapHealthChecks("/healthz");
+
+// Register Telegram bot hosted service (conditionally starts if token present)
+app.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.Register(() =>
+{
+    // No-op hook; background service starts automatically when registered below
+});
 
 app.Run();

@@ -17,6 +17,65 @@ public partial class ProfileEditWindow : Window
         Loaded += async (_, _) => await LoadUser();
     }
 
+    private void UpdateTelegramUi(Services.UserDto me)
+    {
+        if (me?.TelegramId != null)
+        {
+            TelegramStatusText.Text = $"Привязан: @{me.TelegramUsername ?? me.TelegramId.ToString()}";
+            LinkTelegramBtn.IsEnabled = false;
+            UnlinkTelegramBtn.IsEnabled = true;
+        }
+        else
+        {
+            TelegramStatusText.Text = "Не привязан";
+            LinkTelegramBtn.IsEnabled = true;
+            UnlinkTelegramBtn.IsEnabled = false;
+        }
+    }
+
+    private async void LinkTelegramBtn_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var info = await _api.GenerateTelegramLinkAsync();
+            if (info == null)
+            {
+                MessageBox.Show("Не удалось получить ссылку для привязки Telegram.", "Telegram", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var msg = $"Откройте ссылку для привязки:\n{info.Link}\n\nЛибо найдите бота @{info.BotUsername} и отправьте ему команду:/start {info.State}\n\nКод действует до {info.ExpiresAt:dd.MM.yyyy HH:mm} UTC";
+            if (MessageBox.Show(msg, "Привязка Telegram", MessageBoxButton.OKCancel, MessageBoxImage.Information) == MessageBoxResult.OK)
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(info.Link) { UseShellExecute = true }); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Ошибка: " + ex.Message, "Telegram", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void UnlinkTelegramBtn_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Отвязать Telegram от аккаунта?", "Telegram", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            var me = await _api.UnlinkTelegramAsync();
+            if (me == null)
+            {
+                MessageBox.Show("Не удалось отвязать Telegram.", "Telegram", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            UpdateTelegramUi(me);
+            MessageBox.Show("Telegram отвязан.", "Telegram", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Ошибка: " + ex.Message, "Telegram", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void SwitchAccountBtn_OnClick(object sender, RoutedEventArgs e)
     {
         try
@@ -47,6 +106,7 @@ public partial class ProfileEditWindow : Window
             if (me != null)
             {
                 UsernameBox.Text = me.Username ?? string.Empty;
+                UpdateTelegramUi(me);
             }
         }
         catch (Exception ex)

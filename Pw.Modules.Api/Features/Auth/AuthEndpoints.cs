@@ -10,6 +10,10 @@ public static class AuthEndpoints
         Me.MeEndpoint.Map(group);
         UpdateUsernameEndpoint.Map(group);
         ChangePasswordEndpoint.Map(group);
+        Telegram.GenerateTelegramStateEndpoint.Map(group);
+        Telegram.GenerateTelegramLinkEndpoint.Map(group);
+        Telegram.ConsumeTelegramStateEndpoint.Map(group);
+        Telegram.UnlinkTelegramEndpoint.Map(group);
         return group;
     }
 }

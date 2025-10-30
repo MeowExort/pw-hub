@@ -43,6 +43,17 @@
             </StackPanel>
         </Border>
 
+        <Border Grid.Row="2" Margin="0,12,0,0" Background="{StaticResource AccentBlueBrush}" Padding="12" CornerRadius="6">
+            <StackPanel>
+                <TextBlock Text="Telegram" Style="{StaticResource ModernTextBlock}"/>
+                <TextBlock x:Name="TelegramStatusText" Margin="0,6,0,0" Style="{StaticResource ModernTextBlock}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button x:Name="LinkTelegramBtn" Content="Привязать Telegram" Style="{StaticResource ModernButton}" Click="LinkTelegramBtn_OnClick"/>
+                    <Button x:Name="UnlinkTelegramBtn" Content="Отвязать" Margin="8,0,0,0" Style="{StaticResource DangerButton}" Click="UnlinkTelegramBtn_OnClick"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Stretch" Margin="0,12,0,0">
             <Button Content="Сменить аккаунт" Width="140" Style="{StaticResource ModernButton}" Click="SwitchAccountBtn_OnClick"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
