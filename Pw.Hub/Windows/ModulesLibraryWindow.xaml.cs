@@ -19,6 +19,24 @@ namespace Pw.Hub.Windows
             InitializeComponent();
             _api = new ModulesApiClient(apiBaseUrl);
             Loaded += async (_, _) => await InitAsync();
+
+            // Ensure MainWindow is activated when library is closed
+            Closed += (_, _) =>
+            {
+                try
+                {
+                    if (Application.Current?.MainWindow is Window mw)
+                    {
+                        if (!mw.IsVisible) mw.Show();
+                        // Bring to front reliably
+                        mw.Activate();
+                        mw.Topmost = true;
+                        mw.Topmost = false;
+                        mw.Focus();
+                    }
+                }
+                catch { }
+            };
         }
 
         private async Task InitAsync()
@@ -455,16 +473,28 @@ namespace Pw.Hub.Windows
         {
             var editor = new ModulesApiEditorWindow();
             editor.Owner = this;
-            if (editor.ShowDialog() == true)
+            // Открываем немодально, чтобы из него можно было открыть LuaEditor и при этом окно оставалось открытым
+            editor.Closed += async (_, __) =>
             {
-                var req = editor.GetRequest();
-                var created = await _api.CreateModuleAsync(req);
-                if (created != null)
+                try
                 {
-                    await SearchAndBindAsync();
-                    ModulesList.SelectedItem = created;
+                    if (editor.IsSaved)
+                    {
+                        var req = editor.GetRequest();
+                        var created = await _api.CreateModuleAsync(req);
+                        if (created != null)
+                        {
+                            await SearchAndBindAsync();
+                            ModulesList.SelectedItem = created;
+                        }
+                    }
                 }
-            }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Не удалось создать модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            };
+            editor.Show();
         }
 
         private async void OnDevEditClick(object sender, RoutedEventArgs e)
@@ -484,16 +514,28 @@ namespace Pw.Hub.Windows
 
             var editor = new ModulesApiEditorWindow(_selected);
             editor.Owner = this;
-            if (editor.ShowDialog() == true)
+            // Открываем немодально, чтобы из него можно было открыть LuaEditor и при этом окно оставалось открытым
+            editor.Closed += async (_, __) =>
             {
-                var req = editor.GetRequest();
-                var updated = await _api.UpdateModuleAsync(_selected.Id, req);
-                if (updated != null)
+                try
                 {
-                    await SearchAndBindAsync();
-                    ModulesList.SelectedItem = updated;
+                    if (editor.IsSaved)
+                    {
+                        var req = editor.GetRequest();
+                        var updated = await _api.UpdateModuleAsync(_selected.Id, req);
+                        if (updated != null)
+                        {
+                            await SearchAndBindAsync();
+                            ModulesList.SelectedItem = updated;
+                        }
+                    }
                 }
-            }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Не удалось обновить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            };
+            editor.Show();
         }
 
         private async void OnDevDeleteClick(object sender, RoutedEventArgs e)

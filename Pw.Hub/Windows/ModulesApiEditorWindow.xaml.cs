@@ -16,6 +16,7 @@ namespace Pw.Hub.Windows
 {
     public partial class ModulesApiEditorWindow : Window
     {
+        public bool IsSaved { get; private set; }
         private readonly ModuleDto _existing;
         private readonly ObservableCollection<InputItem> _inputs = new();
         private CancellationTokenSource _previewCts;
@@ -150,7 +151,12 @@ namespace Pw.Hub.Windows
                 return;
             }
 
-            DialogResult = true;
+            // Помечаем как сохранённый для немодального сценария
+            IsSaved = true;
+            // Поддержка модального сценария (если окно открыто через ShowDialog)
+            try { DialogResult = true; } catch { }
+            // Закрываем окно
+            try { Close(); } catch { }
         }
 
         private void AddInput_Click(object sender, RoutedEventArgs e)
@@ -171,10 +177,8 @@ namespace Pw.Hub.Windows
                     return;
                 }
 
-                // Close this modal editor before opening Lua editor to avoid blocking MainWindow
-                try { this.DialogResult = false; } catch { }
-                try { this.Close(); } catch { }
-
+                // Не закрываем окно создания/редактирования модуля.
+                // Открываем LuaEditor немодально, чтобы не блокировать MainWindow и оставить это окно открытым.
                 var editor = new LuaEditorWindow(runner) { Owner = Application.Current.MainWindow };
                 editor.SetCode(_script ?? string.Empty);
                 // Pass current inputs to request arguments on run/debug
