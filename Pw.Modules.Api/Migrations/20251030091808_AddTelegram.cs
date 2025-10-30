@@ -6,11 +6,29 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pw.Modules.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class AddTelegramLinkState : Migration
+    public partial class AddTelegram : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<long>(
+                name: "TelegramId",
+                table: "Users",
+                type: "bigint",
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "TelegramLinkedAt",
+                table: "Users",
+                type: "timestamp with time zone",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "TelegramUsername",
+                table: "Users",
+                type: "text",
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "TelegramLinkStates",
                 columns: table => new
@@ -28,6 +46,13 @@ namespace Pw.Modules.Api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Users_TelegramId",
+                table: "Users",
+                column: "TelegramId",
+                unique: true,
+                filter: "\"TelegramId\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TelegramLinkStates_State",
                 table: "TelegramLinkStates",
                 column: "State",
@@ -39,6 +64,22 @@ namespace Pw.Modules.Api.Migrations
         {
             migrationBuilder.DropTable(
                 name: "TelegramLinkStates");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Users_TelegramId",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "TelegramId",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "TelegramLinkedAt",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "TelegramUsername",
+                table: "Users");
         }
     }
 }
