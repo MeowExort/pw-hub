@@ -1,46 +1,33 @@
-﻿using System.IO;
-using System.Text.Json;
-using System.Windows;
+﻿using System.Windows;
+using Pw.Hub.ViewModels;
 
 namespace Pw.Hub.Windows;
 
+/// <summary>
+/// Окно настроек API-ключа. Вся бизнес-логика вынесена во ViewModel.
+/// Code-behind отвечает только за инициализацию и реакцию на события VM (закрытие, ошибки).
+/// </summary>
 public partial class ApiKeySettingsWindow : Window
 {
-    public string ApiKey { get; private set; }
+    public ApiKeySettingsViewModel Vm { get; }
+
+    public string ApiKey => Vm.ApiKey;
 
     public ApiKeySettingsWindow(string currentApiKey)
     {
         InitializeComponent();
-        ApiKeyBox.Password = currentApiKey ?? "";
+        Vm = new ApiKeySettingsViewModel { ApiKey = currentApiKey ?? string.Empty };
+        Vm.RequestClose += OnRequestClose;
+        DataContext = Vm;
     }
 
-    private void Save_Click(object sender, RoutedEventArgs e)
+    private void OnRequestClose(bool? dialogResult)
     {
-        ApiKey = ApiKeyBox.Password.Trim();
-        
-        // Сохраняем в конфиг
         try
         {
-            var configDir = Path.Combine(AppContext.BaseDirectory, "config");
-            Directory.CreateDirectory(configDir);
-            var configPath = Path.Combine(configDir, "ai_settings.json");
-            
-            var config = new { OllamaApiKey = ApiKey };
-            File.WriteAllText(configPath, JsonSerializer.Serialize(config));
+            DialogResult = dialogResult;
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Ошибка сохранения настроек: {ex.Message}", "Ошибка", 
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        
-        DialogResult = true;
-        Close();
-    }
-
-    private void Cancel_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = false;
+        catch { }
         Close();
     }
 }

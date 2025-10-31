@@ -1,184 +1,69 @@
-﻿using System.Diagnostics;
-using System.Windows;
-using System.Windows.Threading;
+﻿using System.Windows;
+using Pw.Hub.ViewModels;
 
 namespace Pw.Hub.Windows;
 
+/// <summary>
+/// Окно логов выполнения. Вся логика перенесена во ViewModel; окно лишь делегирует и настраивает DataContext.
+/// Публичные методы сохранены для совместимости и делегируют во VM.
+/// </summary>
 public partial class ScriptLogWindow : Window
 {
     private readonly bool _closeWhenEnd;
-    private bool _running = true;
-    private Action _onStop;
-
-    private readonly Stopwatch _stopwatch = new();
-    private readonly DispatcherTimer _timer;
+    public ScriptLogViewModel Vm { get; }
 
     public ScriptLogWindow(string moduleTitle = null, bool closeWhenEnd = false)
     {
         _closeWhenEnd = closeWhenEnd;
         InitializeComponent();
-        TitleText.Text = string.IsNullOrWhiteSpace(moduleTitle) ? "Логи выполнения" : $"Модуль — {moduleTitle}";
-        CloseButton.IsEnabled = false;
-        StopButton.IsEnabled = true;
-
-        // Инициализация таймера и запуск отсчета времени выполнения
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += (_, _) => UpdateElapsed();
-        _stopwatch.Start();
-        _timer.Start();
-        UpdateElapsed();
+        Vm = new ScriptLogViewModel
+        {
+            Title = string.IsNullOrWhiteSpace(moduleTitle) ? "Логи выполнения" : $"Модуль — {moduleTitle}"
+        };
+        Vm.RequestClose += OnRequestClose;
+        DataContext = Vm;
     }
 
-    public void SetStopAction(Action onStop)
-    {
-        _onStop = onStop;
-    }
+    /// <summary>
+    /// Назначает внешнее действие остановки выполнения (делегирует во VM).
+    /// </summary>
+    public void SetStopAction(Action onStop) => Vm.SetStopAction(onStop);
 
-    public void SetRunning(bool running)
-    {
-        _running = running;
-        CloseButton.IsEnabled = !running;
-        StopButton.IsEnabled = running;
+    /// <summary>
+    /// Устанавливает состояние выполнения (делегирует во VM).
+    /// </summary>
+    public void SetRunning(bool running) => Vm.SetRunning(running);
 
-        if (!running)
-        {
-            // Останавливаем измерение времени
-            if (_stopwatch.IsRunning) _stopwatch.Stop();
-            _timer?.Stop();
-            UpdateElapsed(final: true);
-        }
-        else
-        {
-            if (!_stopwatch.IsRunning)
-            {
-                _stopwatch.Start();
-            }
-            _timer?.Start();
-        }
-    }
+    /// <summary>
+    /// Добавляет строку в лог (делегирует во VM). Выполняется из UI-потока вызывающей стороны.
+    /// </summary>
+    public void AppendLog(string line) => Vm.AppendLog(line);
 
-    public void AppendLog(string line)
-    {
-        try
-        {
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.BeginInvoke(new Action<string>(AppendLog), line);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(line)) return;
-            if (LogTextBox.Text.Length == 0)
-                LogTextBox.AppendText(line);
-            else
-                LogTextBox.AppendText(Environment.NewLine + line);
-            LogTextBox.CaretIndex = LogTextBox.Text.Length;
-            LogTextBox.ScrollToEnd();
-        }
-        catch
-        {
-        }
-    }
-
+    /// <summary>
+    /// Отчёт о прогрессе (делегирует во VM).
+    /// </summary>
     public void ReportProgress(int percent, string message = null)
     {
-        try
-        {
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.BeginInvoke(new Action<int, string>(ReportProgress), percent, message);
-                return;
-            }
-            
-            if (percent < 0) percent = 0;
-            if (percent > 100) percent = 100;
-            Progress.Value = percent;
-            PercentText.Text = percent + "%";
-            StatusText.Text = message ?? string.Empty;
-            TaskbarItemInfo.ProgressValue = percent / 100.0;
-        }
-        catch
-        {
-        }
+        Vm.ReportProgress(percent, message);
+        TaskbarItemInfo.ProgressValue = percent / 100.0;
     }
 
+    /// <summary>
+    /// Помечает выполнение завершённым (делегирует во VM) и закрывает окно автоматически при необходимости.
+    /// </summary>
     public void MarkCompleted(string finalMessage = null)
     {
-        try
+        Vm.MarkCompleted(finalMessage);
+        if (_closeWhenEnd)
         {
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.BeginInvoke(new Action<string>(MarkCompleted), finalMessage);
-                return;
-            }
-
-            SetRunning(false);
-            ReportProgress(100, "Готово");
-
-            // Зафиксировать итоговое время выполнения в логах
-            AppendLog("");
-            AppendLog($"Время выполнения: {FormatElapsed(_stopwatch.Elapsed)}");
-            
-            if (_closeWhenEnd) Close();
-
-            if (!string.IsNullOrWhiteSpace(finalMessage))
-            {
-                AppendLog("");
-                AppendLog("=== Результат ===");
-                AppendLog(finalMessage!);
-            }
-        }
-        catch
-        {
+            try { DialogResult = true; } catch { }
+            Close();
         }
     }
 
-    private void UpdateElapsed(bool final = false)
+    private void OnRequestClose()
     {
-        try
-        {
-            var prefix = final ? "⏱ Итоговое время выполнения: " : "⏱ Текущее время выполнения: ";
-            var text = prefix + FormatElapsed(_stopwatch.Elapsed);
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.BeginInvoke(new Action<bool>(UpdateElapsed), final);
-                return;
-            }
-            ElapsedText.Text = text;
-        }
-        catch
-        {
-        }
-    }
-
-    private static string FormatElapsed(TimeSpan ts)
-    {
-        if (ts.TotalHours >= 1)
-            return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
-        return $"{ts.Minutes:00}:{ts.Seconds:00}";
-    }
-
-    private void CloseButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (_running) return;
-        try
-        {
-            // If the window was opened with ShowDialog(), DialogResult can be set.
-            DialogResult = true;
-        }
-        catch
-        {
-            // If opened modelessly via Show(), setting DialogResult throws — ignore.
-        }
+        try { DialogResult = true; } catch { }
         Close();
-    }
-
-    private void StopButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            _onStop?.Invoke();
-        }
-        catch { }
     }
 }

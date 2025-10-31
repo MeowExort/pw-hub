@@ -278,6 +278,22 @@
                         </Style.Triggers>
                     </Style>
 
+                    <!-- Danger Button Style (Destructive) -->
+                    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                        <Setter Property="Background" Value="{StaticResource ErrorBrush}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+                        <Setter Property="Foreground" Value="White"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E06C5A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#77423B"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextDisabledBrush}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+
                     <!-- Modern TextBox Style -->
                     <Style x:Key="ModernTextBox" TargetType="TextBox">
                         <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>

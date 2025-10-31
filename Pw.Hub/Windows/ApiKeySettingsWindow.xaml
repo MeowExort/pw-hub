@@ -16,16 +16,17 @@
         </Grid.RowDefinitions>
 
         <TextBlock Text="API ключ Ollama Cloud:" Margin="0,0,0,8"/>
-        <PasswordBox x:Name="ApiKeyBox" Grid.Row="1" Height="25"/>
+        <!-- В целях простоты привязки MVVM используем TextBox. При необходимости можно обернуть PasswordBox через AttachedProperty. -->
+        <TextBox Grid.Row="1" Height="25" Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"/>
         
         <TextBlock Grid.Row="2" TextWrapping="Wrap" Margin="0,12,0,0" FontSize="11" Foreground="Gray">
-            Для получения API ключа посетите: https://ollama.ai/cloud\r\n
+            Для получения API ключа посетите: https://ollama.ai/cloud&#x0a;
             Ключ будет сохранен локально в настройках приложения.
         </TextBlock>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Отмена" Width="80" Click="Cancel_Click" Margin="0,0,8,0"/>
-            <Button Content="Сохранить" Width="80" Click="Save_Click" IsDefault="True"/>
+            <Button Content="Отмена" Width="80" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
+            <Button Content="Сохранить" Width="80" Command="{Binding SaveCommand}" IsDefault="True"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -9,7 +9,9 @@ namespace Pw.Hub.Windows
 {
     public partial class ModulesLibraryWindow : Window
     {
-        private readonly ModulesApiClient _api;
+        private readonly ViewModels.ModulesLibraryViewModel _vm;
+        // Переходный период: часть старых обработчиков Dev-панели ещё в окне
+        private readonly ModulesApiClient _api = new();
         private ModuleDto _selected;
         private string _userId;
         private readonly ModuleService _moduleService = new();
@@ -17,8 +19,30 @@ namespace Pw.Hub.Windows
         public ModulesLibraryWindow(string apiBaseUrl = null, string userId = null)
         {
             InitializeComponent();
-            _api = new ModulesApiClient(apiBaseUrl);
-            Loaded += async (_, _) => await InitAsync();
+            _vm = new ViewModels.ModulesLibraryViewModel();
+            DataContext = _vm;
+
+            Loaded += async (_, _) =>
+            {
+                try
+                {
+                    if (DescriptionWebView.CoreWebView2 == null)
+                        await DescriptionWebView.EnsureCoreWebView2Async();
+                }
+                catch { }
+
+                await _vm.InitAsync();
+                TrySetHtml(_vm.DescriptionHtml);
+            };
+
+            // Обновляем HTML при смене описания во VM
+            _vm.PropertyChanged += (_, args) =>
+            {
+                if (string.Equals(args.PropertyName, nameof(ViewModels.ModulesLibraryViewModel.DescriptionHtml), StringComparison.Ordinal))
+                {
+                    TrySetHtml(_vm.DescriptionHtml);
+                }
+            };
 
             // Ensure MainWindow is activated when library is closed
             Closed += (_, _) =>
@@ -28,7 +52,6 @@ namespace Pw.Hub.Windows
                     if (Application.Current?.MainWindow is Window mw)
                     {
                         if (!mw.IsVisible) mw.Show();
-                        // Bring to front reliably
                         mw.Activate();
                         mw.Topmost = true;
                         mw.Topmost = false;
@@ -37,32 +60,6 @@ namespace Pw.Hub.Windows
                 }
                 catch { }
             };
-        }
-
-        private async Task InitAsync()
-        {
-            try
-            {
-                // Ensure WebView2 is initialized
-                if (DescriptionWebView.CoreWebView2 == null)
-                {
-                    await DescriptionWebView.EnsureCoreWebView2Async();
-                }
-            }
-            catch
-            {
-                // ignore, we'll try to load anyway
-            }
-
-            // Ensure user is loaded from /me so that _userId is available
-            if (_api.CurrentUser == null)
-            {
-                await _api.MeAsync();
-            }
-            _userId = _api.CurrentUser?.UserId;
-
-            await UpdateDevPanelAsync();
-            await SearchAndBindAsync();
         }
 
         private async Task UpdateDevPanelAsync()
@@ -469,108 +466,18 @@ namespace Pw.Hub.Windows
         }
 
 
-        private async void OnDevCreateClick(object sender, RoutedEventArgs e)
-        {
-            var editor = new ModulesApiEditorWindow();
-            editor.Owner = this;
-            // Открываем немодально, чтобы из него можно было открыть LuaEditor и при этом окно оставалось открытым
-            editor.Closed += async (_, __) =>
-            {
-                try
-                {
-                    if (editor.IsSaved)
-                    {
-                        var req = editor.GetRequest();
-                        var created = await _api.CreateModuleAsync(req);
-                        if (created != null)
-                        {
-                            await SearchAndBindAsync();
-                            ModulesList.SelectedItem = created;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, $"Не удалось создать модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            };
-            editor.Show();
-        }
+        // Обработчик больше не используется — логика перенесена во ViewModel (CreateModuleCommand)
+        // private async void OnDevCreateClick(object sender, RoutedEventArgs e) { }
 
-        private async void OnDevEditClick(object sender, RoutedEventArgs e)
-        {
-            if (_selected == null)
-            {
-                MessageBox.Show("Выберите модуль");
-                return;
-            }
+        // Обработчик больше не используется — логика перенесена во ViewModel (EditModuleCommand)
+        // private async void OnDevEditClick(object sender, RoutedEventArgs e) { }
 
-            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId,
-                    StringComparison.Ordinal))
-            {
-                MessageBox.Show("Можно редактировать только свои модули");
-                return;
-            }
+        // Удалено: устаревший обработчик удаления модуля из Dev-панели.
+        // Логика перенесена в ViewModel (DeleteModuleCommand). Метод оставлен закомментированным для истории.
+        // private async void OnDevDeleteClick(object sender, RoutedEventArgs e) { }
 
-            var editor = new ModulesApiEditorWindow(_selected);
-            editor.Owner = this;
-            // Открываем немодально, чтобы из него можно было открыть LuaEditor и при этом окно оставалось открытым
-            editor.Closed += async (_, __) =>
-            {
-                try
-                {
-                    if (editor.IsSaved)
-                    {
-                        var req = editor.GetRequest();
-                        var updated = await _api.UpdateModuleAsync(_selected.Id, req);
-                        if (updated != null)
-                        {
-                            await SearchAndBindAsync();
-                            ModulesList.SelectedItem = updated;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, $"Не удалось обновить модуль: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            };
-            editor.Show();
-        }
-
-        private async void OnDevDeleteClick(object sender, RoutedEventArgs e)
-        {
-            if (_selected == null) return;
-            if (_api.CurrentUser?.Developer != true || !string.Equals(_selected.OwnerUserId, _api.CurrentUser.UserId,
-                    StringComparison.Ordinal))
-            {
-                MessageBox.Show("Можно удалять только свои модули");
-                return;
-            }
-
-            if (MessageBox.Show("Удалить модуль?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) ==
-                MessageBoxResult.Yes)
-            {
-                if (await _api.DeleteModuleAsync(_selected.Id))
-                {
-                    await SearchAndBindAsync();
-                }
-            }
-        }
-
-        private void OnOpenLuaEditorClick(object sender, RoutedEventArgs e)
-        {
-            if (Application.Current.MainWindow is not MainWindow mainWindow) return;
-            var win = new LuaEditorWindow(mainWindow.AccountPage.LuaRunner)
-            {
-                Owner = mainWindow
-            };
-            // Закрываем библиотеку модулей, чтобы не блокировать MainWindow (ShowDialog)
-            // Это позволит Lua-скриптам использовать API, зависящее от UI MainWindow/WebView2
-            try { DialogResult = false; } catch { }
-            Close();
-            // Показываем редактор немодально, чтобы UI MainWindow оставался активным для API-вызовов
-            win.Show();
-        }
+        // Удалено: устаревший обработчик открытия редактора Lua из окна.
+        // Теперь используется команда VM OpenLuaEditorCommand через IWindowService.
+        // private void OnOpenLuaEditorClick(object sender, RoutedEventArgs e) { }
     }
 }

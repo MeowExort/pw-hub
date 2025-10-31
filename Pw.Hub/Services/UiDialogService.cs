@@ -1,0 +1,34 @@
+﻿using System.Windows;
+
+namespace Pw.Hub.Services;
+
+/// <summary>
+/// Реализация сервиса диалогов поверх стандартного MessageBox.
+/// Вынесение в сервис позволяет ViewModel оставаться независимой от UI API.
+/// </summary>
+public class UiDialogService : IUiDialogService
+{
+    public void Alert(string message, string caption = "PW Hub")
+    {
+        try { MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Information); } catch { }
+    }
+
+    public bool Confirm(string message, string caption = "Подтверждение")
+    {
+        try
+        {
+            return MessageBox.Show(message, caption, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public string? Prompt(string prompt, string caption = "Ввод", string? defaultValue = null)
+    {
+        // Простой вариант: используем стандартный InputBox недоступен в WPF.
+        // На будущее можно реализовать собственное окно ввода. Пока возвращаем null.
+        return null;
+    }
+}

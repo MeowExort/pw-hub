@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Markdig;
 using Pw.Hub.Services;
+using System.Linq;
 
 namespace Pw.Hub.Windows
 {
@@ -22,6 +23,8 @@ namespace Pw.Hub.Windows
         private CancellationTokenSource _previewCts;
         private string _script = string.Empty;
         private string _aiApiKey;
+        // ViewModel для MVVM
+        private readonly ViewModels.ModulesApiEditorViewModel _vm = new();
 
         // AI DTOs (local minimal types)
         private sealed class AiMessage
@@ -46,9 +49,11 @@ namespace Pw.Hub.Windows
         {
             InitializeComponent();
             _existing = existing;
+            // MVVM: назначаем VM как DataContext (XAML пока использует прямые элементы для минимальных правок)
+            DataContext = _vm;
 
-            // Bind grid
-            InputsGrid.ItemsSource = _inputs;
+            // Bind grid: теперь используется MVVM-привязка в XAML к Vm.Inputs
+            // InputsGrid.ItemsSource = _inputs; // не требуется
 
             Loaded += async (_, _) =>
             {
@@ -76,12 +81,36 @@ namespace Pw.Hub.Windows
                     });
                 }
 
+                // Инициализируем VM из существующих данных
+                _vm.Name = NameText.Text;
+                _vm.Version = VersionText.Text;
+                _vm.Description = DescriptionEditor.Text;
+                _vm.Script = _script;
+                _vm.Inputs.Clear();
+                foreach (var it in _inputs)
+                    _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
+                    {
+                        Name = it.Name,
+                        Label = it.Label,
+                        Type = it.Type,
+                        Default = it.Default,
+                        Required = it.Required
+                    });
+
                 Title = $"Редактирование: {existing.Name}";
             }
             else
             {
                 _script = string.Empty;
+                // Начальные значения VM
+                _vm.Name = string.Empty;
+                _vm.Version = "1.0.0";
+                _vm.Description = string.Empty;
+                _vm.Script = _script;
             }
+
+            // Подписка на закрытие из VM
+            _vm.RequestClose += result => { try { DialogResult = result; } catch { } Close(); };
         }
 
         private async Task InitPreviewAsync()
@@ -112,25 +141,36 @@ namespace Pw.Hub.Windows
 
         public CreateOrUpdateModule GetRequest()
         {
-            var inputs = _inputs
-                .Select(i => new InputDefinitionDto
-                {
-                    Name = i.Name?.Trim() ?? string.Empty,
-                    Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
-                    Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
-                    Default = i.Default,
-                    Required = i.Required
-                })
-                .ToArray();
+            // MVVM: данные уже находятся в VM благодаря привязкам — формируем запрос напрямую
+            return _vm.BuildRequest();
+        }
 
-            return new CreateOrUpdateModule
+        /// <summary>
+        /// Синхронизирует состояние визуальных контролов окна с полями ViewModel.
+        /// Вызывается перед формированием запроса и сохранением.
+        /// </summary>
+        private void SyncVmFromControls()
+        {
+            try
             {
-                Name = NameText.Text?.Trim() ?? string.Empty,
-                Version = string.IsNullOrWhiteSpace(VersionText.Text) ? "1.0.0" : VersionText.Text.Trim(),
-                Description = DescriptionEditor.Text,
-                Script = _script ?? string.Empty,
-                Inputs = inputs
-            };
+                _vm.Name = NameText.Text?.Trim() ?? string.Empty;
+                _vm.Version = string.IsNullOrWhiteSpace(VersionText.Text) ? "1.0.0" : VersionText.Text.Trim();
+                _vm.Description = DescriptionEditor.Text ?? string.Empty;
+                _vm.Script = _script ?? string.Empty;
+                _vm.Inputs.Clear();
+                foreach (var it in _inputs)
+                {
+                    _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
+                    {
+                        Name = it.Name,
+                        Label = it.Label,
+                        Type = it.Type,
+                        Default = it.Default,
+                        Required = it.Required
+                    });
+                }
+            }
+            catch { }
         }
 
         private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -141,11 +181,12 @@ namespace Pw.Hub.Windows
                 InputsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 InputsGrid.CommitEdit(DataGridEditingUnit.Row, true);
             }
-            catch
-            {
-            }
+            catch { }
 
-            if (string.IsNullOrWhiteSpace(NameText.Text) || string.IsNullOrWhiteSpace(_script))
+            // Синхронизируем VM из текущих контролов
+            SyncVmFromControls();
+
+            if (string.IsNullOrWhiteSpace(_vm.Name) || string.IsNullOrWhiteSpace(_vm.Script))
             {
                 MessageBox.Show(this, "Имя и скрипт обязательны");
                 return;
@@ -153,6 +194,8 @@ namespace Pw.Hub.Windows
 
             // Помечаем как сохранённый для немодального сценария
             IsSaved = true;
+            // Сообщаем VM (для внешних подписчиков)
+            try { _vm.GetType().GetProperty("IsSaved")?.SetValue(_vm, true); } catch { }
             // Поддержка модального сценария (если окно открыто через ShowDialog)
             try { DialogResult = true; } catch { }
             // Закрываем окно
@@ -182,7 +225,7 @@ namespace Pw.Hub.Windows
                 var editor = new LuaEditorWindow(runner) { Owner = Application.Current.MainWindow };
                 editor.SetCode(_script ?? string.Empty);
                 // Pass current inputs to request arguments on run/debug
-                var apiInputs = _inputs.Select(i => new InputDefinitionDto
+                var apiInputs = _vm.Inputs.Select(i => new InputDefinitionDto
                 {
                     Name = i.Name ?? string.Empty,
                     Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
@@ -198,6 +241,7 @@ namespace Pw.Hub.Windows
                     try
                     {
                         _script = editor.GetCode();
+                        _vm.Script = _script;
                         // Bring module editor back to front after closing Lua editor
                         try { this.Activate(); } catch { }
                     }

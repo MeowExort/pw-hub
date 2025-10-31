@@ -70,7 +70,7 @@
                             HorizontalContentAlignment="Left"
                             Padding="16,14"
                             Margin="8,8,8,4"
-                            Click="OpenModulesLibrary_Click">
+                            Command="{Binding OpenModulesLibraryCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📚"
                                        FontSize="16"
@@ -91,7 +91,7 @@
                             HorizontalContentAlignment="Left"
                             Padding="16,14"
                             Margin="8,4,8,4"
-                            Click="OpenProfile_Click">
+                            Command="{Binding OpenProfileCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="👤"
                                        FontSize="16"
@@ -120,13 +120,15 @@
                             <ComboBox x:Name="ModulesList"
                                      Style="{StaticResource ModernComboBox}"
                                      DisplayMemberPath="Name"
+                                     ItemsSource="{Binding QuickModules}"
+                                     SelectedItem="{Binding SelectedQuickModule, Mode=TwoWay}"
                                      Margin="0,0,0,8"/>
                             <Button x:Name="RunModuleButton"
                                    Style="{StaticResource PrimaryButton}"
                                    Content="▶ Запустить"
                                    HorizontalAlignment="Stretch"
                                    Padding="12,8"
-                                   Click="OnRunModuleClick"/>
+                                   Command="{Binding RunSelectedModuleCommand}"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -160,23 +162,27 @@
                                       PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp">
                                 <TreeView.ContextMenu>
                                     <ContextMenu x:Name="NavigationContextMenu"
-                                               Opened="OnContextMenuOpened"
                                                Background="{StaticResource BackgroundSecondaryBrush}"
                                                BorderBrush="{StaticResource BorderBrush}"
                                                Foreground="{StaticResource TextPrimaryBrush}">
-                                        <MenuItem Header="➕ Добавить отряд" Click="OnAddSquadClick" />
+                                        <MenuItem Header="➕ Добавить отряд" Command="{Binding AddSquadCommand}" />
                                         <MenuItem x:Name="AddAccountMenuItem" Header="👤 Добавить аккаунт"
-                                                  Click="OnAddAccountClick" IsEnabled="False" />
+                                                  Command="{Binding AddAccountCommand}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         <Separator Style="{StaticResource ModernSeparator}"/>
                                         <MenuItem x:Name="EditSquadMenuItem" Header="✏ Редактировать отряд"
-                                                  Click="OnEditSquadClick" IsEnabled="False" />
+                                                  Command="{Binding EditSquadCommand}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         <MenuItem x:Name="EditAccountMenuItem" Header="✏ Редактировать аккаунт"
-                                                  Click="OnEditAccountClick" IsEnabled="False" />
+                                                  Command="{Binding EditAccountCommand}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         <MenuItem x:Name="LoadCharactersMenuItem" Header="⬇ Загрузить персонажей"
-                                                  Click="OnLoadCharactersClick" IsEnabled="False" />
+                                                  Command="{Binding LoadCharactersCommand}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         <Separator Style="{StaticResource ModernSeparator}"/>
                                         <MenuItem x:Name="DeleteMenuItem" Header="🗑 Удалить"
-                                                  Click="OnDeleteClick" IsEnabled="False" />
+                                                  Command="{Binding DeleteNodeCommand}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                     </ContextMenu>
                                 </TreeView.ContextMenu>
                                 <TreeView.Resources>
@@ -228,7 +234,8 @@
                                                         <Button Content="👤 Добавить аккаунт"
                                                                 Style="{StaticResource ModernButton}"
                                                                 Padding="12,6"
-                                                                Click="OnAddAccountInlineClick"/>
+                                                                Command="{Binding DataContext.AddAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"/>
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>
@@ -301,7 +308,7 @@
                                             Style="{StaticResource PrimaryButton}"
                                             Padding="16,8"
                                             Margin="0,0,8,0"
-                                            Click="OnAddSquadClick"/>
+                                            Command="{Binding AddSquadCommand}"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -351,7 +358,7 @@
                Placement="Relative"
                StaysOpen="True"
                AllowsTransparency="True"
-               IsOpen="False">
+               IsOpen="{Binding IsUpdatesPopupOpen}">
             <Border
                 Background="#DD1B2838"
                 BorderBrush="#2A475E" BorderThickness="1"
@@ -375,16 +382,17 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Style="{StaticResource PopupCloseButtonStyle}"
-                                Click="UpdatesPopup_CloseClick"/>
+                                Command="{Binding CloseUpdatesPopupCommand}"/>
                     </Grid>
                     <TextBlock x:Name="UpdatesPopupText"
                                Margin="0,16,0,10"
                                TextWrapping="Wrap"
+                               Text="{Binding UpdatesText}"
                                Style="{StaticResource ModernTextBlock}"/>
                     <Button Content="Обновить"
                             Style="{StaticResource PrimaryButton}"
                             HorizontalAlignment="Right"
-                            Click="OpenModulesLibrary_Click"/>
+                            Command="{Binding OpenModulesLibraryCommand}"/>
                 </StackPanel>
             </Border>
         </Popup>

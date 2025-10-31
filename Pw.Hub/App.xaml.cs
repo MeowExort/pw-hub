@@ -11,6 +11,10 @@ using MessageBox = System.Windows.MessageBox;
 using System.Runtime.InteropServices;
 using System.Linq;
 using System.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using Pw.Hub.Services;
+using Pw.Hub.ViewModels;
 
 namespace Pw.Hub;
 
@@ -19,11 +23,17 @@ namespace Pw.Hub;
 /// </summary>
 public partial class App
 {
+    public static IServiceProvider Services { get; private set; } = default!;
+
     public NotifyIcon NotifyIcon;
     private AuthService _authService;
     private UpdateService _updateService;
     private static Mutex _singleInstanceMutex;
 
+    /// <summary>
+    /// Точка входа WPF-приложения. Настраивает DI, обеспечивает единственный экземпляр,
+    /// инициализирует системный трей и последовательность запуска (логин -> главное окно).
+    /// </summary>
     protected override void OnStartup(StartupEventArgs e)
     {
         // Single-instance guard
@@ -44,14 +54,35 @@ public partial class App
         base.OnStartup(e);
         try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); } catch { }
 
+        // Configure DI container
+        try
+        {
+            var sc = new ServiceCollection();
+            sc.AddSingleton<IWindowService, WindowService>();
+            sc.AddSingleton<ViewModels.MainViewModel>();
+            // domain services (optional for now)
+            sc.AddSingleton<UpdateService>();
+            sc.AddSingleton<AuthService>();
+            sc.AddSingleton<IUpdatesCheckService, UpdatesCheckService>();
+            sc.AddSingleton<IModulesSyncService, ModulesSyncService>();
+            sc.AddSingleton<ILuaExecutionService, LuaExecutionService>();
+            sc.AddSingleton<ILuaDebugService, LuaDebugService>();
+            sc.AddSingleton<ICharactersLoadService, CharactersLoadService>();
+            sc.AddSingleton<IRunModuleCoordinator, RunModuleCoordinator>();
+            sc.AddSingleton<IUiDialogService, UiDialogService>();
+            sc.AddSingleton<IOrderingService, OrderingService>();
+            Services = sc.BuildServiceProvider();
+        }
+        catch { }
+
         NotifyIcon = new NotifyIcon()
         {
             Text = "PW Hub",
             Icon = Icon.ExtractAssociatedIcon(Process.GetCurrentProcess().MainModule?.FileName!)!
         };
         
-        _authService = new AuthService();
-        _updateService = new UpdateService();
+        _authService = Services.GetRequiredService<AuthService>();
+        _updateService = Services.GetRequiredService<UpdateService>();
 
         NotifyIcon.AddMenu("Проверить авторизацию", OnClick);
         NotifyIcon.AddMenu("Проверить обновления…", async (_, _) => await _updateService.CheckForUpdates(true));
@@ -86,17 +117,27 @@ public partial class App
         _ = _updateService.CheckForUpdates(false);
     }
 
+    /// <summary>
+    /// Обработчик двойного клика по иконке в трее — разворачивает главное окно и активирует его.
+    /// </summary>
     private void NotifyIconOnMouseDoubleClick(object sender, MouseEventArgs e)
     {
         Current.MainWindow?.Show();
         Current.MainWindow?.Activate();
     }
 
+    /// <summary>
+    /// Пункт контекстного меню трея: проверка авторизации аккаунтов с выводом UI.
+    /// </summary>
     private async void OnClick(object sender, EventArgs e)
     {
         await _authService.CheckAccounts(true);
     }
 
+    /// <summary>
+    /// Глобальный обработчик необработанных исключений на UI-потоке.
+    /// Логирует стек в файл error.log и показывает сообщение пользователю.
+    /// </summary>
     private void App_OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         var sbError = new StringBuilder();
@@ -108,6 +149,9 @@ public partial class App
         MessageBox.Show(e.Exception.ToString());
     }
 
+    /// <summary>
+    /// Корректное завершение приложения: освобождает ресурсы трея и мьютекс единственного экземпляра.
+    /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
         try { NotifyIcon?.Dispose(); } catch { }
@@ -116,6 +160,10 @@ public partial class App
     }
 
     // Bring an already running instance to foreground
+    /// <summary>
+    /// Активирует уже запущенный экземпляр приложения (если найден) — разворачивает и переводит в фокус.
+    /// Используется для реализации single-instance поведения.
+    /// </summary>
     private static void ActivateExistingInstance()
     {
         try

@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Pw.Hub.Windows"
+                xmlns:vm="clr-namespace:Pw.Hub.ViewModels"
         mc:Ignorable="d"
         Title="Lua — Переменные на точке останова"
         Icon="/Assets/icon.png"
@@ -14,7 +15,7 @@
         MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Style="{StaticResource ModernWindowChrome}">
     <Window.Resources>
-        <HierarchicalDataTemplate x:Key="DebugVarTemplate" DataType="{x:Type local:DebugVarNode}"
+        <HierarchicalDataTemplate x:Key="DebugVarTemplate" DataType="{x:Type vm:DebugVarNode}"
                                   ItemsSource="{Binding Children}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -43,10 +44,10 @@
                 BorderThickness="0,0,0,1"
                 Padding="12,8">
             <DockPanel>
-                <TextBlock x:Name="TitleText"
+                <TextBlock
                            Style="{StaticResource ModernTextBlock}"
                            FontWeight="SemiBold"
-                           Text="Переменные"
+                           Text="{Binding Title}"
                            VerticalAlignment="Center"/>
             </DockPanel>
         </Border>
@@ -66,12 +67,12 @@
             <TextBlock Grid.Row="0" Grid.Column="1" Text="Globals (частично)" Margin="8,0,0,6" Style="{StaticResource ModernTextBlock}" FontWeight="SemiBold"/>
 
             <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Card}" Padding="4" Margin="0,0,4,0">
-                <TreeView x:Name="LocalsTree"
+                <TreeView ItemsSource="{Binding Locals}"
                           ItemTemplate="{StaticResource DebugVarTemplate}"/>
             </Border>
 
             <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}" Padding="4" Margin="4,0,0,0">
-                <TreeView x:Name="GlobalsTree"
+                <TreeView ItemsSource="{Binding Globals}"
                           ItemTemplate="{StaticResource DebugVarTemplate}"/>
             </Border>
         </Grid>
@@ -84,7 +85,7 @@
                 Padding="12,8">
             <DockPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                    <Button Width="120" Style="{StaticResource PrimaryButton}" Click="OnCloseClick" Content="Продолжить"/>
+                    <Button Width="120" Style="{StaticResource PrimaryButton}" Content="Продолжить" Command="{Binding CloseCommand}"/>
                 </StackPanel>
             </DockPanel>
         </Border>

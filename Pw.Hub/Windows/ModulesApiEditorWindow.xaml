@@ -55,7 +55,8 @@
                                           Margin="0,0,0,6"/>
                                 <TextBox x:Name="NameText"
                                         Style="{StaticResource ModernTextBox}"
-                                        Padding="12,10"/>
+                                        Padding="12,10"
+                                        Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
@@ -64,7 +65,8 @@
                                           Margin="0,0,0,6"/>
                                 <TextBox x:Name="VersionText"
                                         Style="{StaticResource ModernTextBox}"
-                                        Padding="12,10"/>
+                                        Padding="12,10"
+                                        Text="{Binding Version, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -175,6 +177,7 @@
                                                 FontFamily="{StaticResource MonospaceFont}"
                                                 FontSize="13"
                                                 MinHeight="200"
+                                                Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
                                                 TextChanged="DescriptionEditor_OnTextChanged"/>
                                     </ScrollViewer>
                                 </DockPanel>
@@ -263,19 +266,21 @@
                                    MinWidth="120"
                                    Padding="12,8"
                                    Margin="0,0,8,0"
-                                   Click="AddInput_Click"/>
+                                   Command="{Binding AddInputCommand}"/>
                             <Button x:Name="RemoveInputButton"
                                    Style="{StaticResource ModernButton}"
                                    Content="🗑 Удалить"
                                    MinWidth="120"
                                    Padding="12,8"
-                                   Click="RemoveInput_Click"/>
+                                   Command="{Binding RemoveInputCommand}"/>
                         </StackPanel>
                         <DataGrid x:Name="InputsGrid"
                                  Style="{StaticResource ModernDataGrid}"
                                  AutoGenerateColumns="False"
                                  CanUserAddRows="False"
                                  SelectionMode="Single"
+                                 ItemsSource="{Binding Inputs}"
+                                 SelectedItem="{Binding SelectedInput, Mode=TwoWay}"
                                  MinHeight="150">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Width="*" MinWidth="180" Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
@@ -384,13 +389,14 @@
                    MinWidth="120"
                    Padding="16,10"
                    Margin="0,0,8,0"
-                   IsCancel="True"/>
+                   IsCancel="True"
+                   Command="{Binding CancelCommand}"/>
             <Button Content="Сохранить"
                    Style="{StaticResource PrimaryButton}"
                    MinWidth="120"
                    Padding="16,10"
                    IsDefault="True"
-                   Click="OnSaveClick"/>
+                   Command="{Binding SaveCommand}"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -236,6 +236,19 @@ namespace Pw.Hub.Services
             var json = await resp.Content.ReadAsStringAsync();
             return JsonSerializer.Deserialize<List<ModuleDto>>(json, JsonOptions) ?? new List<ModuleDto>();
         }
+
+        /// <summary>
+        /// Возвращает полные данные модуля по идентификатору (включая Script и Inputs).
+        /// </summary>
+        public async Task<ModuleDto> GetModuleAsync(Guid id)
+        {
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/modules/{id}";
+            using var resp = await _http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = await resp.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<ModuleDto>(json, JsonOptions);
+        }
     }
 
     public class PagedModulesResponse

@@ -11,6 +11,9 @@ using Pw.Modules.Api.Domain;
 
 namespace Pw.Modules.Api.Infrastructure.Telegram;
 
+/// <summary>
+/// Фоновый сервис Telegram-бота. Отвечает за подключение к Telegram API и приём/обработку обновлений.
+/// </summary>
 public sealed class TelegramBotHostedService : BackgroundService
 {
     private readonly ILogger<TelegramBotHostedService> _logger;
@@ -25,6 +28,10 @@ public sealed class TelegramBotHostedService : BackgroundService
         _config = config;
     }
 
+    /// <summary>
+    /// Точка запуска фонового сервиса Telegram-бота.
+    /// Читает токен из переменных окружения/конфига, подключается к API и запускает приём обновлений.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Read bot token from env or config
@@ -82,6 +89,10 @@ public sealed class TelegramBotHostedService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Обрабатывает входящие обновления Telegram (сообщения).
+    /// Фильтрует по типу, безопасно извлекает данные и выполняет необходимую реакцию.
+    /// </summary>
     private async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
     {
         if (update.Type != UpdateType.Message) return;

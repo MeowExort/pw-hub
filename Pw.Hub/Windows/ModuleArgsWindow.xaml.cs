@@ -5,23 +5,41 @@ using System.Windows.Controls;
 using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Models;
 using Pw.Hub.Infrastructure;
+using Pw.Hub.ViewModels;
 
 namespace Pw.Hub.Windows;
 
+/// <summary>
+/// Диалог параметров модуля. Бизнес-логика и состояние вынесены в ModuleArgsViewModel.
+/// Данное окно отвечает только за построение динамической формы и сбор значений из UI.
+/// </summary>
 public partial class ModuleArgsWindow : Window
 {
     private readonly ModuleDefinition _module;
     private readonly Dictionary<string, FrameworkElement> _inputs = new();
 
+    /// <summary>
+    /// VM диалога; хранит значения и команды (Отмена/ОК через ConfirmWithValues).
+    /// </summary>
+    public ModuleArgsViewModel Vm { get; }
+
+    /// <summary>
+    /// Типизированные значения, собранные из формы (оставлено для обратной совместимости с существующим кодом вызова).
+    /// После закрытия окна содержит итоговые значения из Vm.
+    /// </summary>
     public Dictionary<string, object> Values { get; } = new();
-    // Stringified values for persistence (LastArgs)
+    /// <summary>
+    /// Строковые значения (для сохранения LastArgs) — совместимость с существующим кодом.
+    /// </summary>
     public Dictionary<string, string> StringValues { get; } = new();
 
     public ModuleArgsWindow(ModuleDefinition module)
     {
         InitializeComponent();
         _module = module;
-        Title = string.IsNullOrWhiteSpace(module.Name) ? "Параметры модуля" : module.Name;
+        Vm = new ModuleArgsViewModel { Module = module };
+        Vm.RequestClose += OnRequestClose;
+        DataContext = Vm; // Заголовок и команды берутся из VM
         BuildUi();
         PrefillFromLastArgs();
     }
@@ -321,6 +339,7 @@ public partial class ModuleArgsWindow : Window
 
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
+        // Собираем значения из динамических контролов формы
         Values.Clear();
         StringValues.Clear();
         foreach (var kv in _inputs)
@@ -400,7 +419,35 @@ public partial class ModuleArgsWindow : Window
             Values[name] = value;
             StringValues[name] = stringValue ?? string.Empty;
         }
-        DialogResult = true;
-        Close();
+
+        // Передаём значения во ViewModel и инициируем закрытие через VM (MVVM-стиль)
+        Vm.ConfirmWithValues(Values, StringValues);
+    }
+
+    /// <summary>
+    /// Обработчик события VM на закрытие окна: синхронизирует публичные свойства и закрывает окно.
+    /// </summary>
+    private void OnRequestClose(bool? dialogResult)
+    {
+        try
+        {
+            // Копируем итоговые значения из VM (на случай, если вызов шёл не через Ok_Click)
+            if (Values.Count == 0 && Vm.Values.Count > 0)
+            {
+                foreach (var kv in Vm.Values)
+                    Values[kv.Key] = kv.Value;
+            }
+            if (StringValues.Count == 0 && Vm.StringValues.Count > 0)
+            {
+                foreach (var kv in Vm.StringValues)
+                    StringValues[kv.Key] = kv.Value;
+            }
+
+            try { DialogResult = dialogResult; } catch { }
+        }
+        finally
+        {
+            Close();
+        }
     }
 }

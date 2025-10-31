@@ -25,8 +25,7 @@ namespace Pw.Hub;
 /// </summary>
 public partial class MainWindow
 {
-    private readonly MainViewModel _vm = new();
-    private object _contextMenuTarget;
+    private readonly MainViewModel _vm;
 
     // Drag & drop state for reordering accounts
     private Point _dragStartPoint;
@@ -41,21 +40,33 @@ public partial class MainWindow
     private List<ModuleDefinition> _modules = new();
 
     private readonly ModulesApiClient _modulesApi = new();
-    private DateTime _lastUpdateCheck = DateTime.MinValue;
-    private List<string> _lastUpdates = new();
+    private readonly IModulesSyncService _modulesSync = App.Services.GetService(typeof(IModulesSyncService)) as IModulesSyncService ?? new ModulesSyncService();
+    private readonly ILuaExecutionService _luaExec = App.Services.GetService(typeof(ILuaExecutionService)) as ILuaExecutionService ?? new LuaExecutionService();
+    private readonly ICharactersLoadService _charsLoad = App.Services.GetService(typeof(ICharactersLoadService)) as ICharactersLoadService ?? new CharactersLoadService();
+    private readonly IOrderingService _ordering = App.Services.GetService(typeof(IOrderingService)) as IOrderingService ?? new OrderingService();
 
+    /// <summary>
+    /// Конструктор главного окна. Подключает ViewModel из DI, настраивает подписки на события
+    /// инициализации и изменения размеров/позиции окна, а также загрузку и синхронизацию модулей.
+    /// Вся бизнес-логика вынесена во ViewModel/сервисы; здесь остаётся только UI-специфика.
+    /// </summary>
     public MainWindow()
     {
         InitializeComponent();
         
+        _vm = App.Services.GetService(typeof(MainViewModel)) as MainViewModel ?? new MainViewModel();
         DataContext = _vm;
+        
+        // Запуск модуля теперь выполняется напрямую через координатор из VM (без событий)
+        // Подписываемся на запрос загрузки персонажей из VM
+        try { _vm.RequestLoadCharacters += OnRequestLoadCharacters; } catch { }
         
         // Reposition updates popup when window size or position changes
         try
         {
-            SizeChanged += (_, _) => { try { if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup(); } catch { } };
-            LocationChanged += (_, _) => { try { if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup(); } catch { } };
-            StateChanged += (_, _) => { try { if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup(); } catch { } };
+            SizeChanged += (_, _) => { try { if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup(); } catch { } };
+            LocationChanged += (_, _) => { try { if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup(); } catch { } };
+            StateChanged += (_, _) => { try { if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup(); } catch { } };
         }
         catch { }
         try
@@ -75,131 +86,39 @@ public partial class MainWindow
         };
     }
 
+    /// <summary>
+    /// Синхронизирует список установленных локально модулей с серверным профилем пользователя.
+    /// Устанавливает недостающие и удаляет лишние модули локально. Ошибки не прерывают работу UI.
+    /// </summary>
     private async Task SyncInstalledModulesAsync()
     {
         try
         {
-            // Ensure we know who the user is
-            if (_modulesApi.CurrentUser == null)
-            {
-                try { await _modulesApi.MeAsync(); } catch { }
-            }
-            var userId = _modulesApi.CurrentUser?.UserId;
-            if (string.IsNullOrWhiteSpace(userId))
-                return; // not authenticated — nothing to sync
-
-            // Load server list of installed modules
-            var serverInstalled = await _modulesApi.GetInstalledAsync(userId);
-            var serverIds = new HashSet<Guid>(serverInstalled.Select(m => m.Id));
-
-            // Load local list
-            var locals = _moduleService.LoadModules();
-            var localIds = new HashSet<Guid>(locals
-                .Select(m => Guid.TryParse(m.Id, out var g) ? g : Guid.Empty)
-                .Where(g => g != Guid.Empty));
-
-            // Determine diffs
-            var toInstall = serverIds.Except(localIds).ToList();
-            var toRemove = localIds.Except(serverIds).ToList();
-
-            var changed = false;
-
-            // Install missing locally
-            if (toInstall.Count > 0)
-            {
-                foreach (var id in toInstall)
-                {
-                    var dto = serverInstalled.FirstOrDefault(x => x.Id == id);
-                    if (dto != null)
-                    {
-                        try { InstallModuleLocally(dto); changed = true; } catch { }
-                    }
-                }
-            }
-
-            // Remove extras locally
-            if (toRemove.Count > 0)
-            {
-                foreach (var id in toRemove)
-                {
-                    try { RemoveModuleLocally(id); changed = true; } catch { }
-                }
-            }
-
+            var changed = await _modulesSync.SyncInstalledAsync();
             if (changed)
             {
-                // Refresh UI list
                 try { LoadModules(); } catch { }
             }
         }
-        catch
-        {
-            // swallow sync errors silently
-        }
+        catch { }
     }
 
-    private void InstallModuleLocally(Pw.Hub.Services.ModuleDto module)
+    /// <summary>
+        /// Устанавливает или обновляет модуль локально по данным, полученным с сервера (Modules API).
+        /// Сохраняет файл скрипта и обновляет запись в локальном каталоге модулей.
+        /// </summary>
+        private void InstallModuleLocally(Pw.Hub.Services.ModuleDto module)
     {
-        try
-        {
-            var baseDir = AppContext.BaseDirectory;
-            var scriptsDir = System.IO.Path.Combine(baseDir, "Scripts");
-            System.IO.Directory.CreateDirectory(scriptsDir);
-            var fileName = module.Id.ToString() + ".lua";
-            var scriptPath = System.IO.Path.Combine(scriptsDir, fileName);
-            System.IO.File.WriteAllText(scriptPath, module.Script ?? string.Empty);
-
-            var def = new Pw.Hub.Models.ModuleDefinition
-            {
-                Id = module.Id.ToString(),
-                Name = module.Name,
-                Version = string.IsNullOrWhiteSpace(module.Version) ? "1.0.0" : module.Version,
-                Description = module.Description ?? string.Empty,
-                Script = fileName,
-                Inputs = module.Inputs?.Select(i => new Pw.Hub.Models.ModuleInput
-                {
-                    Name = i.Name,
-                    Label = string.IsNullOrWhiteSpace(i.Label) ? i.Name : i.Label,
-                    Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
-                    Default = string.IsNullOrWhiteSpace(i.Default) ? null : i.Default,
-                    Required = i.Required
-                }).ToList() ?? new List<Pw.Hub.Models.ModuleInput>()
-            };
-
-            _moduleService.AddOrUpdateModule(def);
-        }
-        catch
-        {
-        }
+        try { _modulesSync.InstallModuleLocally(module); } catch { }
     }
 
+    /// <summary>
+    /// Удаляет модуль локально по идентификатору: удаляет файл скрипта (если существует)
+    /// и запись в локальной коллекции модулей.
+    /// </summary>
     private void RemoveModuleLocally(Guid id)
     {
-        try
-        {
-            var svc = _moduleService;
-            var list = svc.LoadModules();
-            var existing = list.FirstOrDefault(x => string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
-            {
-                // Try delete script file if under Scripts
-                try
-                {
-                    var baseDir = AppContext.BaseDirectory;
-                    var candidate1 = System.IO.Path.Combine(baseDir, existing.Script);
-                    var candidate2 = System.IO.Path.Combine(baseDir, "Scripts", existing.Script);
-                    if (System.IO.File.Exists(candidate1)) System.IO.File.Delete(candidate1);
-                    else if (System.IO.File.Exists(candidate2)) System.IO.File.Delete(candidate2);
-                }
-                catch { }
-
-                list.Remove(existing);
-                svc.SaveModules(list);
-            }
-        }
-        catch
-        {
-        }
+        try { _modulesSync.RemoveModuleLocally(id); } catch { }
     }
 
     private void OpenProfile_Click(object sender, RoutedEventArgs e)
@@ -217,6 +136,10 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Синхронизирует выделение в TreeView с текущим аккаунтом, выбранным в AccountManager.
+    /// Выполняется на UI-потоке, безопасно обрабатывает отсутствие контейнеров.
+    /// </summary>
     private void OnCurrentAccountChanged(Account account)
     {
         if (account == null) return;
@@ -256,6 +179,10 @@ public partial class MainWindow
         });
     }
 
+    /// <summary>
+    /// Отражает изменения данных текущего аккаунта (аватар, имя, SiteId) в соответствующих VM-объектах,
+    /// чтобы UI обновил визуальное представление без полного перезагрузки данных.
+    /// </summary>
     private void OnCurrentAccountDataChanged(Account account)
     {
         if (account == null) return;
@@ -282,6 +209,10 @@ public partial class MainWindow
         });
     }
 
+    /// <summary>
+    /// Блокирует взаимодействие с деревом навигации на время смены аккаунта
+    /// и показывает статус в строке состояния. Выполняется на UI-потоке.
+    /// </summary>
     private void OnCurrentAccountChanging(bool isChanging)
     {
         // Block TreeView interactions while account switching is in progress
@@ -321,122 +252,19 @@ public partial class MainWindow
         }
     }
 
-    private void OnContextMenuOpened(object sender, RoutedEventArgs e)
-    {
-        // Находим элемент TreeView под курсором мыши
-        _contextMenuTarget = null;
-
-        var mousePosition = Mouse.GetPosition(NavigationTree);
-        var hitTestResult = VisualTreeHelper.HitTest(NavigationTree, mousePosition);
-
-        if (hitTestResult != null)
-        {
-            var element = hitTestResult.VisualHit;
-
-            // Ищем TreeViewItem вверх по дереву
-            while (element != null && element is not TreeViewItem)
-            {
-                element = VisualTreeHelper.GetParent(element);
-            }
-
-            if (element is TreeViewItem treeViewItem)
-            {
-                _contextMenuTarget = treeViewItem.DataContext;
-            }
-        }
-
-        // Проверяем тип элемента под курсором
-        var isSquad = _contextMenuTarget is Squad;
-        var isAccount = _contextMenuTarget is Account;
-
-        // "Добавить аккаунт" доступна только для отрядов
-        AddAccountMenuItem.IsEnabled = isSquad;
-
-        // "Редактировать отряд" доступна только для отрядов
-        EditSquadMenuItem.IsEnabled = isSquad;
-
-        // "Редактировать аккаунт" доступна только для аккаунтов
-        EditAccountMenuItem.IsEnabled = isAccount;
-        // "Загрузить персонажей" доступна только для аккаунтов
-        LoadCharactersMenuItem.IsEnabled = isAccount;
-
-        // "Удалить" доступна для отрядов и аккаунтов
-        DeleteMenuItem.IsEnabled = isSquad || isAccount;
-        DeleteMenuItem.Header = isSquad ? "Удалить отряд" : isAccount ? "Удалить аккаунт" : "Удалить";
-    }
 
     private void OnAddSquadClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new CreateSquadWindow
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            using var db = new AppDbContext();
-            var maxOrder = db.Squads.Select(s => (int?)s.OrderIndex).Max() ?? -1;
-            var newSquad = new Squad
-            {
-                Name = dialog.SquadName,
-                OrderIndex = maxOrder + 1
-            };
-
-            db.Squads.Add(newSquad);
-            db.SaveChanges();
-
-            // Перезагружаем данные
-            _vm.Reload();
-        }
+        // Устаревший обработчик. Логика добавления отряда перенесена в MainViewModel (AddSquadCommand).
+        // Метод оставлен пустым для совместимости автосгенерированного XAML в obj.
+        return;
     }
 
     private void OnAddAccountClick(object sender, RoutedEventArgs e)
     {
-        if (_contextMenuTarget is not Squad selectedSquad)
-        {
-            MessageBox.Show("Выберите отряд для добавления аккаунта", "Ошибка",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var dialog = new CreateAccountWindow
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            using var db = new AppDbContext();
-            // determine next order index in this squad
-            var maxOrder = db.Accounts.Where(a => a.SquadId == selectedSquad.Id).Select(a => (int?)a.OrderIndex).Max() ?? -1;
-            var newAccount = new Account
-            {
-                Name = dialog.AccountName,
-                SquadId = selectedSquad.Id,
-                ImageSource = "",
-                OrderIndex = maxOrder + 1
-            };
-
-            db.Accounts.Add(newAccount);
-            db.SaveChanges();
-
-            // Перезагружаем данные
-            var wasExpanded =
-                NavigationTree.ItemContainerGenerator.ContainerFromItem(selectedSquad) is TreeViewItem tvi &&
-                tvi.IsExpanded;
-            _vm.Reload();
-
-            // Раскрываем отряд, чтобы показать новый аккаунт
-            if (wasExpanded)
-            {
-                var reloadedSquad = _vm.Squads.FirstOrDefault(s => s.Id == selectedSquad.Id);
-                if (reloadedSquad != null &&
-                    NavigationTree.ItemContainerGenerator.ContainerFromItem(reloadedSquad) is TreeViewItem newTvi)
-                {
-                    newTvi.IsExpanded = true;
-                }
-            }
-        }
+        // Устаревший обработчик. Логика добавления аккаунта перенесена в MainViewModel (AddAccountCommand).
+        // Метод оставлен пустым для совместимости автосгенерированного XAML в obj.
+        return;
     }
 
     private void OnAddAccountInlineClick(object sender, RoutedEventArgs e)
@@ -724,8 +552,10 @@ public partial class MainWindow
                     dragged.SquadId = targetSquadVm.Id;
                 }
 
-                // Persist ordering for both squads, including SquadId change if any
-                PersistAccountMoveAsync(dragged, sourceSquadVm, targetSquadVm).ConfigureAwait(false);
+                // Persist ordering for both squads через сервис порядка
+                var targetAccForService = _dropTargetAccount ?? target.account;
+                var insertAfterAccount = !_insertAbove;
+                _ = _ordering.ReorderAccountAsync(dragged, targetSquadVm, targetAccForService, insertAfterAccount);
 
                 // Select moved account in UI
                 try
@@ -785,7 +615,18 @@ public partial class MainWindow
                 if (newIndex != oldIndex)
                     list.Move(oldIndex, newIndex);
 
-                PersistAllSquadsOrderAsync().ConfigureAwait(false);
+                // Persist order via ordering service
+                if (_dropTargetSquad != null)
+                {
+                    var insertAfter = !_insertAboveSquad;
+                    _ = _ordering.ReorderSquadAsync(draggedSquad, _dropTargetSquad, insertAfter);
+                }
+                else if (_vm.Squads.Count > 0)
+                {
+                    var anchor = _vm.Squads[Math.Min(newIndex, _vm.Squads.Count - 1)];
+                    var insertAfter = newIndex > _vm.Squads.IndexOf(anchor);
+                    _ = _ordering.ReorderSquadAsync(draggedSquad, anchor, insertAfter);
+                }
                 return;
             }
         }
@@ -896,81 +737,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task PersistAllSquadsOrderAsync()
-    {
-        try
-        {
-            await using var db = new AppDbContext();
-            // Map current order by VM
-            var orderMap = _vm.Squads.Select((s, idx) => new { s.Id, Index = idx })
-                                     .ToDictionary(x => x.Id, x => x.Index);
-            var squads = db.Squads.ToList();
-            foreach (var s in squads)
-            {
-                if (orderMap.TryGetValue(s.Id, out var idx)) s.OrderIndex = idx;
-            }
-            await db.SaveChangesAsync();
-        }
-        catch
-        {
-            try { _vm.Reload(); } catch { }
-        }
-    }
-
-    private async Task PersistAccountMoveAsync(Account moved, Squad source, Squad target)
-    {
-        try
-        {
-            await using var db = new AppDbContext();
-            await using var tx = await db.Database.BeginTransactionAsync();
-
-            // Update SquadId if changed
-            var acc = await db.Accounts.FirstOrDefaultAsync(a => a.Id == moved.Id);
-            if (acc != null)
-            {
-                acc.SquadId = target.Id;
-            }
-
-            if (source.Id == target.Id)
-            {
-                // Reindex one squad (same list)
-                var map = target.Accounts.Select((a, idx) => new { a.Id, idx })
-                                         .ToDictionary(x => x.Id, x => x.idx);
-                var dbAccs = db.Accounts.Where(a => a.SquadId == target.Id).ToList();
-                foreach (var a in dbAccs)
-                {
-                    if (map.TryGetValue(a.Id, out var idx)) a.OrderIndex = idx;
-                }
-            }
-            else
-            {
-                // Reindex source squad
-                var sourceMap = source.Accounts.Select((a, idx) => new { a.Id, idx })
-                                              .ToDictionary(x => x.Id, x => x.idx);
-                var sourceDbAccs = db.Accounts.Where(a => a.SquadId == source.Id).ToList();
-                foreach (var a in sourceDbAccs)
-                {
-                    if (sourceMap.TryGetValue(a.Id, out var idx)) a.OrderIndex = idx;
-                }
-
-                // Reindex target squad (includes moved account at new position)
-                var targetMap = target.Accounts.Select((a, idx) => new { a.Id, idx })
-                                              .ToDictionary(x => x.Id, x => x.idx);
-                var targetDbAccs = db.Accounts.Where(a => a.SquadId == target.Id).ToList();
-                foreach (var a in targetDbAccs)
-                {
-                    if (targetMap.TryGetValue(a.Id, out var idx)) a.OrderIndex = idx;
-                }
-            }
-
-            await db.SaveChangesAsync();
-            await tx.CommitAsync();
-        }
-        catch
-        {
-            try { _vm.Reload(); } catch { }
-        }
-    }
+    // Удалено: устаревшая логика сохранения порядка. Теперь используется IOrderingService.
+    // private async Task PersistAllSquadsOrderAsync() { }
+    // private async Task PersistAccountMoveAsync(Account moved, Squad source, Squad target) { }
 
     private void NavigationTree_OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
@@ -1024,248 +793,100 @@ public partial class MainWindow
 
     private void OnEditSquadClick(object sender, RoutedEventArgs e)
     {
-        if (_contextMenuTarget is not Squad selectedSquad)
-        {
-            MessageBox.Show("Выберите отряд для редактирования", "Ошибка",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var dialog = new EditSquadWindow(selectedSquad)
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            // Сохраняем текущий выбранный элемент
-            // var currentSelection = NavigationTree.SelectedItem;
-
-            selectedSquad.Name = dialog.SquadName;
-
-            using var db = new AppDbContext();
-            db.Update(selectedSquad);
-            db.SaveChanges();
-
-            // Обновляем отображение в TreeView
-            // NavigationTree.Items.Refresh();
-
-            // Восстанавливаем выбор
-            // SetSelectedItem(currentSelection);
-        }
+        // Устаревший обработчик. Логика редактирования отряда перенесена в MainViewModel (EditSquadCommand).
+        // Метод оставлен пустым для совместимости автосгенерированного XAML в obj.
+        return;
     }
 
     private void OnEditAccountClick(object sender, RoutedEventArgs e)
     {
-        if (_contextMenuTarget is not Account selectedAccount)
-        {
-            MessageBox.Show("Выберите аккаунт для редактирования", "Ошибка",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var dialog = new EditAccountWindow(selectedAccount)
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            // Сохраняем текущий выбранный элемент
-            // var currentSelection = NavigationTree.SelectedItem;
-
-            selectedAccount.Name = dialog.AccountName;
-
-            using var db = new AppDbContext();
-            db.Update(selectedAccount);
-            db.SaveChanges();
-
-            // Обновляем отображение в TreeView
-            // NavigationTree.Items.Refresh();
-
-            // Восстанавливаем выбор
-            // SetSelectedItem(currentSelection);
-        }
+        // Устаревший обработчик. Логика редактирования аккаунта перенесена в MainViewModel (EditAccountCommand).
+        // Метод оставлен пустым для совместимости автосгенерированного XAML в obj.
+        return;
     }
 
     private async void OnDeleteClick(object sender, RoutedEventArgs e)
     {
-        if (_contextMenuTarget is Squad selectedSquad)
-        {
-            var result = MessageBox.Show(
-                $"Вы действительно хотите удалить отряд \"{selectedSquad.Name}\"?\nВсе аккаунты в этом отряде также будут удалены.",
-                "Подтверждение удаления",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                using var db = new AppDbContext();
-                var squadToDelete = db.Squads.Find(selectedSquad.Id);
-                if (squadToDelete != null)
-                {
-                    db.Squads.Remove(squadToDelete);
-                    db.SaveChanges();
-
-                    // Перезагружаем данные
-                    _vm.Reload();
-
-                    // Очищаем ContentFrame если был выбран удаленный элемент
-                    if (NavigationTree.SelectedItem == selectedSquad ||
-                        (NavigationTree.SelectedItem is Account acc && acc.SquadId == selectedSquad.Id))
-                    {
-                        await AccountPage.AccountManager.ChangeAccountAsync(null);
-                    }
-                }
-            }
-        }
-        else if (_contextMenuTarget is Account selectedAccount)
-        {
-            var result = MessageBox.Show(
-                $"Вы действительно хотите удалить аккаунт \"{selectedAccount.Name}\"?",
-                "Подтверждение удаления",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                using var db = new AppDbContext();
-                var accountToDelete = db.Accounts.Find(selectedAccount.Id);
-                if (accountToDelete != null)
-                {
-                    var squadId = accountToDelete.SquadId;
-
-                    db.Accounts.Remove(accountToDelete);
-                    db.SaveChanges();
-
-                    // Сохраняем состояние развернутости отряда
-                    var squad = _vm.Squads.FirstOrDefault(s => s.Id == squadId);
-                    var wasExpanded = squad != null &&
-                                      NavigationTree.ItemContainerGenerator
-                                          .ContainerFromItem(squad) is TreeViewItem tvi &&
-                                      tvi.IsExpanded;
-
-                    // Перезагружаем данные
-                    _vm.Reload();
-
-                    // Восстанавливаем развернутость отряда
-                    if (wasExpanded)
-                    {
-                        var reloadedSquad = _vm.Squads.FirstOrDefault(s => s.Id == squadId);
-                        if (reloadedSquad != null &&
-                            NavigationTree.ItemContainerGenerator.ContainerFromItem(reloadedSquad) is TreeViewItem
-                                newTvi)
-                        {
-                            newTvi.IsExpanded = true;
-                        }
-                    }
-
-                    // Очищаем ContentFrame если был выбран удаленный аккаунт
-                    if (NavigationTree.SelectedItem == selectedAccount)
-                    {
-                        await AccountPage.AccountManager.ChangeAccountAsync(null);
-                    }
-                }
-            }
-        }
+        // Устаревший обработчик. Логика удаления перенесена в MainViewModel (DeleteNodeCommand).
+        // Метод оставлен пустым для совместимости автосгенерированного XAML в obj.
+        await Task.CompletedTask;
+        return;
     }
 
+    /// <summary>
+    /// При закрытии окна скрывает его в трей вместо завершения приложения.
+    /// Также закрывает попап обновлений, если он открыт.
+    /// </summary>
     private void MainWindow_OnClosing(object sender, CancelEventArgs e)
     {
         e.Cancel = true;
-        if (UpdatesPopup.IsOpen)
-            UpdatesPopup.IsOpen = false;
+        if (_vm.IsUpdatesPopupOpen)
+            _vm.IsUpdatesPopupOpen = false;
         Hide();
     }
 
+    /// <summary>
+    /// Обработчик активации окна: дебаунс-проверка наличия обновлений модулей и показ попапа при необходимости.
+    /// </summary>
     private async void MainWindow_OnActivated(object sender, EventArgs e)
     {
-        // Debounce checks: not more often than once per 60 seconds
-        if ((DateTime.UtcNow - _lastUpdateCheck) < TimeSpan.FromSeconds(60))
-            return;
-        _lastUpdateCheck = DateTime.UtcNow;
-
         try
         {
-            // Load local modules
-            var locals = _moduleService.LoadModules();
-            if (locals == null || locals.Count == 0)
+            await _vm.CheckUpdatesDebouncedAsync();
+            if (_vm.IsUpdatesPopupOpen)
             {
-                UpdatesPopup.IsOpen = false;
-                return;
-            }
-
-            // Get server modules (first page, enough size)
-            var resp = await _modulesApi.SearchAsync(null, null, null, null, 1, 100);
-            var items = resp?.Items ?? new List<Services.ModuleDto>();
-
-            // Build list of updates
-            var updates = new List<string>();
-            foreach (var local in locals)
-            {
-                if (!Guid.TryParse(local.Id, out var id))
-                    continue;
-                var remote = items.FirstOrDefault(i => i.Id == id);
-                if (remote == null) continue;
-                if (IsUpdateAvailable(local.Version ?? "1.0.0", remote.Version ?? "1.0.0"))
-                {
-                    updates.Add(local.Name ?? local.Id);
-                }
-            }
-
-            // Avoid re-showing the same list repeatedly
-            if (updates.SequenceEqual(_lastUpdates))
-                return;
-            _lastUpdates = updates;
-
-            if (updates.Count > 0)
-            {
-                var list = string.Join(Environment.NewLine, updates.Take(5));
-                if (updates.Count > 5) list += $" и ещё {updates.Count - 5}";
-                UpdatesPopupText.Text = $"Доступны обновления для модулей: {Environment.NewLine} {list}";
-                UpdatesPopup.IsOpen = true;
                 try { PositionUpdatesPopup(); } catch { }
-            }
-            else
-            {
-                UpdatesPopup.IsOpen = false;
             }
         }
         catch
         {
-            // On any failure, do not bother user
-            try { UpdatesPopup.IsOpen = false; } catch { }
+            // игнорируем ошибки UI/позиционирования
         }
     }
 
+    /// <summary>
+    /// Обработчик кнопки закрытия попапа обновлений.
+    /// Делегирует закрытие во ViewModel через биндинг свойства IsUpdatesPopupOpen.
+    /// </summary>
     private void UpdatesPopup_CloseClick(object sender, RoutedEventArgs e)
     {
-        try { UpdatesPopup.IsOpen = false; } catch { }
+        try { _vm.IsUpdatesPopupOpen = false; } catch { }
     }
 
     // Close updates popup when window loses activation (user switches to other app)
+    /// <summary>
+    /// Закрывает попап обновлений при потере фокуса главным окном (переключение на другое приложение).
+    /// </summary>
     private void MainWindow_OnDeactivated(object sender, EventArgs e)
     {
-        try { if (UpdatesPopup?.IsOpen == true) UpdatesPopup.IsOpen = false; } catch { }
+        try { if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false; } catch { }
     }
 
     // Close updates popup when window is minimized; otherwise keep it positioned
+    /// <summary>
+    /// При смене состояния окна (сворачивание/разворачивание) скрывает попап при свернутом окне
+    /// и перепозиционирует его при возврате в нормальное состояние.
+    /// </summary>
     private void MainWindow_OnStateChanged(object sender, EventArgs e)
     {
         try
         {
             if (WindowState == WindowState.Minimized)
             {
-                if (UpdatesPopup?.IsOpen == true) UpdatesPopup.IsOpen = false;
+                if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false;
             }
             else
             {
-                if (UpdatesPopup?.IsOpen == true) PositionUpdatesPopup();
+                if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup();
             }
         }
         catch { }
     }
 
+    /// <summary>
+    /// Вычисляет и устанавливает позицию попапа обновлений в правом нижнем углу окна.
+    /// Учитывает DPI (переводит пиксели устройства в DIPs) и состояние окна.
+    /// </summary>
     private void PositionUpdatesPopup()
     {
         try
@@ -1350,82 +971,16 @@ public partial class MainWindow
         try
         {
             _modules = _moduleService.LoadModules();
-            ModulesList.ItemsSource = _modules;
-            RunModuleButton.IsEnabled = _modules.Count > 0;
+            // Синхронизируем коллекцию VM для блока быстрого запуска (биндинг ItemsSource в XAML)
+            try { _vm.ReloadQuickModules(); } catch { }
+            // Кнопка будет управляться CanExecute команды, но оставим явную блокировку как fallback
+            RunModuleButton.IsEnabled = _modules?.Count > 0;
         }
         catch
         {
         }
     }
 
-    private void OnRunModuleClick(object sender, RoutedEventArgs e)
-    {
-        if (ModulesList.SelectedItem is not ModuleDefinition module)
-        {
-            MessageBox.Show("Выберите модуль из списка.");
-            return;
-        }
-
-        var argsWindow = new Windows.ModuleArgsWindow(module) { Owner = this };
-        if (argsWindow.ShowDialog() != true)
-            return;
-
-        // Persist last used arguments for this module
-        try
-        {
-            module.LastArgs = argsWindow.StringValues;
-            _moduleService.AddOrUpdateModule(module);
-        }
-        catch { }
-
-        var runner = new LuaScriptRunner(AccountPage.AccountManager, AccountPage.Browser);
-        var logWindow = new Windows.ScriptLogWindow(module.Name) { Owner = this };
-
-        // Wire sinks
-        runner.SetPrintSink(text => logWindow.AppendLog(text));
-        runner.SetProgressSink((percent, message) => logWindow.ReportProgress(percent, message));
-
-        // Wire stop action
-        logWindow.SetStopAction(() =>
-        {
-            try
-            {
-                runner.Stop();
-                logWindow.AppendLog("[Остановлено пользователем]");
-            }
-            catch
-            {
-            }
-        });
-
-        logWindow.SetRunning(true);
-
-        // Fire-and-forget API run increment so the library reflects usage
-        _ = IncrementRunIfApiModuleAsync(module);
-
-        string result = null;
-        // Start execution and update UI on completion
-        var task = runner.RunModuleAsync(module, argsWindow.Values).ContinueWith(t =>
-        {
-            try
-            {
-                result = t.IsCompletedSuccessfully ? t.Result : null;
-                logWindow.MarkCompleted(result);
-                var title = $"Модуль: {module.Name}";
-                var text = string.IsNullOrWhiteSpace(result) ? "Выполнено" : result;
-                if (Application.Current is App app)
-                {
-                    app.NotifyIcon.ShowBalloonTip(5, title, text, System.Windows.Forms.ToolTipIcon.Info);
-                }
-            }
-            catch
-            {
-            }
-        }, TaskScheduler.FromCurrentSynchronizationContext());
-
-        // Show modal log window while running; Close becomes available when finished
-        logWindow.ShowDialog();
-    }
 
     private async void Test_Click(object sender, RoutedEventArgs e)
     {
@@ -1472,27 +1027,13 @@ public partial class MainWindow
             // Show modeless so it doesn't block MainWindow/UI
             win.Show();
             // Hide popup if it was open
-            try { if (UpdatesPopup != null) UpdatesPopup.IsOpen = false; } catch { }
+            try { if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false; } catch { }
         }
         catch
         {
         }
     }
 
-    private async Task IncrementRunIfApiModuleAsync(ModuleDefinition module)
-    {
-        try
-        {
-            if (Guid.TryParse(module.Id, out var id))
-            {
-                var client = new ModulesApiClient();
-                await client.IncrementRunAsync(id);
-            }
-        }
-        catch
-        {
-        }
-    }
 
     private class JsOption
     {
@@ -1500,128 +1041,20 @@ public partial class MainWindow
         public string text { get; set; } = string.Empty;
     }
 
-    private void OnLoadCharactersClick(object sender, RoutedEventArgs e)
+    private async void OnLoadCharactersClick(object sender, RoutedEventArgs e)
     {
-        if (_contextMenuTarget is not Account selectedAccount)
-        {
-            MessageBox.Show("Выберите аккаунт", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+        // Устаревший обработчик. Логика перенесена в MainViewModel (LoadCharactersCommand).
+        // Метод оставлен пустым для совместимости автосгенерированного XAML в obj.
+        await Task.CompletedTask;
+        return;
+    }
 
-        var log = new Windows.ScriptLogWindow("Загрузка персонажей", true) { Owner = this };
-
-        // Запускаем асинхронный процесс загрузки до показа модального окна
-        async void StartLoad()
-        {
-            try
-            {
-                log.AppendLog($"Переключаемся на аккаунт: {selectedAccount.Name}");
-                await AccountPage.AccountManager.ChangeAccountAsync(selectedAccount.Id);
-
-                log.AppendLog("Переходим на страницу промо-предметов...");
-                await AccountPage.Browser.NavigateAsync("https://pwonline.ru/promo_items.php");
-
-                var hasShard = await AccountPage.Browser.WaitForElementExistsAsync(".js-shard", 1000);
-                if (!hasShard)
-                {
-                    log.AppendLog("Не найден элемент .js-шard — список серверов.");
-                    log.MarkCompleted("Ошибка: не удалось получить список серверов");
-                    return;
-                }
-
-                log.AppendLog("Читаем список серверов...");
-                var shardsJson = await AccountPage.Browser.ExecuteScriptAsync(
-                    "(function(){ var s=document.querySelector('.js-shard'); if(!s) return []; return Array.from(s.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
-                );
-                var shards =
-                    JsonSerializer.Deserialize<List<JsOption>>(shardsJson,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<JsOption>();
-
-                var servers = new List<AccountServer>();
-                for (var index = 0; index < shards.Count; index++)
-                {
-                    var shard = shards[index];
-                    log.AppendLog($"[{index + 1}/{shards.Count}] Сервер: {shard.text}");
-
-                    // Выбираем сервер
-                    var valEsc = (shard.value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'");
-                    await AccountPage.Browser.ExecuteScriptAsync(
-                        $"(function(){{ var s=document.querySelector('.js-shard'); if(!s) return false; s.value='{valEsc}'; s.dispatchEvent(new Event('change', {{ bubbles:true }})); return true; }})()"
-                    );
-
-                    // Ждем появления/обновления списка персонажей
-                    await AccountPage.Browser.WaitForElementExistsAsync(".js-char", 500);
-
-                    var charsJson = await AccountPage.Browser.ExecuteScriptAsync(
-                        "(function(){ var c=document.querySelector('.js-char'); if(!c) return []; return Array.from(c.options).filter(o=>o.value).map(o=>({ value:o.value, text:o.textContent.trim() })); })()"
-                    );
-                    var chars = JsonSerializer.Deserialize<List<JsOption>>(charsJson,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<JsOption>();
-
-                    var server = new AccountServer
-                    {
-                        OptionId = shard.value ?? string.Empty,
-                        Name = shard.text ?? string.Empty,
-                        Characters = [],
-                        AccountId = selectedAccount.Id
-                    };
-                    server.Characters = chars.Select(ch => new AccountCharacter
-                        {
-                            OptionId = ch.value ?? string.Empty, Name = ch.text ?? string.Empty, ServerId = server.Id
-                        })
-                        .ToList();
-                    servers.Add(server);
-                    log.AppendLog($"   Персонажей: {server.Characters.Count}");
-                }
-
-                await using (var db = new AppDbContext())
-                {
-                    var accounts = _vm.Squads.SelectMany(x => x.Accounts).ToList();
-                    var acc = accounts.FirstOrDefault(x => x.Id == selectedAccount.Id);
-                    if (acc != null)
-                    {
-                        foreach (var server in servers)
-                        {
-                            var chars = new List<AccountCharacter>();
-                            var existing = acc.Servers.FirstOrDefault(s => s.OptionId == server.OptionId);
-                            if (existing != null)
-                            {
-                                var newChars = server.Characters.Where(character =>
-                                        existing.Characters.All(c => c.OptionId != character.OptionId))
-                                    .ToList();
-                                foreach (var newChar in newChars)
-                                    newChar.ServerId = existing.Id;
-                                chars.AddRange(newChars);
-                            }
-                            if (existing == null)
-                            {
-                                await db.AddAsync(server);
-                                existing = server;
-                                chars.AddRange(server.Characters);
-                            }
-                            
-                            if (existing.Characters.Count == 1)
-                                existing.DefaultCharacterOptionId = existing.Characters.First().OptionId;
-                            await db.AddRangeAsync(chars);
-                        }
-
-                        db.Update(acc);
-                        await db.SaveChangesAsync();
-                    }
-                }
-                // _vm.Reload();
-
-                log.MarkCompleted("Готово: данные о серверах и персонажах сохранены.");
-            }
-            catch (Exception ex)
-            {
-                log.AppendLog("Ошибка: " + ex.Message);
-                log.MarkCompleted("Завершено с ошибкой");
-            }
-        }
-
-        StartLoad();
-        // Показываем окно как модальное, пока идёт загрузка (кнопка Закрыть станет доступной по завершении)
-        log.ShowDialog();
+    /// <summary>
+    /// Обработчик VM-запроса на загрузку персонажей: делегирует выполнение сервису загрузки персонажей.
+    /// </summary>
+    private async void OnRequestLoadCharacters(Account account)
+    {
+        if (account == null) return;
+        try { await _charsLoad.LoadForAccountAsync(account, AccountPage, this); } catch { }
     }
 }

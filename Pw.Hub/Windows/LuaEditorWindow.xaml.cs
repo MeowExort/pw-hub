@@ -22,6 +22,8 @@ namespace Pw.Hub.Windows;
 
 public partial class LuaEditorWindow : Window
 {
+    // ViewModel редактора Lua (MVVM). Содержит команды запуска/отладки и состояние.
+    private readonly Pw.Hub.ViewModels.LuaEditorViewModel _vm = new Pw.Hub.ViewModels.LuaEditorViewModel();
     // ==== AI Chat integration fields ====
     private readonly HttpClient _aiHttp = new HttpClient() { Timeout = TimeSpan.FromSeconds(600) };
     //private const string OllamaCloudUrl = "http://localhost:11434/api/chat"; 
@@ -168,6 +170,28 @@ end)", "Задержка с колбэком"),
     {
         _runner = runner;
         InitializeComponent();
+        
+        // MVVM: назначаем DataContext и пробрасываем раннер во ViewModel
+        DataContext = _vm;
+        _vm.SetRunner(_runner);
+        _vm.RequestOpenDebugVariables += (line, locals, globals) =>
+        {
+            try
+            {
+                var dlg = new DebugVariablesWindow { Owner = this };
+                dlg.SetData(line, locals, globals);
+                dlg.ShowDialog();
+            }
+            catch { }
+        };
+
+        // Синхронизация текста редактора с VM.Code (двусторонняя через события)
+        Loaded += (_, __) =>
+        {
+            try { Editor.Text = _vm.Code ?? Editor.Text; } catch { }
+        };
+        
+        // Остальные жизненные события окна
         Loaded += OnLoaded;
         Closed += OnClosed;
         InitAiConfig();
