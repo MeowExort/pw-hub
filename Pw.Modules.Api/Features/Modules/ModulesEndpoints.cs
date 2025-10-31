@@ -14,6 +14,7 @@ public static class ModulesEndpoints
         Uninstall.UninstallModuleEndpoint.Map(group);
         Installed.InstalledModulesEndpoint.Map(group);
         Run.IncrementRunEndpoint.Map(group);
+        Get.GetModuleEndpoint.Map(group);
         return group;
     }
 }

@@ -10,6 +10,7 @@ using Markdig;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
 using Pw.Hub.Services;
+using System.Windows;
 
 namespace Pw.Hub.ViewModels;
 
@@ -140,12 +141,37 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         set { _canUpdateSelected = value; OnPropertyChanged(); }
     }
 
+    private bool _isSelectedInstalled;
+    /// <summary>
+    /// Признак, что выбранный модуль установлен локально.
+    /// Управляет доступностью кнопок "Установить"/"Удалить".
+    /// </summary>
+    public bool IsSelectedInstalled
+    {
+        get => _isSelectedInstalled;
+        set { _isSelectedInstalled = value; OnPropertyChanged(); }
+    }
+
     // Команды UI
     public ICommand SearchCommand { get; }
     public ICommand UpdateAllCommand { get; }
     public ICommand UpdateSelectedCommand { get; }
     public ICommand InstallCommand { get; }
     public ICommand UninstallCommand { get; }
+
+    /// <summary>
+    /// Пытается обновить список локальных модулей у главного окна (для "Быстрого запуска").
+    /// Безопасно игнорирует ошибки/отсутствие окна.
+    /// </summary>
+    private void TryRefreshOwnerModules()
+    {
+        try
+        {
+            var mw = Application.Current?.MainWindow as Pw.Hub.MainWindow;
+            mw?.LoadModules();
+        }
+        catch { }
+    }
 
     /// <summary>
     /// Конструктор по умолчанию. Создаёт необходимые сервисы.
@@ -167,8 +193,8 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         SearchCommand = new RelayCommand(async _ => await SearchAsync());
         UpdateAllCommand = new RelayCommand(async _ => await UpdateAllAsync(), _ => CanUpdateAll);
         UpdateSelectedCommand = new RelayCommand(async _ => await UpdateSelectedAsync(), _ => CanUpdateSelected);
-        InstallCommand = new RelayCommand(async _ => await InstallSelectedAsync(), _ => SelectedModule != null);
-        UninstallCommand = new RelayCommand(_ => UninstallSelected(), _ => SelectedModule != null);
+        InstallCommand = new RelayCommand(async _ => await InstallSelectedAsync(), _ => SelectedModule != null && !IsInstalled(SelectedModule.Id));
+        UninstallCommand = new RelayCommand(_ => UninstallSelected(), _ => SelectedModule != null && IsInstalled(SelectedModule.Id));
 
         // Dev-команды
         CreateModuleCommand = new RelayCommand(_ => CreateModule(), _ => IsDeveloper);
@@ -232,6 +258,8 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         // После установки пересчитываем индикаторы
         RecomputeUpdateIndicators();
         UpdateSelectedFlags();
+        // Обновим список модулей в главном окне (быстрый запуск)
+        TryRefreshOwnerModules();
     }
 
     /// <summary>
@@ -243,6 +271,7 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         await InstallModuleAsync(SelectedModule);
         RecomputeUpdateIndicators();
         UpdateSelectedFlags();
+        TryRefreshOwnerModules();
     }
 
     /// <summary>
@@ -254,6 +283,7 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         await InstallModuleAsync(SelectedModule);
         RecomputeUpdateIndicators();
         UpdateSelectedFlags();
+        TryRefreshOwnerModules();
     }
 
     /// <summary>
@@ -265,6 +295,7 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         _modulesSync.RemoveModuleLocally(SelectedModule.Id);
         RecomputeUpdateIndicators();
         UpdateSelectedFlags();
+        TryRefreshOwnerModules();
     }
 
     // Вспомогательные методы -----------------------------------------------
@@ -304,8 +335,15 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
     private void UpdateSelectedFlags()
     {
         var m = SelectedModule;
-        if (m == null) { CanUpdateSelected = false; return; }
-        CanUpdateSelected = IsUpdateAvailable(GetLocalVersion(m.Id), m.Version ?? "1.0.0");
+        if (m == null)
+        {
+            CanUpdateSelected = false;
+            IsSelectedInstalled = false;
+            return;
+        }
+        var localVer = GetLocalVersion(m.Id);
+        CanUpdateSelected = IsUpdateAvailable(localVer, m.Version ?? "1.0.0");
+        IsSelectedInstalled = IsInstalled(m.Id);
         // Пересчёт доступности dev-команд, зависящих от SelectedModule
         System.Windows.Input.CommandManager.InvalidateRequerySuggested();
     }
@@ -493,6 +531,19 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
             return m?.Version ?? "1.0.0";
         }
         catch { return "1.0.0"; }
+    }
+
+    /// <summary>
+    /// Проверяет, установлен ли модуль локально (по наличию в ModuleService).
+    /// </summary>
+    private bool IsInstalled(Guid id)
+    {
+        try
+        {
+            var locals = _moduleService.LoadModules() ?? new List<ModuleDefinition>();
+            return locals.Any(x => string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
+        }
+        catch { return false; }
     }
 
     /// <summary>
