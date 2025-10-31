@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Pw.Hub.Services;
 
 namespace Pw.Hub.Windows;
@@ -9,12 +10,26 @@ namespace Pw.Hub.Windows;
 public partial class ProfileEditWindow : Window
 {
     private readonly ModulesApiClient _api;
+    // Таймер периодической проверки статуса привязки Telegram
+    private readonly DispatcherTimer _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+    // Флаг для защиты от конкурентных запросов
+    private bool _isPolling;
 
     public ProfileEditWindow()
     {
         InitializeComponent();
         _api = new ModulesApiClient();
-        Loaded += async (_, _) => await LoadUser();
+
+        // Первичная загрузка данных пользователя
+        Loaded += async (_, _) =>
+        {
+            await LoadUser();
+            try { _pollTimer.Start(); } catch { }
+        };
+        // Настроить периодический опрос статуса привязки
+        _pollTimer.Tick += async (_, _) => await RefreshBindingSafeAsync();
+        // Остановить таймер при закрытии окна
+        Closed += (_, _) => { try { _pollTimer.Stop(); } catch { } };
     }
 
     private void UpdateTelegramUi(Services.UserDto me)
@@ -33,6 +48,32 @@ public partial class ProfileEditWindow : Window
         }
     }
 
+    /// <summary>
+    /// Безопасно обновляет статус привязки Telegram, опрашивая сервер раз в несколько секунд.
+    /// Защищает от наложения параллельных запросов при медленном ответе.
+    /// </summary>
+    private async Task RefreshBindingSafeAsync()
+    {
+        if (_isPolling) return;
+        _isPolling = true;
+        try
+        {
+            var me = await _api.MeAsync();
+            if (me != null)
+            {
+                UpdateTelegramUi(me);
+            }
+        }
+        catch
+        {
+            // Тихо игнорируем сетевые ошибки — повторим на следующем тике
+        }
+        finally
+        {
+            _isPolling = false;
+        }
+    }
+
     private async void LinkTelegramBtn_OnClick(object sender, RoutedEventArgs e)
     {
         try
@@ -43,11 +84,11 @@ public partial class ProfileEditWindow : Window
                 MessageBox.Show("Не удалось получить ссылку для привязки Telegram.", "Telegram", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            var msg = $"Откройте ссылку для привязки:\n{info.Link}\n\nЛибо найдите бота @{info.BotUsername} и отправьте ему команду:/start {info.State}\n\nКод действует до {info.ExpiresAt:dd.MM.yyyy HH:mm} UTC";
-            if (MessageBox.Show(msg, "Привязка Telegram", MessageBoxButton.OKCancel, MessageBoxImage.Information) == MessageBoxResult.OK)
-            {
+            // var msg = $"Откройте ссылку для привязки:\n{info.Link}\n\nЛибо найдите бота @{info.BotUsername} и отправьте ему команду:/start {info.State}\n\nКод действует до {info.ExpiresAt:dd.MM.yyyy HH:mm} UTC";
+            // if (MessageBox.Show(msg, "Привязка Telegram", MessageBoxButton.OKCancel, MessageBoxImage.Information) == MessageBoxResult.OK)
+            // {
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(info.Link) { UseShellExecute = true }); } catch { }
-            }
+            // }
         }
         catch (Exception ex)
         {
@@ -57,8 +98,8 @@ public partial class ProfileEditWindow : Window
 
     private async void UnlinkTelegramBtn_OnClick(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("Отвязать Telegram от аккаунта?", "Telegram", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-            return;
+        // if (MessageBox.Show("Отвязать Telegram от аккаунта?", "Telegram", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        //     return;
         try
         {
             var me = await _api.UnlinkTelegramAsync();
@@ -68,7 +109,7 @@ public partial class ProfileEditWindow : Window
                 return;
             }
             UpdateTelegramUi(me);
-            MessageBox.Show("Telegram отвязан.", "Telegram", MessageBoxButton.OK, MessageBoxImage.Information);
+            // MessageBox.Show("Telegram отвязан.", "Telegram", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {

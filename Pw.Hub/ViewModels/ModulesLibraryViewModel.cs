@@ -528,9 +528,9 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         {
             var locals = _moduleService.LoadModules();
             var m = locals.FirstOrDefault(x => string.Equals(x.Id, id.ToString(), StringComparison.OrdinalIgnoreCase));
-            return m?.Version ?? "1.0.0";
+            return m?.Version;
         }
-        catch { return "1.0.0"; }
+        catch { return null; }
     }
 
     /// <summary>
@@ -551,6 +551,7 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
     /// </summary>
     private static bool IsUpdateAvailable(string local, string server)
     {
+        if (local == null || server == null) return false;
         try
         {
             var lv = ParseVersion(local);

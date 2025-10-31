@@ -52,7 +52,7 @@
                             Foreground="{StaticResource TextPrimaryBrush}"
                             FontFamily="{StaticResource MonospaceFont}"
                             FontSize="12"
-                            Text="{Binding LogText}"
+                            Text="{Binding LogText, Mode=OneWay}"
                             MinHeight="200"/>
                 </ScrollViewer>
             </DockPanel>
@@ -95,7 +95,7 @@
                             Height="24"
                             Minimum="0"
                             Maximum="100"
-                            Value="{Binding ProgressValue}"
+                            Value="{Binding ProgressValue, Mode=OneWay}"
                             Background="{StaticResource BackgroundTertiaryBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"

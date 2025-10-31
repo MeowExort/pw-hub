@@ -199,7 +199,17 @@ end)", "Задержка с колбэком"),
 
     public void SetCode(string code)
     {
-        try { if (Editor != null) Editor.Text = code ?? string.Empty; } catch { }
+        try
+        {
+            var text = code ?? string.Empty;
+            // Обновляем VM, чтобы внутренние команды/состояние ориентировались на актуальный код
+            try { _vm.Code = text; } catch { }
+            if (Editor != null)
+            {
+                Editor.Text = text;
+            }
+        }
+        catch { }
     }
 
     public string GetCode()

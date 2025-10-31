@@ -208,7 +208,7 @@ namespace Pw.Hub.Windows
                 { Name = "param", Label = "Параметр", Type = "string", Default = string.Empty, Required = false });
         }
 
-        private void OpenLuaEditor_Click(object sender, RoutedEventArgs e)
+        private async void OpenLuaEditor_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -220,10 +220,14 @@ namespace Pw.Hub.Windows
                     return;
                 }
 
+                // Гарантируем, что код скрипта загружен (если пришли из списка, где Script пуст)
+                await EnsureFullModuleLoadedAsync();
+                var initialCode = !string.IsNullOrWhiteSpace(_vm.Script) ? _vm.Script : (_script ?? string.Empty);
+
                 // Не закрываем окно создания/редактирования модуля.
                 // Открываем LuaEditor немодально, чтобы не блокировать MainWindow и оставить это окно открытым.
                 var editor = new LuaEditorWindow(runner) { Owner = Application.Current.MainWindow };
-                editor.SetCode(_script ?? string.Empty);
+                editor.SetCode(initialCode);
                 // Pass current inputs to request arguments on run/debug
                 var apiInputs = _vm.Inputs.Select(i => new InputDefinitionDto
                 {
@@ -251,6 +255,79 @@ namespace Pw.Hub.Windows
             }
             catch
             {
+            }
+        }
+
+        private async Task EnsureFullModuleLoadedAsync()
+        {
+            // Для редактирования существующего модуля данные, полученные из поиска, могут не содержать Script/Inputs.
+            // Дозагружаем полный модуль по Id перед открытием Lua-редактора/сохранением.
+            try
+            {
+                if (_existing == null)
+                    return;
+
+                var needScript = string.IsNullOrWhiteSpace(_script);
+                var needInputs = _vm.Inputs == null || _vm.Inputs.Count == 0;
+                if (!needScript && !needInputs)
+                    return; // уже всё есть
+
+                var api = new ModulesApiClient();
+                var full = await api.GetModuleAsync(_existing.Id);
+                if (full != null)
+                {
+                    if (needScript)
+                    {
+                        _script = full.Script ?? string.Empty;
+                        _vm.Script = _script;
+                    }
+
+                    if (needInputs)
+                    {
+                        _vm.Inputs.Clear();
+                        foreach (var i in full.Inputs ?? Array.Empty<InputDefinitionDto>())
+                        {
+                            _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
+                            {
+                                Name = i.Name ?? string.Empty,
+                                Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
+                                Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
+                                Default = i.Default,
+                                Required = i.Required
+                            });
+                        }
+                    }
+                }
+
+                // Локальный фоллбэк: если API не вернул скрипт, пробуем прочитать из локальной установки
+                if (needScript && string.IsNullOrWhiteSpace(_script))
+                {
+                    try
+                    {
+                        var svc = new ModuleService();
+                        var locals = svc.LoadModules();
+                        var def = locals?.FirstOrDefault(x => string.Equals(x.Id, _existing.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+                        if (def != null)
+                        {
+                            var baseDir = AppContext.BaseDirectory;
+                            var p1 = System.IO.Path.Combine(baseDir, def.Script ?? string.Empty);
+                            var p2 = System.IO.Path.Combine(baseDir, "Scripts", def.Script ?? string.Empty);
+                            string code = null;
+                            if (System.IO.File.Exists(p1)) code = System.IO.File.ReadAllText(p1);
+                            else if (System.IO.File.Exists(p2)) code = System.IO.File.ReadAllText(p2);
+                            if (!string.IsNullOrEmpty(code))
+                            {
+                                _script = code;
+                                _vm.Script = _script;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch
+            {
+                // Молча игнорируем ошибки дозагрузки — откроем редактор с тем, что есть
             }
         }
 
