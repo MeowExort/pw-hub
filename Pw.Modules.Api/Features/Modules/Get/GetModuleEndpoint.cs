@@ -8,7 +8,7 @@ public class GetModuleEndpoint
 {
     public static void Map(IEndpointRouteBuilder group)
     {
-        group.MapPost("/{id:guid}", Handle)
+        group.MapGet("/{id:guid}", Handle)
             .WithName("GetModule")
             .WithSummary("Получает информацию о модуле")
             .WithDescription("Требуется заголовок X-Api-Token.");
