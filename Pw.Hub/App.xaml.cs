@@ -71,6 +71,7 @@ public partial class App
             sc.AddSingleton<IRunModuleCoordinator, RunModuleCoordinator>();
             sc.AddSingleton<IUiDialogService, UiDialogService>();
             sc.AddSingleton<IOrderingService, OrderingService>();
+                        sc.AddSingleton<IAccountsService, AccountsService>();
             Services = sc.BuildServiceProvider();
         }
         catch { }

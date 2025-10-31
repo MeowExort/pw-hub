@@ -36,6 +36,7 @@ public class MainViewModel : BaseViewModel
     private readonly IUpdatesCheckService _updatesCheckService;
     private readonly IRunModuleCoordinator _runCoordinator;
     private readonly IUiDialogService _dialogs;
+    private readonly IAccountsService _accounts;
     private readonly ModuleService _moduleService = new();
     private DateTime _lastUpdateCheck = DateTime.MinValue;
     private List<string> _lastUpdates = new();
@@ -119,12 +120,13 @@ public class MainViewModel : BaseViewModel
     /// Конструктор с внедрением зависимостей.
     /// </summary>
     /// <param name="windowService">Сервис открытия окон.</param>
-    public MainViewModel(IWindowService windowService, IUpdatesCheckService updatesCheckService, IRunModuleCoordinator runCoordinator, IUiDialogService dialogs)
+    public MainViewModel(IWindowService windowService, IUpdatesCheckService updatesCheckService, IRunModuleCoordinator runCoordinator, IUiDialogService dialogs, IAccountsService accounts)
     {
         _windowService = windowService;
         _updatesCheckService = updatesCheckService;
         _runCoordinator = runCoordinator;
         _dialogs = dialogs ?? new UiDialogService();
+        _accounts = accounts ?? new AccountsService();
         // init commands
         OpenModulesLibraryCommand = new RelayCommand(_ => OpenModulesLibrary());
         OpenProfileCommand = new RelayCommand(_ => OpenProfile());
@@ -166,19 +168,8 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                using var db = new AppDbContext();
-                // Вычисляем следующий OrderIndex в пределах отряда
-                var maxOrder = db.Accounts.Where(a => a.SquadId == targetSquad.Id).Select(a => (int?)a.OrderIndex).Max() ?? -1;
-                var account = new Account
-                {
-                    Name = dlg.AccountName,
-                    SquadId = targetSquad.Id,
-                    OrderIndex = maxOrder + 1
-                };
-                db.Accounts.Add(account);
-                db.SaveChanges();
-
-                // Обновляем данные VM
+                // Создаём через сервис
+                _ = _accounts.CreateAccountAsync(targetSquad, dlg.AccountName);
                 Reload();
             }
         }
@@ -199,10 +190,8 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                using var db = new AppDbContext();
-                squad.Name = dlg.SquadName;
-                db.Update(squad);
-                db.SaveChanges();
+                // Сохранение через сервис аккаунтов
+                _ = _accounts.UpdateSquadAsync(squad, dlg.SquadName);
                 Reload();
             }
         }
@@ -223,10 +212,7 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                using var db = new AppDbContext();
-                account.Name = dlg.AccountName;
-                db.Update(account);
-                db.SaveChanges();
+                _ = _accounts.UpdateAccountAsync(account, dlg.AccountName);
                 Reload();
             }
         }
@@ -246,27 +232,15 @@ public class MainViewModel : BaseViewModel
             {
                 if (!_dialogs.Confirm($"Вы действительно хотите удалить отряд \"{squad.Name}\"?\nВсе аккаунты в этом отряде также будут удалены.", "Подтверждение удаления"))
                     return;
-                using var db = new AppDbContext();
-                var entity = db.Squads.Find(squad.Id);
-                if (entity != null)
-                {
-                    db.Squads.Remove(entity);
-                    db.SaveChanges();
-                    Reload();
-                }
+                _ = _accounts.DeleteSquadAsync(squad);
+                Reload();
             }
             else if (parameter is Account acc)
             {
                 if (!_dialogs.Confirm($"Вы действительно хотите удалить аккаунт \"{acc.Name}\"?", "Подтверждение удаления"))
                     return;
-                using var db = new AppDbContext();
-                var entity = db.Accounts.Find(acc.Id);
-                if (entity != null)
-                {
-                    db.Accounts.Remove(entity);
-                    db.SaveChanges();
-                    Reload();
-                }
+                _ = _accounts.DeleteAccountAsync(acc);
+                Reload();
             }
         }
         catch
@@ -278,7 +252,7 @@ public class MainViewModel : BaseViewModel
     /// Конструктор по умолчанию для дизайнеров/XAML — создаёт WindowService по умолчанию.
     /// В рабочем приложении используется конструктор с DI.
     /// </summary>
-    public MainViewModel() : this(new WindowService(), new UpdatesCheckService(), new RunModuleCoordinator(new WindowService(), new LuaExecutionService()), new UiDialogService())
+    public MainViewModel() : this(new WindowService(), new UpdatesCheckService(), new RunModuleCoordinator(new WindowService(), new LuaExecutionService()), new UiDialogService(), new AccountsService())
     {
     }
 
@@ -379,37 +353,11 @@ public class MainViewModel : BaseViewModel
     /// </summary>
     private void LoadData()
     {
-        using var db = new AppDbContext();
-
-        // Создаем базу данных если её нет
-        db.Database.Migrate();
-
-        // Загружаем отряды с аккаунтами
-        var squads = db.Squads
-            .Include(s => s.Accounts)
-            .ThenInclude(x=> x.Servers)
-            .ThenInclude(x=> x.Characters)
-            .OrderBy(s => s.OrderIndex)
-            .ThenBy(s => s.Name)
-            .ToList();
-
+        // Загрузка через сервис аккаунтов
+        var squads = _accounts.LoadSquads();
         Squads.Clear();
-        foreach (var squad in squads)
-        {
-            // Преобразуем List в ObservableCollection для аккаунтов
-            var orderedAccounts = squad.Accounts
-                .OrderBy(a => a.OrderIndex)
-                .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
-            var observableSquad = new Squad
-            {
-                Id = squad.Id,
-                Name = squad.Name,
-                OrderIndex = squad.OrderIndex,
-                Accounts = new ObservableCollection<Account>(orderedAccounts)
-            };
-            Squads.Add(observableSquad);
-        }
+        foreach (var s in squads)
+            Squads.Add(s);
     }
 
     /// <summary>
@@ -431,15 +379,7 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                using var db = new AppDbContext();
-                var maxOrder = db.Squads.Select(s => (int?)s.OrderIndex).Max() ?? -1;
-                var newSquad = new Squad
-                {
-                    Name = dlg.SquadName,
-                    OrderIndex = maxOrder + 1
-                };
-                db.Squads.Add(newSquad);
-                db.SaveChanges();
+                _ = _accounts.CreateSquadAsync(dlg.SquadName);
                 Reload();
             }
         }

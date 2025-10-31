@@ -6,6 +6,7 @@
         xmlns:models="clr-namespace:Pw.Hub.Models"
         xmlns:pages="clr-namespace:Pw.Hub.Pages"
         xmlns:conv="clr-namespace:Pw.Hub.Infrastructure.Converters"
+        xmlns:beh="clr-namespace:Pw.Hub.Infrastructure.Behaviors"
         Closing="MainWindow_OnClosing"
         Icon="/Assets/icon.png"
         mc:Ignorable="d"
@@ -153,13 +154,8 @@
                                       Style="{StaticResource ModernTreeView}"
                                       ItemsSource="{Binding Squads}"
                                       Background="Transparent"
-                                      AllowDrop="True"
-                                      PreviewMouseLeftButtonDown="NavigationTree_OnPreviewMouseLeftButtonDown"
-                                      PreviewMouseMove="NavigationTree_OnPreviewMouseMove"
-                                      DragOver="NavigationTree_OnDragOver"
-                                      Drop="NavigationTree_OnDrop"
-                                      DragLeave="NavigationTree_OnDragLeave"
-                                      PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp">
+                                      PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp"
+                                      beh:TreeViewReorderBehavior.Enabled="True">
                                 <TreeView.ContextMenu>
                                     <ContextMenu x:Name="NavigationContextMenu"
                                                Background="{StaticResource BackgroundSecondaryBrush}"
