@@ -206,7 +206,8 @@ namespace Pw.Hub.Services
 
         public async Task<ModuleDto> InstallAsync(Guid id, string userId)
         {
-            var url = $"{BaseUrl}/api/modules/{id}/install?userId={Uri.EscapeDataString(userId)}";
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/modules/{id}/install?userId={Uri.EscapeDataString(userId ?? string.Empty)}";
             using var resp = await _http.PostAsync(url, new StringContent(string.Empty, Encoding.UTF8, "application/json"));
             if (resp.IsSuccessStatusCode)
             {
@@ -218,7 +219,8 @@ namespace Pw.Hub.Services
 
         public async Task<ModuleDto> UninstallAsync(Guid id, string userId)
         {
-            var url = $"{BaseUrl}/api/modules/{id}/install?userId={Uri.EscapeDataString(userId)}";
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/modules/{id}/install?userId={Uri.EscapeDataString(userId ?? string.Empty)}";
             using var resp = await _http.DeleteAsync(url);
             if (resp.IsSuccessStatusCode)
             {

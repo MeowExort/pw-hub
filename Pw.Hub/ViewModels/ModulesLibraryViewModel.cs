@@ -194,7 +194,7 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
         UpdateAllCommand = new RelayCommand(async _ => await UpdateAllAsync(), _ => CanUpdateAll);
         UpdateSelectedCommand = new RelayCommand(async _ => await UpdateSelectedAsync(), _ => CanUpdateSelected);
         InstallCommand = new RelayCommand(async _ => await InstallSelectedAsync(), _ => SelectedModule != null && !IsInstalled(SelectedModule.Id));
-        UninstallCommand = new RelayCommand(_ => UninstallSelected(), _ => SelectedModule != null && IsInstalled(SelectedModule.Id));
+        UninstallCommand = new RelayCommand(async _ => await UninstallSelectedAsync(), _ => SelectedModule != null && IsInstalled(SelectedModule.Id));
 
         // Dev-команды
         CreateModuleCommand = new RelayCommand(_ => CreateModule(), _ => IsDeveloper);
@@ -359,11 +359,52 @@ public class ModulesLibraryViewModel : INotifyPropertyChanged
             // Получаем полные данные модуля (включая Script)
             var item = await _api.GetModuleAsync(module.Id);
             if (item != null)
+            {
                 _modulesSync.InstallModuleLocally(item);
+                // Сообщаем на сервер об установке (метрика и привязка пользователя)
+                try
+                {
+                    if (_api.CurrentUser == null)
+                        await _api.MeAsync();
+                    var uid = _api.CurrentUser?.UserId ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(uid))
+                        _ = _api.InstallAsync(module.Id, uid);
+                }
+                catch { /* не блокируем локальную установку */ }
+            }
         }
         catch
         {
             // игнорируем ошибки установки на уровне VM; UI может показать общий статус
+        }
+    }
+
+    /// <summary>
+    /// Удаляет выбранный модуль локально и уведомляет API.
+    /// </summary>
+    private async Task UninstallSelectedAsync()
+    {
+        if (SelectedModule == null) return;
+        try
+        {
+            _modulesSync.RemoveModuleLocally(SelectedModule.Id);
+            // Сообщаем на сервер об удалении
+            try
+            {
+                if (_api.CurrentUser == null)
+                    await _api.MeAsync();
+                var uid = _api.CurrentUser?.UserId ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(uid))
+                    _ = _api.UninstallAsync(SelectedModule.Id, uid);
+            }
+            catch { }
+        }
+        catch { }
+        finally
+        {
+            RecomputeUpdateIndicators();
+            UpdateSelectedFlags();
+            TryRefreshOwnerModules();
         }
     }
 
