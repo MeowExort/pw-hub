@@ -14,6 +14,7 @@ public static class AuthEndpoints
         Telegram.GenerateTelegramLinkEndpoint.Map(group);
         Telegram.ConsumeTelegramStateEndpoint.Map(group);
         Telegram.UnlinkTelegramEndpoint.Map(group);
+        Telegram.SendMessageEndpoint.Map(group);
         return group;
     }
 }

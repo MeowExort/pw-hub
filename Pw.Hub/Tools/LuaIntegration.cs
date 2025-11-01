@@ -84,6 +84,10 @@ public class LuaIntegration
         lua.RegisterFunction("Net_PostJsonCb", this,
             GetType().GetMethod(nameof(NetPostJsonSb),
                 new[] { typeof(string), typeof(string), typeof(string), typeof(LuaFunction) }));
+
+        // Telegram API
+        lua.RegisterFunction("Telegram_SendMessageCb", this,
+            GetType().GetMethod(nameof(Telegram_SendMessageCb), new[] { typeof(string), typeof(LuaFunction) }));
     }
 
     public void SetPrintSink(Action<string> sink)
@@ -705,6 +709,40 @@ public class LuaIntegration
             {
             }
         });
+    }
+
+    /// <summary>
+    /// Асинхронно отправляет сообщение пользователю в Telegram через Modules API и вызывает Lua-колбэк с флагом успеха.
+    /// Использование из Lua:
+    ///   Telegram_SendMessageCb("текст", function(ok)
+    ///       if ok then Print('Отправлено') else Print('Ошибка отправки') end
+    ///   end)
+    /// </summary>
+    public void Telegram_SendMessageCb(string text, LuaFunction callback)
+    {
+        try
+        {
+            var msg = (text ?? string.Empty).Trim();
+            if (msg.Length == 0)
+            {
+                CallLuaVoid(callback, false);
+                return;
+            }
+            var api = new Pw.Hub.Services.ModulesApiClient();
+            api.SendTelegramMessageAsync(msg).ContinueWith(t =>
+            {
+                try
+                {
+                    var ok = t.IsCompletedSuccessfully && t.Result;
+                    CallLuaVoid(callback, ok);
+                }
+                catch { }
+            });
+        }
+        catch
+        {
+            try { CallLuaVoid(callback, false); } catch { }
+        }
     }
 
     public void NetPostJsonSb(string url, string jsonBody, string contentType, LuaFunction callback)

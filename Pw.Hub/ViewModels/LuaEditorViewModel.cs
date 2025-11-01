@@ -21,6 +21,8 @@ public class LuaEditorViewModel : BaseViewModel
 
     private LuaScriptRunner _runner; // задаётся из окна через SetRunner
 
+    public LuaEditorAiViewModel Ai { get; } = new LuaEditorAiViewModel();
+
     public LuaEditorViewModel() : this(new LuaDebugService(), new UiDialogService()) { }
 
     public LuaEditorViewModel(ILuaDebugService debugService, IUiDialogService dialogs)
@@ -33,6 +35,10 @@ public class LuaEditorViewModel : BaseViewModel
         StopCommand = new RelayCommand(_ => Stop(), _ => IsRunning);
         ToggleBreakpointCommand = new RelayCommand(p => ToggleBreakpoint(p), _ => !IsRunning);
         ClearLogCommand = new RelayCommand(_ => LogText = string.Empty, _ => !IsRunning);
+
+        // Настройка под‑VM AI: делегаты доступа к коду
+        Ai.GetCurrentCode = () => Code;
+        Ai.ApplyCode = code => { Code = (code ?? string.Empty).Replace("\r\n", "\n"); };
     }
 
     /// <summary>

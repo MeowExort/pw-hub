@@ -71,7 +71,11 @@ public partial class App
             sc.AddSingleton<IRunModuleCoordinator, RunModuleCoordinator>();
             sc.AddSingleton<IUiDialogService, UiDialogService>();
             sc.AddSingleton<IOrderingService, OrderingService>();
-                        sc.AddSingleton<IAccountsService, AccountsService>();
+            sc.AddSingleton<IAccountsService, AccountsService>();
+            // Diff preview service for AI pane in Lua editor
+            sc.AddSingleton<IDiffPreviewService, DiffPreviewService>();
+            sc.AddSingleton<IAiAssistantService, AiAssistantService>();
+            sc.AddSingleton<IAiDocService, AiDocService>();
             Services = sc.BuildServiceProvider();
         }
         catch { }

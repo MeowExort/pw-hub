@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:beh="clr-namespace:Pw.Hub.Behaviors"
         MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
         MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         mc:Ignorable="d"
@@ -30,28 +31,28 @@
                             MinWidth="120"
                             Padding="16,8"
                             Margin="0,0,8,0"
-                            Click="OnRunClick" />
+                            Command="{Binding RunCommand}" />
                     <Button x:Name="DebugBtn"
                             Style="{StaticResource PrimaryButton}"
                             Content="▶ Отладка"
                             MinWidth="120"
                             Padding="16,8"
                             Margin="0,0,8,0"
-                            Click="OnDebugClick" />
+                            Command="{Binding DebugCommand}" />
                     <Button x:Name="StopBtn"
                             Style="{StaticResource ModernButton}"
                             Content="⏹ Остановить"
                             MinWidth="120"
                             Padding="16,8"
                             Margin="0,0,8,0"
-                            Click="OnStopClick"
-                            IsEnabled="False" />
+                            Command="{Binding StopCommand}"
+                            IsEnabled="{Binding IsRunning}" />
                     <Button Style="{StaticResource ModernButton}"
                             Content="🗑 Очистить вывод"
                             MinWidth="140"
                             Padding="16,8"
                             Margin="0,0,8,0"
-                            Click="OnClearOutputClick" />
+                            Command="{Binding ClearLogCommand}" />
                     <Button x:Name="AiToggleBtn"
                             Style="{StaticResource ModernButton}"
                             Content="🤖 AI"
@@ -71,7 +72,7 @@
                                Foreground="{StaticResource TextSecondaryBrush}"
                                FontSize="12" />
                     <TextBlock x:Name="BpCountText"
-                               Text="(0 точек)"
+                               Text="{Binding Breakpoints.Count, StringFormat=({0} точек)}"
                                Style="{StaticResource ModernTextBlock}"
                                Foreground="{StaticResource TextSecondaryBrush}"
                                FontSize="12" />
@@ -111,6 +112,8 @@
                                        FontWeight="SemiBold" />
                         </Border>
                         <avalonedit:TextEditor x:Name="Editor"
+                                               beh:AvalonEditTextBehavior.Text="{Binding Code, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                               beh:EditorBreakpointsBehavior.Breakpoints="{Binding Breakpoints}"
                                                ShowLineNumbers="True"
                                                FontFamily="{StaticResource MonospaceFont}"
                                                FontSize="14"
@@ -120,7 +123,8 @@
                                                Foreground="{StaticResource TextPrimaryBrush}"
                                                LineNumbersForeground="{StaticResource TextSecondaryBrush}"
                                                Padding="8"
-                                               MinHeight="150" />
+                                               MinHeight="150"
+                                               IsReadOnly="{Binding IsRunning}" />
                     </DockPanel>
                 </Border>
 
@@ -156,7 +160,8 @@
                                      FontSize="13"
                                      Padding="4"
                                      MinHeight="100"
-                                     TextChanged="OutputBox_OnTextChanged" />
+                                     beh:AutoScrollBehavior.IsEnabled="True"
+                                     Text="{Binding LogText}" />
                         </ScrollViewer>
                     </DockPanel>
                 </Border>
@@ -200,7 +205,7 @@
                             <TextBlock Text="🤖 AI помощник"
                                        Style="{StaticResource ModernTextBlock}" FontWeight="SemiBold" />
                             <Button Content="Новая сессия" Style="{StaticResource ModernButton}"
-                                    Margin="8,0,0,0" Padding="8,4" Click="OnAiNewSessionClick" />
+                                    Margin="8,0,0,0" Padding="8,4" Command="{Binding Ai.NewSessionCommand}" />
                         </StackPanel>
                     </Border>
                     <Grid>
@@ -213,7 +218,20 @@
                         </Grid.RowDefinitions>
                         <!-- Messages -->
                         <ScrollViewer x:Name="AiMessagesScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="AiMessagesPanel" Margin="8" />
+                            <ItemsControl x:Name="AiMessagesPanel" Margin="8" ItemsSource="{Binding Ai.Messages}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="10" Margin="8,4" CornerRadius="10"
+                                                Background="{StaticResource BackgroundTertiaryBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Role}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </ScrollViewer>
                         <!-- Splitter: resize messages vs diff preview -->
                         <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center"
@@ -239,7 +257,8 @@
                                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                                              Margin="0,4,0,0"
                                              Background="{StaticResource BackgroundSecondaryBrush}" BorderThickness="0"
-                                             FontFamily="{StaticResource MonospaceFont}" />
+                                             FontFamily="{StaticResource MonospaceFont}"
+                                             beh:RichTextBoxDiffBehavior.Lines="{Binding Ai.DiffLines}" />
                             </Grid>
                         </Border>
                         <!-- Splitter: resize diff preview vs input -->
@@ -256,6 +275,7 @@
                                      TextWrapping="Wrap"
                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                                      Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding Ai.InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                             <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions>
@@ -267,15 +287,16 @@
                                           VerticalAlignment="Center"
                                           ToolTip="AI будет сам вносить изменения в код"
                                           Style="{StaticResource ModernCheckBox}"
-                                          Checked="OnAiBraveToggled" Unchecked="OnAiBraveToggled" />
+                                          IsChecked="{Binding Ai.BraveMode, Mode=TwoWay}" />
                                 <StackPanel Grid.Column="1" 
                                             Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                                     <Button x:Name="AiSendBtn" Content="Отправить"
                                             Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
-                                            MinWidth="120" Click="OnAiSendClick" />
+                                            MinWidth="120" Command="{Binding Ai.SendCommand}" />
                                     <Button x:Name="AiApplyBtn" Content="Вставить изменения"
                                             Style="{StaticResource ModernButton}"
-                                            MinWidth="160" Click="OnAiApplyClick" IsEnabled="False" />
+                                            MinWidth="160" Command="{Binding Ai.ApplyCommand}"
+                                            IsEnabled="{Binding Ai.CanApply}" />
                                 </StackPanel>
                             </Grid>
                         </Grid>

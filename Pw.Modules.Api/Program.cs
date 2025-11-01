@@ -70,6 +70,8 @@ builder.Services.Configure<FormOptions>(o =>
 
 // Telegram bot hosted service (starts only if TELEGRAM_BOT_TOKEN is set)
 builder.Services.AddHostedService<TelegramBotHostedService>();
+// Telegram sender for API initiated messages
+builder.Services.AddSingleton<Pw.Modules.Api.Infrastructure.Telegram.ITelegramSender, Pw.Modules.Api.Infrastructure.Telegram.TelegramSender>();
 
 // Custom ActivitySource for the application
 var moduleActivitySource = new ActivitySource("Modules");

@@ -143,6 +143,19 @@ namespace Pw.Hub.Services
             return me;
         }
 
+        /// <summary>
+        /// Отправляет сообщение текущему пользователю в Telegram (если привязан).
+        /// </summary>
+        public async Task<bool> SendTelegramMessageAsync(string message)
+        {
+            ApplyAuthHeader();
+            var url = $"{BaseUrl}/api/auth/telegram/send";
+            var payload = new { message };
+            var content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+            using var resp = await _http.PostAsync(url, content);
+            return resp.IsSuccessStatusCode;
+        }
+
         public async Task<PagedModulesResponse> SearchAsync(string q = null, string tags = null, string sort = null, string order = null, int page = 1, int pageSize = 20)
         {
             var ub = new UriBuilder(BaseUrl + "/api/modules");

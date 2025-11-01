@@ -139,7 +139,7 @@
                                    MinWidth="200"
                                    Padding="12,8"
                                    ToolTip="Сгенерировать описание модуля с помощью AI"
-                                   Click="GenerateDescription_Click"/>
+                                   Command="{Binding GenerateDescriptionCommand}"/>
                         </StackPanel>
 
                         <Grid MinHeight="250" MaxHeight="500">

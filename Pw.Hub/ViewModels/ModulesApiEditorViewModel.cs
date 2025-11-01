@@ -16,6 +16,11 @@ namespace Pw.Hub.ViewModels;
 /// </summary>
 public class ModulesApiEditorViewModel : INotifyPropertyChanged
 {
+    private readonly IAiDocService _aiDoc;
+    private bool _isBusy;
+
+    public bool IsBusy { get => _isBusy; private set { _isBusy = value; OnPropertyChanged(); System.Windows.Input.CommandManager.InvalidateRequerySuggested(); } }
+
     private string _name = string.Empty;
     /// <summary>
     /// Название модуля.
@@ -23,7 +28,7 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
     public string Name
     {
         get => _name;
-        set { _name = value ?? string.Empty; OnPropertyChanged(); }
+        set { _name = value ?? string.Empty; OnPropertyChanged(); System.Windows.Input.CommandManager.InvalidateRequerySuggested(); }
     }
 
     private string _version = "1.0.0";
@@ -71,6 +76,7 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
     public ICommand RemoveInputCommand { get; }
     public ICommand SaveCommand { get; }
     public ICommand CancelCommand { get; }
+    public ICommand GenerateDescriptionCommand { get; }
 
     /// <summary>
     /// Текущий выбранный входной параметр (для удаления/редактирования).
@@ -89,6 +95,8 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
 
     public ModulesApiEditorViewModel()
     {
+        _aiDoc = (App.Services?.GetService(typeof(IAiDocService)) as IAiDocService) ?? new AiDocService();
+
         AddInputCommand = new RelayCommand(_ =>
         {
             var item = new InputItem
@@ -124,12 +132,37 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
             RequestClose?.Invoke(true);
         }, _ => CanSave());
         CancelCommand = new RelayCommand(_ => RequestClose?.Invoke(false));
+
+        GenerateDescriptionCommand = new RelayCommand(async _ => await GenerateDescriptionAsync(), _ => CanGenerateDescription());
     }
 
     /// <summary>
     /// Простая проверка возможности сохранения: имя и скрипт обязательны.
     /// </summary>
     private bool CanSave() => !string.IsNullOrWhiteSpace(Name) && !string.IsNullOrWhiteSpace(Script);
+
+    private bool CanGenerateDescription() => !IsBusy && !string.IsNullOrWhiteSpace(Name);
+
+    private async Task GenerateDescriptionAsync()
+    {
+        if (!CanGenerateDescription()) return;
+        IsBusy = true;
+        try
+        {
+            var inputs = Inputs.Select(i => (i.Name ?? string.Empty, i.Type ?? "string", string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label)).ToList();
+            var scriptFrag = Script ?? string.Empty;
+            var md = await _aiDoc.GenerateDescriptionAsync(Name?.Trim() ?? string.Empty, Version?.Trim() ?? "1.0.0", inputs, scriptFrag);
+            Description = md ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Description = (Description ?? string.Empty) + (string.IsNullOrEmpty(Description) ? string.Empty : "\n\n") + "[Ошибка генерации описания] " + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     /// <summary>
     /// Формирует DTO-запрос к Modules API на создание/обновление модуля из текущего состояния VM.

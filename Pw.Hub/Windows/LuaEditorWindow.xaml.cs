@@ -17,6 +17,10 @@ using System.Text;
 using System.Collections.ObjectModel;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using Microsoft.Extensions.DependencyInjection;
+using Pw.Hub.Services;
+using System.Linq;
+using System.ComponentModel;
 
 namespace Pw.Hub.Windows;
 
@@ -24,38 +28,13 @@ public partial class LuaEditorWindow : Window
 {
     // ViewModel редактора Lua (MVVM). Содержит команды запуска/отладки и состояние.
     private readonly Pw.Hub.ViewModels.LuaEditorViewModel _vm = new Pw.Hub.ViewModels.LuaEditorViewModel();
-    // ==== AI Chat integration fields ====
-    private readonly HttpClient _aiHttp = new HttpClient() { Timeout = TimeSpan.FromSeconds(600) };
-    //private const string OllamaCloudUrl = "http://localhost:11434/api/chat"; 
-    private const string OllamaCloudUrl = "https://ollama.com/api/chat";
-    private string _aiApiKey = "your-ollama-cloud-api-key";
-    private readonly List<AiMessage> _aiMessages = new();
-    private string _aiLastCode; // last extracted code block from AI
-    private string _aiLastDiff; // last diff preview
-    private Border _aiTypingBubble; // temporary typing indicator bubble
-
-    private sealed class AiMessage
-    {
-        public string role { get; set; }
-        public string content { get; set; }
-    }
-
-    private sealed class AiChatRequest
-    {
-        public string model { get; set; }
-        public List<AiMessage> messages { get; set; }
-        public bool stream { get; set; } = false;
-    }
-
-    private sealed class AiChatResponse
-    {
-        public List<AiMessage> messages { get; set; }
-    }
 
     private readonly LuaScriptRunner _runner;
+    private readonly IDiffPreviewService _diffService;
     private CompletionWindow _completionWindow;
-    private readonly HashSet<int> _breakpoints = new();
-    private BreakpointBackgroundRenderer _bpRenderer;
+    // Перенесено в MVVM: брейкпоинты теперь живут в VM и синхронизируются через EditorBreakpointsBehavior
+    // private readonly HashSet<int> _breakpoints = new();
+    // private BreakpointBackgroundRenderer _bpRenderer;
     private bool _isRunning;
     private bool _isDebugging;
     private bool _isSplitterDragging;
@@ -169,6 +148,7 @@ end)", "Задержка с колбэком"),
     public LuaEditorWindow(LuaScriptRunner runner)
     {
         _runner = runner;
+        _diffService = Pw.Hub.App.Services?.GetService<IDiffPreviewService>() ?? new DiffPreviewService();
         InitializeComponent();
         
         // MVVM: назначаем DataContext и пробрасываем раннер во ViewModel
@@ -185,6 +165,16 @@ end)", "Задержка с колбэком"),
             catch { }
         };
 
+        // Автопоказ AI‑панели при появлении диффа
+        try
+        {
+            if (_vm?.Ai is INotifyPropertyChanged inpc)
+            {
+                inpc.PropertyChanged += AiOnPropertyChanged;
+            }
+        }
+        catch { }
+
         // Синхронизация текста редактора с VM.Code (двусторонняя через события)
         Loaded += (_, __) =>
         {
@@ -194,7 +184,6 @@ end)", "Задержка с колбэком"),
         // Остальные жизненные события окна
         Loaded += OnLoaded;
         Closed += OnClosed;
-        InitAiConfig();
     }
 
     public void SetCode(string code)
@@ -221,11 +210,6 @@ end)", "Задержка с колбэком"),
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Initialize AI brave UI state
-        try { OnAiBraveToggled(AiBraveCheck, new RoutedEventArgs()); } catch { }
-
-        // Route Lua Print to our output box
-        _runner.SetPrintSink(AppendLog);
 
         // Syntax highlighting (robust loading from pack URI or file system)
         try
@@ -271,18 +255,6 @@ end)", "Задержка с колбэком"),
         Editor.TextArea.TextEntered += TextAreaOnTextEntered;
         Editor.PreviewKeyDown += EditorOnPreviewKeyDown;
 
-        // Register breakpoint renderer for visual markers
-        try
-        {
-            _bpRenderer = new BreakpointBackgroundRenderer(_breakpoints);
-            Editor.TextArea.TextView.BackgroundRenderers.Add(_bpRenderer);
-            Editor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
-        }
-        catch
-        {
-        }
-
-        UpdateBpCount();
     }
 
     private void OnClosed(object sender, EventArgs e)
@@ -298,7 +270,14 @@ end)", "Задержка с колбэком"),
         {
         }
 
-        SetRunState(false, false);
+        // Отписка от событий Ai VM
+        try
+        {
+            if (_vm?.Ai is INotifyPropertyChanged inpc)
+                inpc.PropertyChanged -= AiOnPropertyChanged;
+        }
+        catch { }
+
     }
 
     private void EditorOnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -310,12 +289,6 @@ end)", "Задержка с колбэком"),
             return;
         }
 
-        if (e.Key == Key.F9)
-        {
-            ToggleBreakpointAtCaret();
-            e.Handled = true;
-            return;
-        }
     }
 
     private void TextAreaOnTextEntered(object sender, TextCompositionEventArgs e)
@@ -579,279 +552,10 @@ end)", "Задержка с колбэком"),
         }
     }
 
-    private void SetRunState(bool running, bool debugging)
-    {
-        _isRunning = running;
-        _isDebugging = debugging;
-        try
-        {
-            if (RunBtn != null) RunBtn.IsEnabled = !running && !debugging;
-            if (DebugBtn != null) DebugBtn.IsEnabled = !running && !debugging;
-            if (StopBtn != null) StopBtn.IsEnabled = running || debugging;
-            if (Editor != null) Editor.IsReadOnly = running || debugging;
-        }
-        catch
-        {
-        }
-    }
 
-    private async void OnRunClick(object sender, RoutedEventArgs e)
-    {
-        SetRunState(true, false);
-        try
-        {
-            // Очистить вывод перед новым запуском
-            OutputBox.Clear();
-            AppendLog("Запуск скрипта...");
-            var code = Editor?.Text ?? string.Empty;
 
-            Dictionary<string, object> args = null;
-            if (ApiInputs != null && ApiInputs.Count > 0)
-            {
-                // Build a temporary ModuleDefinition and show args dialog
-                var moduleDef = new Pw.Hub.Models.ModuleDefinition
-                {
-                    Name = "Ввод параметров",
-                    Script = "<inline>",
-                    Inputs = ApiInputs.Select(i => new Pw.Hub.Models.ModuleInput
-                    {
-                        Name = i.Name ?? string.Empty,
-                        Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
-                        Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
-                        Default = i.Default,
-                        Required = i.Required
-                    }).ToList()
-                };
-                var dlg = new ModuleArgsWindow(moduleDef) { Owner = this };
-                var ok = dlg.ShowDialog();
-                if (ok != true)
-                {
-                    AppendLog("Запуск отменён пользователем (не введены параметры)");
-                    return;
-                }
-                args = dlg.Values;
-            }
 
-            await _runner.RunCodeAsync(code, args);
-            AppendLog("Выполнение скрипта завершено!");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Произошла ошибка при выполнения скрипта: {ex.Message}");
-        }
-        finally
-        {
-            SetRunState(false, false);
-        }
-    }
 
-    private async void OnDebugClick(object sender, RoutedEventArgs e)
-    {
-        SetRunState(false, true);
-        try
-        {
-            // Очистить вывод перед началом отладки
-            OutputBox.Clear();
-            AppendLog("Запуск отладки скрипта...");
-            var code = Editor?.Text ?? string.Empty;
-            var bps = _breakpoints.ToArray();
-
-            Dictionary<string, object> args = null;
-            if (ApiInputs != null && ApiInputs.Count > 0)
-            {
-                var moduleDef = new Pw.Hub.Models.ModuleDefinition
-                {
-                    Name = "Ввод параметров",
-                    Script = "<inline>",
-                    Inputs = ApiInputs.Select(i => new Pw.Hub.Models.ModuleInput
-                    {
-                        Name = i.Name ?? string.Empty,
-                        Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
-                        Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
-                        Default = i.Default,
-                        Required = i.Required
-                    }).ToList()
-                };
-                var dlg = new ModuleArgsWindow(moduleDef) { Owner = this };
-                var ok = dlg.ShowDialog();
-                if (ok != true)
-                {
-                    AppendLog("Отладка отменена пользователем (не введены параметры)");
-                    return;
-                }
-                args = dlg.Values;
-            }
-
-            await _runner.RunCodeWithBreakpointsAsync(code, bps, OnDebugBreak, args);
-            AppendLog("Отладка скрипта завершена!");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Произошла ошибка при отладке скрипта: {ex.Message}");
-        }
-        finally
-        {
-            SetRunState(false, false);
-        }
-    }
-
-    private void OnStopClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            _runner.Stop();
-            AppendLog("[Остановлено пользователем]");
-        }
-        catch
-        {
-        }
-        finally
-        {
-            SetRunState(false, false);
-        }
-    }
-
-    private bool OnDebugBreak(int line, IDictionary<string, object> locals, IDictionary<string, object> globals)
-    {
-        try
-        {
-            // Show a dedicated variables window instead of MessageBox for better inspection
-            Dispatcher.Invoke(() =>
-            {
-                var dlg = new DebugVariablesWindow { Owner = this };
-                dlg.SetData(line, locals, globals);
-                dlg.ShowDialog();
-            });
-        }
-        catch
-        {
-        }
-
-        return true;
-    }
-
-    private static string FormatVars(IDictionary<string, object> vars)
-    {
-        if (vars == null || vars.Count == 0) return "<пусто>";
-        var sb = new System.Text.StringBuilder();
-        foreach (var kv in vars)
-        {
-            sb.Append(kv.Key);
-            sb.Append(" = ");
-            sb.AppendLine(ToDisplayString(kv.Value));
-        }
-
-        return sb.ToString();
-    }
-
-    private static string ToDisplayString(object value)
-    {
-        try
-        {
-            if (value == null) return "nil";
-            if (value is string s) return '"' + s + '"';
-            if (value is bool b) return b ? "true" : "false";
-            if (value is IDictionary<string, object> dict)
-            {
-                var inner = string.Join(", ", dict.Select(p => p.Key + ":" + ToDisplayString(p.Value)));
-                return "{" + inner + "}";
-            }
-
-            return value.ToString();
-        }
-        catch
-        {
-            return value?.ToString() ?? "nil";
-        }
-    }
-
-    private void ToggleBreakpointAtCaret()
-    {
-        try
-        {
-            var line = Editor.TextArea.Caret.Line; // 1-based
-            if (_breakpoints.Contains(line))
-            {
-                _breakpoints.Remove(line);
-            }
-            else
-            {
-                _breakpoints.Add(line);
-            }
-
-            UpdateBpCount();
-            InvalidateBreakpointMarks();
-        }
-        catch
-        {
-        }
-    }
-
-    private void InvalidateBreakpointMarks()
-    {
-        try
-        {
-            Editor?.TextArea?.TextView?.InvalidateLayer(KnownLayer.Background);
-        }
-        catch
-        {
-        }
-    }
-
-    private void UpdateBpCount()
-    {
-        try
-        {
-            if (BpCountText != null)
-                BpCountText.Text = $"({_breakpoints.Count} точек)";
-        }
-        catch
-        {
-        }
-    }
-
-    private void OnClearOutputClick(object sender, RoutedEventArgs e)
-    {
-        OutputBox.Clear();
-    }
-
-    private void OutputBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-    {
-        try
-        {
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.BeginInvoke(
-                    new Action<object, System.Windows.Controls.TextChangedEventArgs>(OutputBox_OnTextChanged), sender,
-                    e);
-                return;
-            }
-
-            // Schedule scroll after layout to ensure pinned to bottom even with outer ScrollViewer
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    OutputBox.CaretIndex = OutputBox.Text?.Length ?? 0;
-                    OutputBox.UpdateLayout();
-                    OutputBox.ScrollToEnd();
-                    try
-                    {
-                        OutputScroll?.ScrollToBottom();
-                    }
-                    catch
-                    {
-                    }
-                }
-                catch
-                {
-                }
-            }), System.Windows.Threading.DispatcherPriority.Background);
-        }
-        catch
-        {
-        }
-    }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
@@ -860,32 +564,6 @@ end)", "Задержка с колбэком"),
 
     // ===== AI CHAT INTEGRATION =====
 
-    private void InitAiConfig()
-    {
-        _aiApiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY") ?? _aiApiKey;
-
-        try
-        {
-            var configPath = Path.Combine(AppContext.BaseDirectory, "config", "ai_settings.json");
-            if (File.Exists(configPath))
-            {
-                var config = JsonSerializer.Deserialize<AIConfig>(File.ReadAllText(configPath));
-                _aiApiKey = config?.OllamaApiKey ?? _aiApiKey;
-            }
-            else
-            {
-                var settingsWindow = new ApiKeySettingsWindow(_aiApiKey);
-                if (settingsWindow.ShowDialog() == true)
-                {
-                    _aiApiKey = settingsWindow.ApiKey;
-                }
-            }
-        }
-        catch
-        {
-            // Игнорируем ошибки чтения конфига
-        }
-    }
 
     private void OnAiToggleClick(object sender, RoutedEventArgs e)
     {
@@ -921,157 +599,39 @@ end)", "Задержка с колбэком"),
         }
     }
 
-    private void OnAiNewSessionClick(object sender, RoutedEventArgs e)
-    {
-        _aiMessages.Clear();
-        _aiLastCode = null;
-        _aiLastDiff = null;
-        ClearDiff();
-        AiApplyBtn.IsEnabled = false;
-        AiMessagesPanel.Children.Clear();
-        AppendAiBubble("system", "Новая сессия начата. Опишите задачу для AI.");
-    }
-
-    private void ClearDiff()
+    private void AiOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         try
         {
-            if (AiDiffBox != null)
+            if (e.PropertyName == nameof(Pw.Hub.ViewModels.LuaEditorAiViewModel.DiffLines) || string.IsNullOrEmpty(e.PropertyName))
             {
-                AiDiffBox.Document = new FlowDocument(new Paragraph(new Run("")));
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private async void OnAiSendClick(object sender, RoutedEventArgs e)
-    {
-        var prompt = (AiInput.Text ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(prompt)) return;
-        if (string.IsNullOrEmpty(_aiApiKey) || _aiApiKey == "your-ollama-cloud-api-key")
-        {
-            MessageBox.Show(this,
-                "API ключ Ollama Cloud не настроен. Укажите переменную окружения OLLAMA_API_KEY или config/ai_settings.json.",
-                "AI", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        // Show pane if hidden
-        if (AiPaneRoot.Visibility != Visibility.Visible)
-        {
-            if (AiPaneColumn.ActualWidth > 10)
-                _aiPaneLastWidth = AiPaneColumn.ActualWidth;
-            AiPaneColumn.MinWidth = 600;
-            AiPaneColumn.Width = new GridLength(Math.Max(600, _aiPaneLastWidth));
-            AiPaneRoot.Visibility = Visibility.Visible;
-        }
-
-        AppendAiBubble("user", prompt);
-        AiInput.Clear();
-        AiSendBtn.IsEnabled = false;
-        AiApplyBtn.IsEnabled = false;
-        ClearDiff();
-        ShowTypingIndicator();
-
-        try
-        {
-            var sysPrompt = BuildAiSystemPrompt();
-            var messages = new List<object> { new { role = "system", content = sysPrompt } };
-            // include history
-            foreach (var m in _aiMessages)
-            {
-                messages.Add(new { role = m.role, content = m.content });
-            }
-
-            // include current editor code as context in the prompt
-            var userAugmented = prompt + "\n\nТекущий код редактора ниже между тройными кавычками:\n\"\"\"\n" +
-                                (Editor?.Text ?? string.Empty) + "\n\"\"\"";
-            messages.Add(new { role = "user", content = userAugmented });
-
-            var req = new
-            {
-                model = "deepseek-v3.1:671b",
-                //model = "qwen3-coder:30b",
-                messages = messages,
-                stream = false
-            };
-
-            var json = JsonSerializer.Serialize(req,
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            _aiHttp.DefaultRequestHeaders.Remove("Authorization");
-            _aiHttp.DefaultRequestHeaders.Add("Authorization", $"Bearer {_aiApiKey}");
-            var resp = await _aiHttp.PostAsync(OllamaCloudUrl, content);
-            var respText = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode)
-            {
-                throw new Exception($"Ошибка API ({(int)resp.StatusCode}): {respText}");
-            }
-
-            var assistantText = TryExtractAssistantContent(respText) ?? respText;
-            _aiMessages.Add(new AiMessage { role = "user", content = prompt });
-            _aiMessages.Add(new AiMessage { role = "assistant", content = assistantText });
-            HideTypingIndicator();
-            AppendAiBubble("assistant", assistantText);
-
-            // Try extract code block and diff
-            var code = ExtractLuaCodeBlock(assistantText);
-            if (!string.IsNullOrWhiteSpace(code))
-            {
-                _aiLastCode = code.Replace("\r\n", "\n");
-                var current = (Editor?.Text ?? string.Empty).Replace("\r\n", "\n");
-                if (_aiLastCode != current)
+                var lines = _vm?.Ai?.DiffLines;
+                if (lines != null && lines.Count > 0)
                 {
-                    var diffLines = BuildUnifiedDiffGit(current, _aiLastCode, 3);
-                    _aiLastDiff = string.Join("\n", diffLines);
-                    RenderDiff(diffLines);
-
-                    // Apply automatically if AI brave is enabled
-                    var brave = AiBraveCheck?.IsChecked == true;
-                    if (brave)
+                    if (!Dispatcher.CheckAccess())
                     {
-                        Editor.Text = _aiLastCode.Replace("\n", Environment.NewLine);
-                        AppendAiBubble("system", "AI brave: изменения автоматически применены к редактору.");
-                        AiApplyBtn.IsEnabled = false;
+                        Dispatcher.BeginInvoke(new Action<object?, PropertyChangedEventArgs>(AiOnPropertyChanged), sender, e);
+                        return;
                     }
-                    else
+
+                    // Показать AI‑панель, если она скрыта
+                    if (AiPaneRoot.Visibility != Visibility.Visible)
                     {
-                        AiApplyBtn.IsEnabled = true;
+                        if (AiPaneColumn.ActualWidth > 10)
+                            _aiPaneLastWidth = AiPaneColumn.ActualWidth;
+                        AiPaneColumn.MinWidth = 600;
+                        AiPaneColumn.Width = new GridLength(Math.Max(600, _aiPaneLastWidth));
+                        AiPaneRoot.Visibility = Visibility.Visible;
                     }
                 }
-                else
-                {
-                    RenderDiff(new List<string> { "Изменений нет (код идентичен текущему)." });
-                    AiApplyBtn.IsEnabled = false;
-                }
-            }
-            else
-            {
-                RenderDiff(new List<string> { "AI не вернул код в блоке ```lua ...```. Уточните запрос." });
             }
         }
-        catch (Exception ex)
-        {
-            AppendAiBubble("assistant", "Ошибка: " + ex.Message);
-        }
-        finally
-        {
-            AiSendBtn.IsEnabled = true;
-        }
+        catch { }
     }
 
-    private void OnAiApplyClick(object sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrEmpty(_aiLastCode)) return;
-        if (MessageBox.Show(this, "Вставить изменения из AI в редактор?", "AI", MessageBoxButton.YesNo,
-                MessageBoxImage.Question) == MessageBoxResult.Yes)
-        {
-            Editor.Text = _aiLastCode.Replace("\n", Environment.NewLine);
-            AppendAiBubble("system", "Изменения вставлены в редактор.");
-        }
-    }
+
+
+
 
     // Handle splitter drag lifecycle to avoid toggling pane while dragging
     private void OnSplitterDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
@@ -1098,655 +658,16 @@ end)", "Задержка с колбэком"),
         }
     }
 
-    private void OnAiBraveToggled(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var brave = AiBraveCheck?.IsChecked == true;
-            if (AiApplyBtn != null)
-            {
-                AiApplyBtn.Visibility = brave ? Visibility.Collapsed : Visibility.Visible;
-                AiApplyBtn.IsEnabled = !brave && !string.IsNullOrEmpty(_aiLastDiff) && !string.IsNullOrEmpty(_aiLastCode);
-            }
 
-            // If toggled to brave and we already have pending code different from editor — apply immediately
-            if (brave && !string.IsNullOrEmpty(_aiLastCode))
-            {
-                var current = (Editor?.Text ?? string.Empty).Replace("\r\n", "\n");
-                var proposed = _aiLastCode.Replace("\r\n", "\n");
-                if (!string.Equals(current, proposed, StringComparison.Ordinal))
-                {
-                    Editor.Text = proposed.Replace("\n", Environment.NewLine);
-                    AppendAiBubble("system", "AI brave: изменения автоматически применены к редактору.");
-                }
-            }
-        }
-        catch
-        {
-        }
-    }
 
-    private void AppendAiBubble(string role, string text)
-    {
-        try
-        {
-            var isUser = string.Equals(role, "user", StringComparison.OrdinalIgnoreCase);
-            var isAssistant = string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase);
 
-            var bubble = new Border
-            {
-                Background = TryFindResource(isUser ? "BackgroundSecondaryBrush" : "BackgroundTertiaryBrush") as Brush,
-                BorderBrush = TryFindResource("BorderBrush") as Brush,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(10),
-                Margin = new Thickness(8, 4, 8, 4),
-                HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                MaxWidth = 560
-            };
 
-            // If assistant returned code, show truncated preview with actions
-            string code = null;
-            if (isAssistant)
-            {
-                code = ExtractLuaCodeBlock(text);
-            }
 
-            if (!string.IsNullOrEmpty(code))
-            {
-                var panel = new StackPanel { Orientation = Orientation.Vertical };
 
-                // Title
-                var title = new TextBlock
-                {
-                    Text = "Фрагмент кода (первые 2 строки)",
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = TryFindResource("TextPrimaryBrush") as Brush
-                };
-                panel.Children.Add(title);
 
-                // Preview of first two lines
-                var lines = code.Replace("\r\n", "\n").Split('\n');
-                var preview = string.Join("\n", lines.Take(2));
-                if (lines.Length > 2) preview += "\n...";
-                var tb = new TextBlock
-                {
-                    Text = preview,
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = TryFindResource("TextPrimaryBrush") as Brush,
-                    FontFamily = TryFindResource("MonospaceFont") as FontFamily ?? new FontFamily("Consolas"),
-                    Margin = new Thickness(0, 4, 0, 8)
-                };
-                panel.Children.Add(tb);
 
-                // Actions row
-                var actions = new StackPanel
-                    { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-                var copyBtn = new Button
-                {
-                    Content = "📋 Копировать",
-                    Style = TryFindResource("ModernButton") as Style,
-                    Margin = new Thickness(0, 0, 8, 0),
-                    Padding = new Thickness(8, 4, 8, 4),
-                    Tag = code
-                };
-                copyBtn.Click += OnCopyCodeClick;
-                var showBtn = new Button
-                {
-                    Content = "🔎 Показать полностью",
-                    Style = TryFindResource("ModernButton") as Style,
-                    Padding = new Thickness(8, 4, 8, 4),
-                    Tag = code
-                };
-                showBtn.Click += OnShowFullCodeClick;
-                actions.Children.Add(copyBtn);
-                actions.Children.Add(showBtn);
-                panel.Children.Add(actions);
 
-                bubble.Child = panel;
-            }
-            else
-            {
-                var tb = new TextBlock
-                {
-                    Text = text,
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = TryFindResource("TextPrimaryBrush") as Brush,
-                    FontFamily = TryFindResource("MonospaceFont") as FontFamily ?? new FontFamily("Consolas")
-                };
-                bubble.Child = tb;
-            }
 
-            AiMessagesPanel.Children.Add(bubble);
-            ScrollChatToBottom();
-        }
-        catch
-        {
-        }
-    }
-
-    private void OnCopyCodeClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is Button b && b.Tag is string code)
-            {
-                Clipboard.SetText(code);
-                AppendAiBubble("system", "Код скопирован в буфер обмена.");
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private void OnShowFullCodeClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is Button b && b.Tag is string code)
-            {
-                ShowCodeDialog(code);
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private void ScrollChatToBottom()
-    {
-        try
-        {
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.BeginInvoke(new Action(ScrollChatToBottom));
-                return;
-            }
-
-            // Defer to background priority so layout is updated before scrolling
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    AiMessagesScroll?.UpdateLayout();
-                    AiMessagesScroll?.ScrollToBottom();
-                }
-                catch
-                {
-                }
-            }), System.Windows.Threading.DispatcherPriority.Background);
-        }
-        catch
-        {
-        }
-    }
-
-    private void ShowCodeDialog(string code)
-    {
-        try
-        {
-            var win = new Window
-            {
-                Owner = this,
-                Title = "Полный код из ответа AI",
-                Width = 900,
-                Height = 700,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Style = TryFindResource("ModernWindow") as Style
-            };
-            var grid = new Grid();
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var header = new TextBlock
-            {
-                Text = "Ответ AI — полный код", 
-                Margin = new Thickness(10), 
-                FontWeight = FontWeights.SemiBold,
-                Style = TryFindResource("ModernTitle") as Style
-            };
-            Grid.SetRow(header, 0);
-            grid.Children.Add(header);
-
-            var tb = new TextBox
-            {
-                Text = code?.Replace("\n", Environment.NewLine) ?? string.Empty,
-                IsReadOnly = true,
-                FontFamily = TryFindResource("MonospaceFont") as FontFamily ?? new FontFamily("Consolas"),
-                TextWrapping = TextWrapping.NoWrap,
-                AcceptsReturn = true,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Margin = new Thickness(10),
-                Style = TryFindResource("ModernTextBox") as Style
-            };
-            Grid.SetRow(tb, 1);
-            grid.Children.Add(tb);
-
-            var footer = new StackPanel
-            {
-                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(10)
-            };
-            var copy = new Button
-            {
-                Content = "📋 Копировать", Style = TryFindResource("ModernButton") as Style,
-                Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(8, 4, 8, 4)
-            };
-            copy.Click += (_, __) =>
-            {
-                try
-                {
-                    Clipboard.SetText(code ?? string.Empty);
-                }
-                catch
-                {
-                }
-            };
-            var close = new Button
-            {
-                Content = "Закрыть", Style = TryFindResource("PrimaryButton") as Style,
-                Padding = new Thickness(12, 6, 12, 6)
-            };
-            close.Click += (_, __) => win.Close();
-            footer.Children.Add(copy);
-            footer.Children.Add(close);
-            Grid.SetRow(footer, 2);
-            grid.Children.Add(footer);
-
-            win.Content = grid;
-            win.ShowDialog();
-        }
-        catch
-        {
-        }
-    }
-
-    private string BuildAiSystemPrompt()
-    {
-        return @"Ты - эксперт по Lua скриптам для автоматизации игровых процессов. 
-Сгенерируй чистый, рабочий код на Lua.
-Отвечай ТОЛЬКО кодом в одном блоке ```lua ...``` без пояснений.
-Если в запросе просят правки, верни весь итоговый файл со внесёнными изменениями. 
-
-ДОСТУПНОЕ API (все функции асинхронные с callback):
-
-=== РАБОТА С АККАУНТАМИ ===
-Account_GetAccountCb(cb) - получить текущий аккаунт
-Account_GetAccountsCb(cb) - получить все аккаунты (возвращает таблицу с полями: Id, Name, OrderIndex, Squad, Servers)
-Account_IsAuthorizedCb(cb) - проверка авторизации (возвращает boolean)
-Account_ChangeAccountCb(accountId, cb) - сменить аккаунт
-
-=== РАБОТА С БРАУЗЕРОМ ===
-Browser_NavigateCb(url, cb) - перейти по URL
-Browser_ReloadCb(cb) - перезагрузить страницу
-Browser_ExecuteScriptCb(jsCode, cb) - выполнить JavaScript
-Browser_ElementExistsCb(selector, cb) - проверить наличие элемента
-Browser_WaitForElementCb(selector, timeoutMs, cb) - ждать появление элемента
-
-=== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
-Print(text) - вывести текст в лог
-DelayCb(ms, cb) - асинхронная задержка
-ReportProgress(percent) - отчет о прогрессе
-ReportProgressMsg(percent, message) - отчет с сообщением
-Complete(result) - завершить выполнение модуля (если скрипт запущен как модуль)
-Net_PostJsonCb(url, jsonBody, contentType, cb) - отправить POST запрос (возвращает Success, ResponseBody, Error)
-
-=== СТРУКТУРА ДАННЫХ ===
-Аккаунт: {Id, Name, OrderIndex, Squad, Servers[]}
-Отряд: {Id, Name, OrderIndex}
-Сервер: {Id, Name, OptionId, DefaultCharacterOptionId, Characters[]}
-Персонаж: {Id, Name, OptionId}
-
-=== АРГУМЕНТЫ ЗАПУСКА (глобальная таблица args) ===
-При запуске/отладке из редактора перед показом диалога запуска появляется окно ввода параметров. 
-Если у модуля заданы входные параметры, в среде Lua доступна глобальная таблица args с введёнными значениями:
-- Доступ: args.param или args[""param""]; Если параметр не введён — значение будет nil.
-- Возможные типы значений по типу ввода:
-  • string/password — строка
-  • number — число (если введено корректно), иначе строка; проверяй через type(...) или tonumber
-  • bool — boolean (true/false)
-  • squad — таблица Отряд {Id, Name, OrderIndex, Accounts?}
-  • squads — массив таблиц Отряд
-  • account — таблица Аккаунт {Id, Name, OrderIndex, Squad, Servers[]}
-  • accounts — массив таблиц Аккаунт
-Пример использования:
-```lua
--- Безопасно читаем строковый параметр username
-local username = (args and args.username) or ""guest""
-Print(""Пользователь:"" .. username)
-
--- Перебор выбранных аккаунтов (если есть)
-if args and args.accounts then
-    for i, acc in ipairs(args.accounts) do
-        Print(string.format(""[%d] %s (%s)"", i, acc.Name or """" , acc.Id or """"))
-    end
-end
-```
-
-ВАЖНЫЕ ПРАВИЛА:
-1. ВСЕГДА используй асинхронные версии функций (оканчиваются на Cb)
-2. Добавляй комментарии на русском языке для основных блоков
-3. Обрабатывай возможные ошибки и пограничные случаи
-4. Используй понятные именования переменных
-5. Логируй ключевые этапы через Print()
-6. Если функция Complete доступна - вызывай ее в конце
-7. Для работы с таблицами используй ipairs и # для размера
-8. Всегда проверяй существование данных перед использованием
-9. Функции не могут использовать другие функции, объявленные после них. Поэтому в самом начале объяви все функции для взаимных вызовов, а потом присвой им значение.
-10. JavaScript для выполнения должен быть объявлен в однострочной переменной.
-11. Выполненный JavaScript может вернуть только строку.
-12. Если результатом выполнения нужен массив, то в JavaScript нужно соединить результат в одну строку с разделителем, а в lua потом разбить строку на массив через разделитель.
-13. Переходить можно только по ссылкам с доменом pwonline.ru
-14. Перед обращением к элементу нужно ждать, пока он появится (1000 МС достаточно).";
-    }
-
-    private static string TryExtractAssistantContent(string json)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            // shape 1: { message: { content: "..." } }
-            if (doc.RootElement.TryGetProperty("message", out var msg) && msg.ValueKind == JsonValueKind.Object)
-            {
-                if (msg.TryGetProperty("content", out var c)) return c.GetString();
-            }
-
-            // shape 2: { messages: [ {role:"assistant", content:"..."}, ...] }
-            if (doc.RootElement.TryGetProperty("messages", out var arr) && arr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var el in arr.EnumerateArray())
-                {
-                    var role = el.TryGetProperty("role", out var r) ? r.GetString() : null;
-                    if (string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (el.TryGetProperty("content", out var c2)) return c2.GetString();
-                    }
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        return null;
-    }
-
-    private static string ExtractLuaCodeBlock(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return null;
-        var m = Regex.Match(text, "```lua(.*?)```", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        if (m.Success) return m.Groups[1].Value.Trim();
-        // fallback: any fenced block
-        m = Regex.Match(text, "```(.*?)```", RegexOptions.Singleline);
-        if (m.Success) return m.Groups[1].Value.Trim();
-        return null;
-    }
-
-    private static string BuildUnifiedDiff(string oldText, string newText)
-    {
-        // Kept for backward compatibility; not used anymore
-        var a = (oldText ?? string.Empty).Split('\n');
-        var b = (newText ?? string.Empty).Split('\n');
-        var sb = new StringBuilder();
-        sb.AppendLine("--- Текущий файл");
-        sb.AppendLine("+++ Предложение AI");
-        int n = Math.Min(a.Length, b.Length);
-        for (int i = 0; i < n; i++)
-        {
-            if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
-            {
-                sb.AppendLine("- " + a[i]);
-                sb.AppendLine("+ " + b[i]);
-            }
-        }
-
-        for (int i = n; i < a.Length; i++) sb.AppendLine("- " + a[i]);
-        for (int i = n; i < b.Length; i++) sb.AppendLine("+ " + b[i]);
-        if (sb.Length == 0) return "Изменений нет";
-        return sb.ToString();
-    }
-
-    // Build a git-like unified diff with hunks and context
-    private static List<string> BuildUnifiedDiffGit(string oldText, string newText, int context = 3)
-    {
-        var a = (oldText ?? string.Empty).Split('\n');
-        var b = (newText ?? string.Empty).Split('\n');
-        var lines = new List<string>(a.Length + b.Length + 8)
-        {
-            "--- Текущий файл",
-            "+++ Предложение AI"
-        };
-
-        // LCS dynamic programming tables
-        int n = a.Length, m = b.Length;
-        var dp = new int[n + 1, m + 1];
-        for (int i = n - 1; i >= 0; i--)
-        {
-            for (int j = m - 1; j >= 0; j--)
-            {
-                if (a[i] == b[j]) dp[i, j] = dp[i + 1, j + 1] + 1;
-                else dp[i, j] = Math.Max(dp[i + 1, j], dp[i, j + 1]);
-            }
-        }
-
-        // Build edit script
-        var edits = new List<(char tag, string text, int ia, int jb)>();
-        int ia = 0, jb = 0;
-        while (ia < n && jb < m)
-        {
-            if (a[ia] == b[jb])
-            {
-                edits.Add((' ', a[ia], ia, jb));
-                ia++;
-                jb++;
-            }
-            else if (dp[ia + 1, jb] >= dp[ia, jb + 1])
-            {
-                edits.Add(('-', a[ia], ia, jb));
-                ia++;
-            }
-            else
-            {
-                edits.Add(('+', b[jb], ia, jb));
-                jb++;
-            }
-        }
-
-        while (ia < n)
-        {
-            edits.Add(('-', a[ia], ia, jb));
-            ia++;
-        }
-
-        while (jb < m)
-        {
-            edits.Add(('+', b[jb], ia, jb));
-            jb++;
-        }
-
-        // Identify hunks: sequences with any +/-; include context around
-        int idx = 0;
-        while (idx < edits.Count)
-        {
-            // skip pure context
-            while (idx < edits.Count && edits[idx].tag == ' ') idx++;
-            if (idx >= edits.Count) break;
-            int hunkStart = Math.Max(0, idx - context);
-            int i2 = idx;
-            int lastChange = idx;
-            // extend until the next block of changes ends
-            while (i2 < edits.Count)
-            {
-                if (edits[i2].tag != ' ') lastChange = i2;
-                // if we have run past last change more than context, stop
-                if (edits[i2].tag == ' ' && i2 - lastChange > context) break;
-                i2++;
-            }
-
-            int hunkEnd = Math.Min(edits.Count, lastChange + context + 1);
-
-            // Compute ranges for header
-            int oldStart = 0, newStart = 0, oldCount = 0, newCount = 0;
-            // derive starting line numbers by scanning from beginning counting only lines up to hunkStart
-            int oldLine = 1, newLine = 1;
-            for (int k = 0; k < hunkStart; k++)
-            {
-                if (edits[k].tag != '+') oldLine++;
-                if (edits[k].tag != '-') newLine++;
-            }
-
-            oldStart = oldLine;
-            newStart = newLine;
-            // counts inside hunk
-            for (int k = hunkStart; k < hunkEnd; k++)
-            {
-                if (edits[k].tag != '+') oldCount++;
-                if (edits[k].tag != '-') newCount++;
-            }
-
-            lines.Add($"@@ -{oldStart},{oldCount} +{newStart},{newCount} @@");
-            for (int k = hunkStart; k < hunkEnd; k++)
-            {
-                var (tag, text, _, __) = edits[k];
-                lines.Add((tag == ' ' ? " " : tag.ToString()) + text);
-            }
-
-            idx = hunkEnd;
-        }
-
-        if (lines.Count <= 2)
-        {
-            lines.Add("Изменений нет");
-        }
-
-        return lines;
-    }
-
-    private void RenderDiff(IList<string> lines)
-    {
-        try
-        {
-            if (AiDiffBox == null) return;
-            var doc = new FlowDocument();
-            doc.PagePadding = new Thickness(4);
-            doc.FontFamily = TryFindResource("MonospaceFont") as FontFamily ?? new FontFamily("Consolas");
-            var textBrush = TryFindResource("TextPrimaryBrush") as Brush ?? Brushes.Black;
-            var addBrush = new SolidColorBrush(Color.FromRgb(45, 160, 75));
-            var delBrush = new SolidColorBrush(Color.FromRgb(200, 60, 60));
-            var headBrush = TryFindResource("AccentHighlightBrush") as Brush ??
-                            new SolidColorBrush(Color.FromRgb(50, 120, 200));
-            var ctxBrush = TryFindResource("TextSecondaryBrush") as Brush ??
-                           new SolidColorBrush(Color.FromRgb(120, 120, 120));
-
-            foreach (var line in lines ?? Array.Empty<string>())
-            {
-                var para = new Paragraph { Margin = new Thickness(0), Padding = new Thickness(0) };
-                if (line.StartsWith("@@"))
-                {
-                    var run = new Run(line) { Foreground = headBrush, FontWeight = FontWeights.Bold };
-                    para.Inlines.Add(run);
-                }
-                else if (line.StartsWith("+++ ") || line.StartsWith("--- "))
-                {
-                    var run = new Run(line) { Foreground = headBrush };
-                    para.Inlines.Add(run);
-                }
-                else if (line.StartsWith("+"))
-                {
-                    var run = new Run(line) { Foreground = addBrush };
-                    para.Inlines.Add(run);
-                }
-                else if (line.StartsWith("-"))
-                {
-                    var run = new Run(line) { Foreground = delBrush };
-                    para.Inlines.Add(run);
-                }
-                else if (line.StartsWith(" "))
-                {
-                    var run = new Run(line) { Foreground = ctxBrush };
-                    para.Inlines.Add(run);
-                }
-                else
-                {
-                    var run = new Run(line) { Foreground = textBrush };
-                    para.Inlines.Add(run);
-                }
-
-                doc.Blocks.Add(para);
-            }
-
-            AiDiffBox.Document = doc;
-        }
-        catch
-        {
-        }
-    }
-
-    private class AIConfig
-    {
-        public string OllamaApiKey { get; set; }
-    }
-
-    private void ShowTypingIndicator()
-    {
-        try
-        {
-            HideTypingIndicator();
-            var bubble = new Border
-            {
-                Background = TryFindResource("BackgroundTertiaryBrush") as Brush,
-                BorderBrush = TryFindResource("BorderBrush") as Brush,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(10),
-                Margin = new Thickness(8, 4, 8, 4),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                MaxWidth = 560
-            };
-            var stack = new StackPanel
-                { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var pb = new ProgressBar
-            {
-                IsIndeterminate = true,
-                Width = 120, 
-                Height = 12, 
-                Margin = new Thickness(0, 0, 8, 0),
-                Style = TryFindResource("ModernProgressBar") as Style
-            };
-            var txt = new TextBlock
-            {
-                Text = "AI думает...", VerticalAlignment = VerticalAlignment.Center,
-                Foreground = TryFindResource("TextSecondaryBrush") as Brush
-            };
-            stack.Children.Add(pb);
-            stack.Children.Add(txt);
-            bubble.Child = stack;
-            _aiTypingBubble = bubble;
-            AiMessagesPanel.Children.Add(bubble);
-            ScrollChatToBottom();
-        }
-        catch
-        {
-        }
-    }
-
-    private void HideTypingIndicator()
-    {
-        try
-        {
-            if (_aiTypingBubble != null)
-            {
-                AiMessagesPanel.Children.Remove(_aiTypingBubble);
-                _aiTypingBubble = null;
-            }
-        }
-        catch
-        {
-        }
-    }
 }
 
 internal class BreakpointBackgroundRenderer : IBackgroundRenderer
@@ -1894,21 +815,4 @@ internal class FieldCompletionData : ICompletionData
 }
 
 
-public class OllamaResponse
-{
-    public string model { get; set; }
-    public string created_at { get; set; }
-    public Message message { get; set; }
-    public bool done { get; set; }
-    public string done_reason { get; set; }
-    public long total_duration { get; set; }
-    public int prompt_eval_count { get; set; }
-    public int eval_count { get; set; }
-}
-
-public class Message
-{
-    public string role { get; set; }
-    public string content { get; set; }
-}
 
