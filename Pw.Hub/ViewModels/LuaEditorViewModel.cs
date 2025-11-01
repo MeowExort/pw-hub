@@ -23,6 +23,12 @@ public class LuaEditorViewModel : BaseViewModel
 
     public LuaEditorAiViewModel Ai { get; } = new LuaEditorAiViewModel();
 
+    /// <summary>
+    /// Определения входных параметров для запуска/отладки текущего скрипта.
+    /// Если коллекция не пуста, перед запуском будет показан диалог ввода значений.
+    /// </summary>
+    public ObservableCollection<InputDefinitionDto> Inputs { get; } = new();
+
     public LuaEditorViewModel() : this(new LuaDebugService(), new UiDialogService()) { }
 
     public LuaEditorViewModel(ILuaDebugService debugService, IUiDialogService dialogs)
@@ -140,13 +146,27 @@ public class LuaEditorViewModel : BaseViewModel
     private async void Run()
     {
         if (!CanRun) return;
+
+        // Сбор аргументов запуска (если заданы входные параметры)
+        Dictionary<string, object> args = new();
+        try
+        {
+            if (Inputs != null && Inputs.Count > 0)
+            {
+                var collected = _dialogs.AskRunArguments(Inputs.ToList());
+                if (collected == null) return; // пользователь отменил запуск
+                args = collected;
+            }
+        }
+        catch { }
+
         IsRunning = true;
         try
         {
             // Подключаем обработчики вывода
             _runner.SetPrintSink(AppendLog);
             _runner.SetProgressSink((p, m) => { /* editor run: можно игнорировать */ });
-            await _runner.RunCodeAsync(Code, new Dictionary<string, object>());
+            await _runner.RunCodeAsync(Code, args);
         }
         catch (Exception ex)
         {
@@ -165,6 +185,20 @@ public class LuaEditorViewModel : BaseViewModel
     private async void Debug()
     {
         if (!CanRun || Breakpoints.Count == 0) return;
+
+        // Сбор аргументов запуска (если заданы входные параметры)
+        Dictionary<string, object> args = new();
+        try
+        {
+            if (Inputs != null && Inputs.Count > 0)
+            {
+                var collected = _dialogs.AskRunArguments(Inputs.ToList());
+                if (collected == null) return; // отмена
+                args = collected;
+            }
+        }
+        catch { }
+
         IsRunning = true;
         try
         {
@@ -174,7 +208,7 @@ public class LuaEditorViewModel : BaseViewModel
                 catch { }
                 return true; // продолжать выполнение после закрытия окна
             };
-            await _debugService.RunWithBreakpointsAsync(_runner, Code, new HashSet<int>(Breakpoints), onBreak, new Dictionary<string, object>());
+            await _debugService.RunWithBreakpointsAsync(_runner, Code, new HashSet<int>(Breakpoints), onBreak, args);
         }
         catch (Exception ex)
         {

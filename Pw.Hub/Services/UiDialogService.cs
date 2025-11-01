@@ -1,4 +1,7 @@
-﻿using System.Windows;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using Pw.Hub.Windows;
 
 namespace Pw.Hub.Services;
 
@@ -30,5 +33,24 @@ public class UiDialogService : IUiDialogService
         // Простой вариант: используем стандартный InputBox недоступен в WPF.
         // На будущее можно реализовать собственное окно ввода. Пока возвращаем null.
         return null;
+    }
+
+    public Dictionary<string, object>? AskRunArguments(IList<InputDefinitionDto> inputs)
+    {
+        try
+        {
+            if (inputs == null || inputs.Count == 0) return new Dictionary<string, object>();
+            var dlg = new RunArgsWindow(inputs) { Owner = Application.Current?.MainWindow };
+            var ok = dlg.ShowDialog();
+            if (ok == true)
+            {
+                return dlg.Result?.ToDictionary(kv => kv.Key, kv => kv.Value) ?? new Dictionary<string, object>();
+            }
+            return null; // отмена
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

@@ -223,10 +223,28 @@
                                     <DataTemplate>
                                         <Border Padding="10" Margin="8,4" CornerRadius="10"
                                                 Background="{StaticResource BackgroundTertiaryBrush}"
-                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                HorizontalAlignment="Left"
+                                                MaxWidth="{Binding ElementName=AiMessagesScroll, Path=ActualWidth}">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Role}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Text}"
+                                                           TextWrapping="Wrap"
+                                                           xml:space="preserve"/>
+                                                <Button Content="Показать полные изменения"
+                                                        Style="{StaticResource ModernButton}"
+                                                        Padding="8,4"
+                                                        MinWidth="200"
+                                                        Margin="0,6,0,0"
+                                                        Command="{Binding DataContext.Ai.OpenFullDiffCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                    <Button.Visibility>
+                                                        <Binding Path="ShowDiffButton">
+                                                            <Binding.Converter>
+                                                                <BooleanToVisibilityConverter />
+                                                            </Binding.Converter>
+                                                        </Binding>
+                                                    </Button.Visibility>
+                                                </Button>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>

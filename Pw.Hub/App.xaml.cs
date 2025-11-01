@@ -72,7 +72,8 @@ public partial class App
             sc.AddSingleton<IUiDialogService, UiDialogService>();
             sc.AddSingleton<IOrderingService, OrderingService>();
             sc.AddSingleton<IAccountsService, AccountsService>();
-            // Diff preview service for AI pane in Lua editor
+            // AI config and diff preview services
+            sc.AddSingleton<IAiConfigService, AiConfigService>();
             sc.AddSingleton<IDiffPreviewService, DiffPreviewService>();
             sc.AddSingleton<IAiAssistantService, AiAssistantService>();
             sc.AddSingleton<IAiDocService, AiDocService>();

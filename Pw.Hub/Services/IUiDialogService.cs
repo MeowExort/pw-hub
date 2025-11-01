@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.Collections.Generic;
+using System.Windows;
 
 namespace Pw.Hub.Services;
 
@@ -31,4 +32,11 @@ public interface IUiDialogService
     /// <param name="defaultValue">Значение по умолчанию.</param>
     /// <returns>Введённая строка или null при отмене.</returns>
     string? Prompt(string prompt, string caption = "Ввод", string? defaultValue = null);
+
+    /// <summary>
+    /// Показывает диалог ввода аргументов запуска для Lua скрипта.
+    /// Возвращает словарь введённых значений или null при отмене.
+    /// </summary>
+    /// <param name="inputs">Определения входных параметров.</param>
+    Dictionary<string, object>? AskRunArguments(IList<InputDefinitionDto> inputs);
 }

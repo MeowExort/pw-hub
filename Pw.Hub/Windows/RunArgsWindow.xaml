@@ -1,0 +1,38 @@
+﻿<Window x:Class="Pw.Hub.Windows.RunArgsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Аргументы запуска" Height="500" Width="520" WindowStartupLocation="CenterOwner"
+        Icon="/Assets/icon.png"
+        Style="{StaticResource ModernWindowChrome}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Укажите значения входных параметров" Style="{StaticResource HeaderSmall}"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="Items" Margin="0,8,0,8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,6,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Label}" Style="{StaticResource ModernTextBlock}" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" MinHeight="32"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Отмена" Style="{StaticResource ModernButton}" MinWidth="120" Padding="14,8" IsCancel="True" Click="OnCancel" Margin="0,0,8,0"/>
+            <Button Content="ОК" Style="{StaticResource PrimaryButton}" MinWidth="140" Padding="14,8" IsDefault="True" Click="OnOk"/>
+        </StackPanel>
+    </Grid>
+</Window>

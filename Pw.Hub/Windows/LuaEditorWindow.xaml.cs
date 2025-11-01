@@ -21,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pw.Hub.Services;
 using System.Linq;
 using System.ComponentModel;
+using System.Collections.Generic;
 
 namespace Pw.Hub.Windows;
 
@@ -172,6 +173,8 @@ end)", "Задержка с колбэком"),
             {
                 inpc.PropertyChanged += AiOnPropertyChanged;
             }
+            // Открытие окна полного diff по запросу из AI VM
+            try { _vm.Ai.RequestOpenFullDiff += OnRequestOpenFullDiff; } catch { }
         }
         catch { }
 
@@ -179,6 +182,19 @@ end)", "Задержка с колбэком"),
         Loaded += (_, __) =>
         {
             try { Editor.Text = _vm.Code ?? Editor.Text; } catch { }
+            // Копируем ApiInputs в VM для показа диалога аргументов при запуске/отладке
+            try
+            {
+                if (ApiInputs != null && ApiInputs.Count > 0)
+                {
+                    _vm.Inputs.Clear();
+                    foreach (var input in ApiInputs)
+                    {
+                        _vm.Inputs.Add(input);
+                    }
+                }
+            }
+            catch { }
         };
         
         // Остальные жизненные события окна
@@ -275,6 +291,7 @@ end)", "Задержка с колбэком"),
         {
             if (_vm?.Ai is INotifyPropertyChanged inpc)
                 inpc.PropertyChanged -= AiOnPropertyChanged;
+            try { if (_vm?.Ai != null) _vm.Ai.RequestOpenFullDiff -= OnRequestOpenFullDiff; } catch { }
         }
         catch { }
 
@@ -627,9 +644,23 @@ end)", "Задержка с колбэком"),
             }
         }
         catch { }
+        }
+
+    private void OnRequestOpenFullDiff(IList<string> lines)
+    {
+        try
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<IList<string>>(OnRequestOpenFullDiff), lines);
+                return;
+            }
+            // Привязываем окно к Ai VM, чтобы diff обновлялся в реальном времени
+            var dlg = new DiffPreviewWindow(_vm?.Ai) { Owner = this };
+            dlg.ShowDialog();
+        }
+        catch { }
     }
-
-
 
 
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -20,13 +21,16 @@ namespace Pw.Hub.Services
         private readonly string _apiUrl;
         private readonly string _apiKey;
         private readonly string _model;
+        private readonly IAiConfigService _cfg;
 
         public AiDocService()
         {
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-            _apiUrl = Environment.GetEnvironmentVariable("OLLAMA_CHAT_URL")?.Trim() ?? "https://ollama.com/api/chat";
-            _apiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY")?.Trim() ?? string.Empty;
-            _model = Environment.GetEnvironmentVariable("OLLAMA_MODEL")?.Trim() ?? "llama3.1";
+            _cfg = (App.Services?.GetService(typeof(IAiConfigService)) as IAiConfigService) ?? new AiConfigService();
+            var eff = _cfg.GetEffective();
+            _apiUrl = eff.ApiUrl;
+            _apiKey = eff.ApiKey;
+            _model = eff.Model;
         }
 
         public async Task<string> GenerateDescriptionAsync(
@@ -38,6 +42,21 @@ namespace Pw.Hub.Services
             string? previousScriptFragment = null,
             CancellationToken ct = default)
         {
+            // Эффективные настройки (перечитываем из окружения при каждом вызове)
+            var effectiveUrl = _apiUrl;
+            var effectiveKey = _apiKey;
+            var effectiveModel = _model;
+            try
+            {
+                var newUrl = Environment.GetEnvironmentVariable("OLLAMA_CHAT_URL")?.Trim();
+                var newKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY")?.Trim();
+                var newModel = Environment.GetEnvironmentVariable("OLLAMA_MODEL")?.Trim();
+                if (!string.IsNullOrWhiteSpace(newUrl)) effectiveUrl = newUrl;
+                if (newKey != null) effectiveKey = newKey;
+                if (!string.IsNullOrWhiteSpace(newModel)) effectiveModel = newModel;
+            }
+            catch { }
+
             if (string.IsNullOrWhiteSpace(name))
                 return "Введите название модуля";
 
@@ -80,8 +99,8 @@ namespace Pw.Hub.Services
 
             var req = new ChatRequest
             {
-                model = _model,
-                stream = false,
+                model = effectiveModel,
+                stream = true,
                 messages = new()
                 {
                     new ChatMessage { role = "system", content = systemPrompt },
@@ -89,20 +108,58 @@ namespace Pw.Hub.Services
                 }
             };
 
-            using var msg = new HttpRequestMessage(HttpMethod.Post, _apiUrl)
+            using var msg = new HttpRequestMessage(HttpMethod.Post, effectiveUrl)
             {
                 Content = new StringContent(JsonSerializer.Serialize(req, _json), Encoding.UTF8, "application/json")
             };
-            if (!string.IsNullOrEmpty(_apiKey))
-                msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            if (!string.IsNullOrEmpty(effectiveKey))
+                msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", effectiveKey);
 
             try
             {
-                using var resp = await _http.SendAsync(msg, ct).ConfigureAwait(false);
+                using var resp = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
                 resp.EnsureSuccessStatusCode();
+
+                var sb = new StringBuilder();
+                try
+                {
+                    await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    while (!reader.EndOfStream)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        try
+                        {
+                            var chunk = JsonSerializer.Deserialize<StreamChunk>(line, _json);
+                            if (!string.IsNullOrEmpty(chunk?.response)) sb.Append(chunk.response ?? string.Empty);
+                            else if (!string.IsNullOrEmpty(chunk?.message?.content)) sb.Append(chunk?.message?.content ?? string.Empty);
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+
+                if (sb.Length > 0)
+                    return sb.ToString();
+
+                // Fallback: read full JSON
                 var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                var parsed = JsonSerializer.Deserialize<ChatResponse>(json, _json) ?? new ChatResponse();
-                return parsed.messages?.LastOrDefault()?.content ?? string.Empty;
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<ChatResponse>(json, _json) ?? new ChatResponse();
+                    return parsed.messages?.LastOrDefault()?.content ?? string.Empty;
+                }
+                catch
+                {
+                    try
+                    {
+                        var chunk = JsonSerializer.Deserialize<StreamChunk>(json, _json);
+                        return chunk?.response ?? chunk?.message?.content ?? string.Empty;
+                    }
+                    catch { return json; }
+                }
             }
             catch (Exception ex)
             {
@@ -115,5 +172,6 @@ namespace Pw.Hub.Services
         private sealed class ChatMessage { public string role { get; set; } = string.Empty; public string content { get; set; } = string.Empty; }
         private sealed class ChatRequest { public string model { get; set; } = string.Empty; public List<ChatMessage> messages { get; set; } = new(); public bool stream { get; set; } }
         private sealed class ChatResponse { public List<ChatMessage> messages { get; set; } = new(); }
+        private sealed class StreamChunk { public bool done { get; set; } public ChatMessage message { get; set; } public string response { get; set; } }
     }
 }

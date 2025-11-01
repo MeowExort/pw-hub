@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,8 +13,9 @@ namespace Pw.Hub.Services
     {
         /// <summary>
         /// Отправляет запрос пользователю и возвращает ответ ассистента, включая извлечённый код и diff.
+        /// onStreamDelta (если задан) вызывается при поступлении каждого фрагмента текста от ассистента (stream=true).
         /// </summary>
-        Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, CancellationToken ct = default);
+        Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, CancellationToken ct = default, Action<string>? onStreamDelta = null);
 
         /// <summary>
         /// Начать новую сессию (очистить историю сообщений на стороне сервиса, если требуется).
@@ -27,6 +29,10 @@ namespace Pw.Hub.Services
         /// Полный текст ответа ассистента (включая пояснения и, возможно, блок кода).
         /// </summary>
         public string AssistantText { get; set; } = string.Empty;
+        /// <summary>
+        /// Краткое резюме внесённых изменений (для показа отдельным сообщением). Если изменений нет — пояснение.
+        /// </summary>
+        public string Summary { get; set; } = string.Empty;
         /// <summary>
         /// Извлечённый из ответа блок кода Lua (если был обнаружен в ```lua ... ```), иначе пустая строка.
         /// </summary>

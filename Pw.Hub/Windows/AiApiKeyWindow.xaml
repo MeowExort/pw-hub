@@ -1,0 +1,42 @@
+﻿<Window x:Class="Pw.Hub.Windows.AiApiKeyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Настройки AI" Height="260" Width="560" WindowStartupLocation="CenterOwner"
+        Icon="/Assets/icon.png"
+        Style="{StaticResource ModernWindowChrome}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Настройка AI подключения" Style="{StaticResource HeaderSmall}"/>
+
+        <Grid Grid.Row="1" Margin="0,8,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="API URL" Style="{StaticResource ModernTextBlock}" VerticalAlignment="Center"/>
+            <TextBox x:Name="UrlBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource ModernTextBox}" Padding="10,8"/>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Модель" Style="{StaticResource ModernTextBlock}" VerticalAlignment="Center" Margin="0,8,0,0"/>
+            <TextBox x:Name="ModelBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource ModernTextBox}" Padding="10,8" Margin="0,8,0,0"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="API Key" Style="{StaticResource ModernTextBlock}" VerticalAlignment="Center" Margin="0,8,0,0"/>
+            <PasswordBox x:Name="KeyBox" Grid.Row="2" Grid.Column="1" Padding="10,8" Margin="0,8,0,0"/>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Отмена" Style="{StaticResource ModernButton}" MinWidth="120" Padding="14,8" Margin="0,0,8,0" IsCancel="True" Click="OnCancel"/>
+            <Button Content="Сохранить" Style="{StaticResource PrimaryButton}" MinWidth="140" Padding="14,8" IsDefault="True" Click="OnSave"/>
+        </StackPanel>
+    </Grid>
+</Window>

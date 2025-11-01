@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -25,15 +26,18 @@ namespace Pw.Hub.Services
         private string _apiUrl;
         private string _apiKey;
         private string _model;
+        private readonly IAiConfigService _cfg;
 
         public AiAssistantService(IDiffPreviewService diff)
         {
             _diff = diff;
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-            // Конфигурация через переменные окружения с дефолтами
-            _apiUrl = Environment.GetEnvironmentVariable("OLLAMA_CHAT_URL")?.Trim() ?? "https://ollama.com/api/chat";
-            _apiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY")?.Trim() ?? string.Empty;
-            _model = Environment.GetEnvironmentVariable("OLLAMA_MODEL")?.Trim() ?? "llama3.1";
+            // Читаем конфигурацию через IAiConfigService (файл → ENV → дефолты)
+            _cfg = (App.Services?.GetService(typeof(IAiConfigService)) as IAiConfigService) ?? new AiConfigService();
+            var effective = _cfg.GetEffective();
+            _apiUrl = effective.ApiUrl;
+            _apiKey = effective.ApiKey;
+            _model = effective.Model;
         }
 
         public void NewSession()
@@ -41,10 +45,20 @@ namespace Pw.Hub.Services
             _messages.Clear();
         }
 
-        public async Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, CancellationToken ct = default)
+        public async Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, CancellationToken ct = default, Action<string>? onStreamDelta = null)
         {
             if (string.IsNullOrWhiteSpace(prompt))
                 return new AiAssistantResponse { AssistantText = "Пустой запрос" };
+
+            // Перечитываем конфиг: приоритет файл → ENV → дефолты
+            try
+            {
+                var eff = _cfg.GetEffective();
+                _apiUrl = eff.ApiUrl;
+                _model = eff.Model;
+                _apiKey = eff.ApiKey;
+            }
+            catch { }
 
             EnsureSystemPriming();
             _messages.Add(new AiMessage { role = "user", content = prompt });
@@ -53,7 +67,7 @@ namespace Pw.Hub.Services
             {
                 model = _model,
                 messages = _messages.ToList(),
-                stream = false
+                stream = true
             };
 
             using var msg = new HttpRequestMessage(HttpMethod.Post, _apiUrl)
@@ -69,11 +83,72 @@ namespace Pw.Hub.Services
             string assistantText;
             try
             {
-                using var resp = await _http.SendAsync(msg, ct).ConfigureAwait(false);
+                using var resp = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
                 resp.EnsureSuccessStatusCode();
-                var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                var parsed = JsonSerializer.Deserialize<AiChatResponse>(json, _jsonOptions) ?? new AiChatResponse { messages = new List<AiMessage>() };
-                assistantText = parsed.messages?.LastOrDefault()?.content ?? string.Empty;
+
+                // Попытка потокового чтения (stream=true): NDJSON/JSONL
+                var sb = new StringBuilder();
+                try
+                {
+                    await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    while (!reader.EndOfStream)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        try
+                        {
+                            var chunk = JsonSerializer.Deserialize<AiStreamChunk>(line, _jsonOptions);
+                            string piece = null;
+                            if (!string.IsNullOrEmpty(chunk?.message?.content))
+                                piece = chunk.message.content;
+                            else if (!string.IsNullOrEmpty(chunk?.response))
+                                piece = chunk.response;
+
+                            if (!string.IsNullOrEmpty(piece))
+                            {
+                                sb.Append(piece);
+                                try { onStreamDelta?.Invoke(piece); } catch { }
+                            }
+                        }
+                        catch
+                        {
+                            // Игнорируем парсинг отдельных строк
+                        }
+                    }
+                }
+                catch
+                {
+                    // Если потоковое чтение не удалось, попробуем обычный JSON целиком
+                }
+
+                if (sb.Length == 0)
+                {
+                    var full = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    try
+                    {
+                        var parsed = JsonSerializer.Deserialize<AiChatResponse>(full, _jsonOptions) ?? new AiChatResponse { messages = new List<AiMessage>() };
+                        assistantText = parsed.messages?.LastOrDefault()?.content ?? string.Empty;
+                    }
+                    catch
+                    {
+                        // Попытка распарсить как generate-stream (response)
+                        try
+                        {
+                            var ch = JsonSerializer.Deserialize<AiStreamChunk>(full, _jsonOptions);
+                            assistantText = ch?.response ?? string.Empty;
+                        }
+                        catch
+                        {
+                            assistantText = full;
+                        }
+                    }
+                }
+                else
+                {
+                    assistantText = sb.ToString();
+                }
             }
             catch (Exception ex)
             {
@@ -83,6 +158,9 @@ namespace Pw.Hub.Services
             if (string.IsNullOrEmpty(assistantText)) assistantText = "(пустой ответ)";
             var code = ExtractLuaCodeBlock(assistantText);
 
+            // Извлекаем краткое резюме из сообщения ассистента (до блока кода)
+            var aiSummary = ExtractSummaryFromAssistant(assistantText);
+
             IList<string> diffLines = Array.Empty<string>();
             if (!string.IsNullOrEmpty(code))
             {
@@ -90,12 +168,16 @@ namespace Pw.Hub.Services
                 catch { diffLines = new List<string> { "Не удалось построить diff" }; }
             }
 
+            // Fallback: если AI не прислал резюме, построим краткую сводку из diff
+            var summary = string.IsNullOrWhiteSpace(aiSummary) ? BuildSummary(diffLines) : aiSummary;
+
             // Обновляем историю: добавляем ответ ассистента
             _messages.Add(new AiMessage { role = "assistant", content = assistantText });
 
             return new AiAssistantResponse
             {
                 AssistantText = assistantText,
+                Summary = summary,
                 ExtractedCode = code ?? string.Empty,
                 DiffLines = diffLines
             };
@@ -107,10 +189,14 @@ namespace Pw.Hub.Services
             _messages.Insert(0, new AiMessage
             {
                 role = "system",
-                content = @"Ты - эксперт по Lua скриптам для автоматизации игровых процессов. 
+                content = @"Ты - эксперт по Lua скриптам для автоматизации игровых процессов.
 Сгенерируй чистый, рабочий код на Lua.
-Отвечай ТОЛЬКО кодом в одном блоке ```lua ...``` без пояснений.
-Если в запросе просят правки, верни весь итоговый файл со внесёнными изменениями. 
+Структура ответа ДОЛЖНА быть строго следующей:
+1) Сначала краткое резюме внесённых в код изменений (1–2 предложения) обычным текстом, БЕЗ списков и лишних разделов.
+2) Пустая строка.
+3) Затем весь итоговый код в ЕДИНСТВЕННОМ блоке ```lua ... ```.
+Никаких дополнительных разделов после кода, никаких других блоков кода.
+Если в запросе просят правки, верни весь итоговый файл со внесёнными изменениями.
 
 ДОСТУПНОЕ API (все функции асинхронные с callback):
 
@@ -134,7 +220,7 @@ ReportProgress(percent) - отчет о прогрессе
 ReportProgressMsg(percent, message) - отчет с сообщением
 Complete(result) - завершить выполнение модуля (если скрипт запущен как модуль)
 Net_PostJsonCb(url, jsonBody, contentType, cb) - отправить POST запрос (возвращает таблицу с полями: Success, ResponseBody, Error)
-Telegram_SendMessageCb(textMessage, contentType, cb) - отправить сообщение пользователю
+Telegram_SendMessageCb(textMessage, cb) - отправить сообщение пользователю
 
 === СТРУКТУРА ДАННЫХ ===
 Аккаунт: {Id, Name, OrderIndex, Squad, Servers[]}
@@ -143,7 +229,7 @@ Telegram_SendMessageCb(textMessage, contentType, cb) - отправить соо
 Персонаж: {Id, Name, OptionId}
 
 === АРГУМЕНТЫ ЗАПУСКА (глобальная таблица args) ===
-При запуске/отладке из редактора перед показом диалога запуска появляется окно ввода параметров. 
+При запуске/отладке из редактора перед показом диалога запуска появляется окно ввода параметров.
 Если у модуля заданы входные параметры, в среде Lua доступна глобальная таблица args с введёнными значениями:
 - Доступ: args.param или args[""param""]; Если параметр не введён — значение будет nil.
 - Возможные типы значений по типу ввода:
@@ -199,14 +285,56 @@ end
             return string.Empty;
         }
 
+        private static string ExtractSummaryFromAssistant(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            try
+            {
+                // Берём всё до первого блока кода
+                var idx = text.IndexOf("```", StringComparison.Ordinal);
+                var head = idx >= 0 ? text.Substring(0, idx) : text;
+                head = head.Replace("\r\n", "\n").Trim();
+                if (string.IsNullOrWhiteSpace(head)) return string.Empty;
+                // Первый абзац (до двойного перевода строки)
+                var paraEnd = head.IndexOf("\n\n", StringComparison.Ordinal);
+                var firstPara = paraEnd >= 0 ? head.Substring(0, paraEnd) : head;
+                // Уберём маркеры списков/лишние пробелы
+                firstPara = Regex.Replace(firstPara, @"^[#>*\s-]+", string.Empty, RegexOptions.Multiline).Trim();
+                // Однострочное резюме
+                var oneLine = Regex.Replace(firstPara, "\n+", " ").Trim();
+                // Ограничим длину
+                if (oneLine.Length > 300) oneLine = oneLine.Substring(0, 297) + "...";
+                return oneLine;
+            }
+            catch { return string.Empty; }
+        }
+
         public void Dispose()
         {
             _http.Dispose();
+        }
+
+        private static string BuildSummary(IList<string> diffLines)
+        {
+            if (diffLines == null || diffLines.Count == 0)
+                return "Изменений нет. Код идентичен текущему.";
+            int add = 0, del = 0, hunks = 0;
+            foreach (var l in diffLines)
+            {
+                if (string.IsNullOrEmpty(l)) continue;
+                if (l.StartsWith("@@")) hunks++;
+                else if (l.StartsWith("+") && !l.StartsWith("+++")) add++;
+                else if (l.StartsWith("-") && !l.StartsWith("---")) del++;
+            }
+            if (add == 0 && del == 0)
+                return "Изменений нет. Код идентичен текущему.";
+            return $"Изменения: +{add} / -{del} строк в {hunks} блок(ах). Нажмите ‘Показать полные изменения’, чтобы ознакомиться с diff.";
         }
 
         // DTOs matching Ollama API
         private sealed class AiMessage { public string role { get; set; } = string.Empty; public string content { get; set; } = string.Empty; }
         private sealed class AiChatRequest { public string model { get; set; } = string.Empty; public List<AiMessage> messages { get; set; } = new(); public bool stream { get; set; } }
         private sealed class AiChatResponse { public List<AiMessage> messages { get; set; } = new(); }
+        private sealed class AiStreamChunk { public bool done { get; set; } public AiMessage message { get; set; } public string response { get; set; } }
     }
 }

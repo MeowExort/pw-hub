@@ -146,6 +146,40 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
     private async Task GenerateDescriptionAsync()
     {
         if (!CanGenerateDescription()) return;
+
+        // Проверяем наличие AI ключа и при необходимости предлагаем настроить
+        var cfgSvc = (App.Services?.GetService(typeof(IAiConfigService)) as IAiConfigService) ?? new AiConfigService();
+        var eff = cfgSvc.GetEffective();
+        var key = (eff.ApiKey ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            try
+            {
+                var winSvc = App.Services?.GetService(typeof(IWindowService)) as IWindowService;
+                var dlg = new Pw.Hub.Windows.AiApiKeyWindow();
+                if (winSvc != null)
+                {
+                    var owner = System.Windows.Application.Current?.MainWindow;
+                    winSvc.ShowDialog(dlg, owner);
+                }
+                else
+                {
+                    dlg.Owner = System.Windows.Application.Current?.MainWindow;
+                    dlg.ShowDialog();
+                }
+            }
+            catch { }
+
+            eff = cfgSvc.GetEffective();
+            key = (eff.ApiKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                // Не блокируем UI, просто информируем пользователя обновив описание
+                Description = (Description ?? string.Empty) + (string.IsNullOrEmpty(Description) ? string.Empty : "\n\n") + "[AI] Укажите API key в настройках AI, чтобы сгенерировать описание.";
+                return;
+            }
+        }
+
         IsBusy = true;
         try
         {
