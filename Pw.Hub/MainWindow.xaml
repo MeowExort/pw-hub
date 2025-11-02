@@ -149,13 +149,13 @@
                     </Border>
                     <Grid>
                         <!-- Tree content -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8" Background="Transparent">
-                            <TreeView x:Name="NavigationTree"
-                                      Style="{StaticResource ModernTreeView}"
-                                      ItemsSource="{Binding Squads}"
-                                      Background="Transparent"
-                                      PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp"
-                                      beh:TreeViewReorderBehavior.Enabled="True">
+                        <TreeView x:Name="NavigationTree"
+                                  Style="{StaticResource ModernTreeView}"
+                                  ItemsSource="{Binding Squads}"
+                                  Background="Transparent"
+                                  Padding="8"
+                                  PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp"
+                                  beh:TreeViewReorderBehavior.Enabled="True">
                                 <TreeView.ContextMenu>
                                     <ContextMenu x:Name="NavigationContextMenu"
                                                Background="{StaticResource BackgroundSecondaryBrush}"
@@ -264,8 +264,7 @@
                                         </Border>
                                     </DataTemplate>
                                 </TreeView.Resources>
-                            </TreeView>
-                        </ScrollViewer>
+                        </TreeView>
 
                         <!-- Empty state overlay when tree has no items -->
                         <Border x:Name="EmptyState"
