@@ -3,8 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="Редактор модуля (API)" Height="900" Width="1450" WindowStartupLocation="CenterOwner"
+        Title="Редактор модуля (API)" MinHeight="900" Width="1450" WindowStartupLocation="CenterOwner"
         Icon="/Assets/icon.png"
+        SizeToContent="Height"
         MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
         MaxWidth="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Width}"
         Style="{StaticResource ModernWindowChrome}">

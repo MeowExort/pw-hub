@@ -147,7 +147,7 @@ public class MainViewModel : BaseViewModel
     /// Добавляет аккаунт в указанный отряд. Параметр может быть Squad или Account (в этом случае используется родительский отряд).
     /// Открывает диалог создания аккаунта и сохраняет его в БД с корректным порядком (OrderIndex).
     /// </summary>
-    private void AddAccount(object parameter)
+    private async void AddAccount(object parameter)
     {
         try
         {
@@ -168,9 +168,10 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                // Создаём через сервис
-                _ = _accounts.CreateAccountAsync(targetSquad, dlg.AccountName);
+                // Создаём через сервис и получаем созданный аккаунт
+                var created = await _accounts.CreateAccountAsync(targetSquad, dlg.AccountName);
                 Reload();
+                try { RequestSelectTreeItem?.Invoke(created); } catch { }
             }
         }
         catch
@@ -320,6 +321,12 @@ public class MainViewModel : BaseViewModel
     public event Action<Models.Account> RequestLoadCharacters;
 
     /// <summary>
+    /// Событие-запрос на выбор элемента в дереве навигации (отряд или аккаунт).
+    /// Вызывается после создания отряда/аккаунта, чтобы View выделила его в TreeView.
+    /// </summary>
+    public event Action<object> RequestSelectTreeItem;
+
+    /// <summary>
     /// Открывает окно библиотеки модулей (немодально). Одновременно скрывает попап обновлений.
     /// </summary>
     private void OpenModulesLibrary()
@@ -371,7 +378,7 @@ public class MainViewModel : BaseViewModel
     /// <summary>
     /// Добавляет новый отряд через диалог и сохраняет его в БД; затем перезагружает список.
     /// </summary>
-    private void AddSquad()
+    private async void AddSquad()
     {
         try
         {
@@ -379,8 +386,9 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                _ = _accounts.CreateSquadAsync(dlg.SquadName);
+                var created = await _accounts.CreateSquadAsync(dlg.SquadName);
                 Reload();
+                try { RequestSelectTreeItem?.Invoke(created); } catch { }
             }
         }
         catch

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Linq;
 using System.Net.Http;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -49,9 +50,9 @@ public partial class MainWindow
         _vm = App.Services.GetService(typeof(MainViewModel)) as MainViewModel ?? new MainViewModel();
         DataContext = _vm;
         
-        // Запуск модуля теперь выполняется напрямую через координатор из VM (без событий)
-        // Подписываемся на запрос загрузки персонажей из VM
+        // Подписываемся на запросы из VM
         try { _vm.RequestLoadCharacters += OnRequestLoadCharacters; } catch { }
+        try { _vm.RequestSelectTreeItem += OnRequestSelectTreeItem; } catch { }
         
         // Reposition updates popup when window size or position changes
         try
@@ -76,6 +77,84 @@ public partial class MainWindow
             try { LoadModules(); } catch { }
             try { await SyncInstalledModulesAsync(); } catch { }
         };
+    }
+
+    private async void OnRequestSelectTreeItem(object item)
+    {
+        try
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                await SelectInNavigationTreeAsync(item);
+            }, System.Windows.Threading.DispatcherPriority.Background);
+        }
+        catch { }
+    }
+
+    private async Task SelectInNavigationTreeAsync(object item)
+    {
+        if (item == null) return;
+
+        // If a different account is being changed, postpone selection
+        try { if (AccountPage?.AccountManager?.IsChanging == true) return; } catch { }
+
+        if (item is Account acc)
+        {
+            // Find the corresponding instances from VM collections by Id
+            var squad = _vm.Squads.FirstOrDefault(s => s.Id == acc.SquadId);
+            if (squad == null) return;
+            var targetAccount = squad.Accounts.FirstOrDefault(a => a.Id == acc.Id);
+            if (targetAccount == null) return;
+
+            // Ensure squad container exists and is expanded
+            var squadContainer = await GetContainerAsync(NavigationTree, squad);
+            if (squadContainer == null) return;
+            squadContainer.IsExpanded = true;
+            await Task.Yield();
+
+            var accContainer = await GetContainerAsync(squadContainer, targetAccount);
+            if (accContainer == null) return;
+            accContainer.IsSelected = true;
+            accContainer.Focus();
+            accContainer.BringIntoView();
+            return;
+        }
+
+        if (item is Squad sq)
+        {
+            var targetSquad = _vm.Squads.FirstOrDefault(s => s.Id == sq.Id);
+            if (targetSquad == null) return;
+            var container = await GetContainerAsync(NavigationTree, targetSquad);
+            if (container == null) return;
+            container.IsExpanded = true;
+            container.IsSelected = true;
+            container.Focus();
+            container.BringIntoView();
+        }
+    }
+
+    private async Task<TreeViewItem> GetContainerAsync(ItemsControl parent, object item)
+    {
+        // Try a few times to wait for item containers to be generated
+        for (int i = 0; i < 10; i++)
+        {
+            var gen = (parent as ItemsControl)?.ItemContainerGenerator;
+            if (gen != null)
+            {
+                var container = gen.ContainerFromItem(item) as TreeViewItem;
+                if (container != null)
+                    return container;
+                if (gen.Status == System.Windows.Controls.Primitives.GeneratorStatus.ContainersGenerated)
+                {
+                    // One more attempt after generated
+                    container = gen.ContainerFromItem(item) as TreeViewItem;
+                    if (container != null) return container;
+                }
+            }
+            await Task.Delay(25);
+            try { parent.UpdateLayout(); } catch { }
+        }
+        return null;
     }
 
     /// <summary>
@@ -260,8 +339,48 @@ public partial class MainWindow
             return;
         }
 
-        SelectedItemChanged(
-            NavigationTree.ItemContainerGenerator.ContainerFromItem((sender as TreeView).SelectedItem) as TreeViewItem);
+        // Only toggle expand/collapse on click; selection change logic is handled by SelectedItemChanged event handler
+        if (sender is TreeView tv)
+        {
+            var tvi = tv.ItemContainerGenerator.ContainerFromItem(tv.SelectedItem) as TreeViewItem;
+            if (tvi != null)
+            {
+                tvi.IsExpanded = !tvi.IsExpanded;
+            }
+        }
+    }
+
+    private void NavigationTree_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        try
+        {
+            // Centralized selection change processing (handles both user and programmatic selection)
+            ControlsList_SelectedItemChanged();
+        }
+        catch { }
+    }
+ 
+    private void NavigationTree_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        try
+        {
+            // Select the item under the mouse so that context menu commands target it
+            var dep = e.OriginalSource as DependencyObject;
+            while (dep != null && dep is not TreeViewItem)
+            {
+                dep = VisualTreeHelper.GetParent(dep);
+            }
+
+            if (dep is TreeViewItem tvi)
+            {
+                tvi.IsSelected = true;
+                tvi.Focus();
+            }
+        }
+        catch
+        {
+            // ignore any UI exceptions
+        }
     }
 
     private void SelectedItemChanged(TreeViewItem tvi)
@@ -308,6 +427,11 @@ public partial class MainWindow
         e.Cancel = true;
         if (_vm.IsUpdatesPopupOpen)
             _vm.IsUpdatesPopupOpen = false;
+
+        // Отписываемся от событий VM, чтобы избежать утечек памяти
+        try { _vm.RequestLoadCharacters -= OnRequestLoadCharacters; } catch { }
+        try { _vm.RequestSelectTreeItem -= OnRequestSelectTreeItem; } catch { }
+
         Hide();
     }
 
@@ -541,6 +665,37 @@ public partial class MainWindow
     private async void OnRequestLoadCharacters(Account account)
     {
         if (account == null) return;
-        try { await _charsLoad.LoadForAccountAsync(account, AccountPage, this); } catch { }
+        try
+        {
+            // 1) Выполнить загрузку персонажей для аккаунта
+            await _charsLoad.LoadForAccountAsync(account, AccountPage, this);
+
+            // 2) Зафиксировать текущий выбор непосредственно перед перезагрузкой данных
+            object selected = null;
+            try { selected = NavigationTree?.SelectedItem; } catch { }
+
+            // 3) Перезагрузить коллекции отрядов/аккаунтов в VM
+            try { _vm.Reload(); } catch { }
+
+            // 4) Восстановить выбор, если он был. Не переопределяем выбор, если его нет.
+            try
+            {
+                if (selected is Account selAcc)
+                {
+                    // Создаём лёгкий дескриптор по Id/SquadId для поиска в обновлённых коллекциях
+                    var descriptor = new Account { Id = selAcc.Id, SquadId = selAcc.SquadId };
+                    await SelectInNavigationTreeAsync(descriptor);
+                }
+                else if (selected is Squad selSquad)
+                {
+                    var descriptor = new Squad { Id = selSquad.Id };
+                    await SelectInNavigationTreeAsync(descriptor);
+                }
+            }
+            catch { }
+        }
+        catch
+        {
+        }
     }
 }

@@ -105,6 +105,7 @@ public class CharactersLoadService : ICharactersLoadService
                             }
                             if (existing == null)
                             {
+                                acc.Servers.Add(server);
                                 await db.AddAsync(server);
                                 existing = server;
                                 charsToAdd.AddRange(server.Characters);

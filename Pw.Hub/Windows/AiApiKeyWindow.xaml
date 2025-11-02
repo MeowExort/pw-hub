@@ -1,8 +1,9 @@
 ﻿<Window x:Class="Pw.Hub.Windows.AiApiKeyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Настройки AI" Height="260" Width="560" WindowStartupLocation="CenterOwner"
+        Title="Настройки AI" MinHeight="260" Width="560" WindowStartupLocation="CenterOwner"
         Icon="/Assets/icon.png"
+        SizeToContent="Height"
         Style="{StaticResource ModernWindowChrome}">
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -31,7 +32,7 @@
             <TextBox x:Name="ModelBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource ModernTextBox}" Padding="10,8" Margin="0,8,0,0"/>
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="API Key" Style="{StaticResource ModernTextBlock}" VerticalAlignment="Center" Margin="0,8,0,0"/>
-            <PasswordBox x:Name="KeyBox" Grid.Row="2" Grid.Column="1" Padding="10,8" Margin="0,8,0,0"/>
+            <PasswordBox x:Name="KeyBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource ModernPasswordBox}" Padding="10,8" Margin="0,8,0,0"/>
         </Grid>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

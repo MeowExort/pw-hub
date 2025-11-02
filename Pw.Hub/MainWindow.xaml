@@ -154,7 +154,9 @@
                                   ItemsSource="{Binding Squads}"
                                   Background="Transparent"
                                   Padding="8"
+                                  SelectedItemChanged="NavigationTree_OnSelectedItemChanged"
                                   PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp"
+                                  PreviewMouseRightButtonDown="NavigationTree_OnPreviewMouseRightButtonDown"
                                   beh:TreeViewReorderBehavior.Enabled="True">
                                 <TreeView.ContextMenu>
                                     <ContextMenu x:Name="NavigationContextMenu"
