@@ -20,6 +20,8 @@ public class LuaEditorViewModel : BaseViewModel
     private readonly IUiDialogService _dialogs;
 
     private LuaScriptRunner _runner; // задаётся из окна через SetRunner
+    private Windows.ModuleArgsWindow _runArgsWindow; // кеш окна ввода аргументов для переиспользования
+    private System.Windows.Window _ownerWindow; // владелец для ModuleArgsWindow
 
     public LuaEditorAiViewModel Ai { get; } = new LuaEditorAiViewModel();
 
@@ -45,6 +47,7 @@ public class LuaEditorViewModel : BaseViewModel
         // Настройка под‑VM AI: делегаты доступа к коду
         Ai.GetCurrentCode = () => Code;
         Ai.ApplyCode = code => { Code = (code ?? string.Empty).Replace("\r\n", "\n"); };
+        Ai.ParentVm = this;
     }
 
     /// <summary>
@@ -56,6 +59,15 @@ public class LuaEditorViewModel : BaseViewModel
         _runner = runner;
     }
 
+    /// <summary>
+    /// Назначает владельца для окна ввода аргументов (обычно само окно редактора).
+    /// Вызывается из окна после инициализации UI.
+    /// </summary>
+    public void SetOwner(System.Windows.Window owner)
+    {
+        _ownerWindow = owner;
+    }
+
     private string _code = string.Empty;
     /// <summary>
     /// Текст Lua-кода. Должен быть привязан к редактору во View.
@@ -65,6 +77,11 @@ public class LuaEditorViewModel : BaseViewModel
         get => _code;
         set { _code = value ?? string.Empty; OnPropertyChanged(); OnPropertyChanged(nameof(CanRun)); }
     }
+
+    /// <summary>
+    /// Последняя версия кода, отправленная в AI (для отслеживания ручных правок).
+    /// </summary>
+    internal string LastCodeSentToAi { get; set; } = string.Empty;
 
     private bool _isRunning;
     /// <summary>
@@ -153,7 +170,7 @@ public class LuaEditorViewModel : BaseViewModel
         {
             if (Inputs != null && Inputs.Count > 0)
             {
-                var collected = _dialogs.AskRunArguments(Inputs.ToList());
+                var collected = _dialogs.AskRunArguments(Inputs.ToList(), ref _runArgsWindow, _ownerWindow);
                 if (collected == null) return; // пользователь отменил запуск
                 args = collected;
             }
@@ -192,7 +209,7 @@ public class LuaEditorViewModel : BaseViewModel
         {
             if (Inputs != null && Inputs.Count > 0)
             {
-                var collected = _dialogs.AskRunArguments(Inputs.ToList());
+                var collected = _dialogs.AskRunArguments(Inputs.ToList(), ref _runArgsWindow, _ownerWindow);
                 if (collected == null) return; // отмена
                 args = collected;
             }

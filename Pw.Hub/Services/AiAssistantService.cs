@@ -45,7 +45,7 @@ namespace Pw.Hub.Services
             _messages.Clear();
         }
 
-        public async Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, CancellationToken ct = default, Action<string>? onStreamDelta = null)
+        public async Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, string? manualChangesDiff = null, CancellationToken ct = default, Action<string>? onStreamDelta = null)
         {
             if (string.IsNullOrWhiteSpace(prompt))
                 return new AiAssistantResponse { AssistantText = "Пустой запрос" };
@@ -61,7 +61,26 @@ namespace Pw.Hub.Services
             catch { }
 
             EnsureSystemPriming();
-            _messages.Add(new AiMessage { role = "user", content = prompt });
+            
+            // Формируем расширенный запрос с контекстом текущего кода и ручных правок
+            var userPrompt = new StringBuilder();
+            userPrompt.AppendLine("=== ТЕКУЩИЙ КОД ===");
+            userPrompt.AppendLine("```lua");
+            userPrompt.AppendLine(currentCode ?? string.Empty);
+            userPrompt.AppendLine("```");
+            userPrompt.AppendLine();
+            
+            if (!string.IsNullOrWhiteSpace(manualChangesDiff))
+            {
+                userPrompt.AppendLine("=== РУЧНЫЕ ПРАВКИ (с момента последнего обращения к AI) ===");
+                userPrompt.AppendLine(manualChangesDiff);
+                userPrompt.AppendLine();
+            }
+            
+            userPrompt.AppendLine("=== ЗАПРОС ===");
+            userPrompt.AppendLine(prompt);
+            
+            _messages.Add(new AiMessage { role = "user", content = userPrompt.ToString() });
 
             var req = new AiChatRequest
             {
@@ -156,6 +175,8 @@ namespace Pw.Hub.Services
             }
 
             if (string.IsNullOrEmpty(assistantText)) assistantText = "(пустой ответ)";
+            
+            // Извлекаем полный код из ответа AI
             var code = ExtractLuaCodeBlock(assistantText);
 
             // Извлекаем краткое резюме из сообщения ассистента (до блока кода)
@@ -191,12 +212,13 @@ namespace Pw.Hub.Services
                 role = "system",
                 content = @"Ты - эксперт по Lua скриптам для автоматизации игровых процессов.
 Сгенерируй чистый, рабочий код на Lua.
-Структура ответа ДОЛЖНА быть строго следующей:
-1) Сначала краткое резюме внесённых в код изменений (1–2 предложения) обычным текстом, БЕЗ списков и лишних разделов.
-2) Пустая строка.
-3) Затем весь итоговый код в ЕДИНСТВЕННОМ блоке ```lua ... ```.
-Никаких дополнительных разделов после кода, никаких других блоков кода.
-Если в запросе просят правки, верни весь итоговый файл со внесёнными изменениями.
+
+ФОРМАТ ОТВЕТА:
+1) Краткое резюме изменений (1–2 предложения)
+2) Пустая строка
+3) Весь итоговый код в блоке ```lua ... ```
+
+Никаких дополнительных разделов после кода.
 
 ДОСТУПНОЕ API (все функции асинхронные с callback):
 
@@ -284,6 +306,7 @@ end
             if (m.Success) return m.Groups[1].Value.Trim();
             return string.Empty;
         }
+
 
         private static string ExtractSummaryFromAssistant(string text)
         {

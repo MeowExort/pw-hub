@@ -40,11 +40,34 @@ public class UiDialogService : IUiDialogService
         try
         {
             if (inputs == null || inputs.Count == 0) return new Dictionary<string, object>();
-            var dlg = new RunArgsWindow(inputs) { Owner = Application.Current?.MainWindow };
+            var dlg = new ModuleArgsWindow(inputs) { Owner = Application.Current?.MainWindow };
             var ok = dlg.ShowDialog();
             if (ok == true)
             {
-                return dlg.Result?.ToDictionary(kv => kv.Key, kv => kv.Value) ?? new Dictionary<string, object>();
+                return dlg.Values ?? new Dictionary<string, object>();
+            }
+            return null; // отмена
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public Dictionary<string, object>? AskRunArguments(IList<InputDefinitionDto> inputs, ref ModuleArgsWindow window, Window owner)
+    {
+        try
+        {
+            if (inputs == null || inputs.Count == 0) return new Dictionary<string, object>();
+            
+            // ModuleArgsWindow не поддерживает переиспользование с обновлением данных,
+            // поэтому всегда создаём новое окно
+            window = new ModuleArgsWindow(inputs) { Owner = owner ?? Application.Current?.MainWindow };
+
+            var ok = window.ShowDialog();
+            if (ok == true)
+            {
+                return window.Values ?? new Dictionary<string, object>();
             }
             return null; // отмена
         }

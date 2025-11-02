@@ -41,6 +41,8 @@ namespace Pw.Hub.ViewModels
         // Делегаты связи с основным VM редактора
         public Func<string> GetCurrentCode { get; set; } = () => string.Empty;
         public Action<string> ApplyCode { get; set; } = _ => { };
+        // Доступ к родительскому VM для отслеживания изменений кода
+        internal LuaEditorViewModel ParentVm { get; set; }
 
         public ObservableCollection<AiChatMessage> Messages { get; } = new();
 
@@ -125,45 +127,44 @@ namespace Pw.Hub.ViewModels
         {
             if (!CanSend) { RequeryCommands(); return; }
 
-            // Проверка наличия AI ключа; если отсутствует — предлагаем настроить
-            var cfgSvc = (App.Services?.GetService(typeof(IAiConfigService)) as IAiConfigService) ?? new AiConfigService();
-            var eff = cfgSvc.GetEffective();
-            var key = (eff.ApiKey ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                try
-                {
-                    // Пытаемся показать окно настроек через сервис окон, если доступен
-                    var winSvc = App.Services?.GetService(typeof(IWindowService)) as IWindowService;
-                    if (winSvc != null)
-                    {
-                        var dlg = new AiApiKeyWindow();
-                        var owner = System.Windows.Application.Current?.Windows?.OfType<System.Windows.Window>()?.FirstOrDefault(w => w.IsActive) ?? System.Windows.Application.Current?.MainWindow;
-                        winSvc.ShowDialog(dlg, owner);
-                    }
-                    else
-                    {
-                        // Прямой показ окна как fallback
-                        var dlg = new AiApiKeyWindow { Owner = System.Windows.Application.Current?.MainWindow };
-                        dlg.ShowDialog();
-                    }
-                }
-                catch { }
-
-                // перечитываем ключ из сервиса конфигурации
-                eff = cfgSvc.GetEffective();
-                key = (eff.ApiKey ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    NotifySystem("AI API key не задан. Откройте настройки AI и введите ключ для продолжения.");
-                    RequeryCommands();
-                    return;
-                }
-            }
-
             IsBusy = true;
             try
             {
+                // Проверка наличия AI ключа; если отсутствует — предлагаем настроить
+                var cfgSvc = (App.Services?.GetService(typeof(IAiConfigService)) as IAiConfigService) ?? new AiConfigService();
+                var eff = cfgSvc.GetEffective();
+                var key = (eff.ApiKey ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    try
+                    {
+                        // Пытаемся показать окно настроек через сервис окон, если доступен
+                        var winSvc = App.Services?.GetService(typeof(IWindowService)) as IWindowService;
+                        if (winSvc != null)
+                        {
+                            var dlg = new AiApiKeyWindow();
+                            var owner = System.Windows.Application.Current?.Windows?.OfType<System.Windows.Window>()?.FirstOrDefault(w => w.IsActive) ?? System.Windows.Application.Current?.MainWindow;
+                            winSvc.ShowDialog(dlg, owner);
+                        }
+                        else
+                        {
+                            // Прямой показ окна как fallback
+                            var dlg = new AiApiKeyWindow { Owner = System.Windows.Application.Current?.MainWindow };
+                            dlg.ShowDialog();
+                        }
+                    }
+                    catch { }
+
+                    // перечитываем ключ из сервиса конфигурации
+                    eff = cfgSvc.GetEffective();
+                    key = (eff.ApiKey ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        NotifySystem("AI API key не задан. Откройте настройки AI и введите ключ для продолжения.");
+                        return;
+                    }
+                }
+
                 // Очистка предыдущего состояния стрима
                 _assistantRaw.Clear();
                 _lastPreviewCode = string.Empty;
@@ -174,6 +175,26 @@ namespace Pw.Hub.ViewModels
                 InputText = string.Empty;
 
                 var currentCode = (GetCurrentCode?.Invoke() ?? string.Empty).Replace("\r\n", "\n");
+                
+                // Вычисляем diff ручных правок для передачи AI в качестве контекста
+                string manualChangesDiff = null;
+                try
+                {
+                    if (ParentVm != null && !string.IsNullOrEmpty(ParentVm.LastCodeSentToAi))
+                    {
+                        var lastSent = ParentVm.LastCodeSentToAi.Replace("\r\n", "\n");
+                        if (!string.Equals(currentCode, lastSent, StringComparison.Ordinal))
+                        {
+                            // Есть ручные правки - строим diff
+                            var diffLines = _diff.BuildUnifiedDiffGit(lastSent, currentCode);
+                            if (diffLines != null && diffLines.Count > 0)
+                            {
+                                manualChangesDiff = string.Join("\n", diffLines);
+                            }
+                        }
+                    }
+                }
+                catch { }
                 // Создаём один бабл ассистента и будем наполнять его текст по мере поступления стрима
                 var assistantMsg = new AiChatMessage { Role = "assistant", Text = string.Empty, ShowDiffButton = true };
                 Messages.Add(assistantMsg);
@@ -212,7 +233,17 @@ namespace Pw.Hub.ViewModels
                     catch { }
                 }
 
-                var resp = await _ai.SendAsync(prompt, currentCode, ct, OnDelta);
+                var resp = await _ai.SendAsync(prompt, currentCode, manualChangesDiff, ct, OnDelta);
+                
+                // Сохраняем текущий код как "последний отправленный в AI" для отслеживания будущих ручных правок
+                try
+                {
+                    if (ParentVm != null)
+                    {
+                        ParentVm.LastCodeSentToAi = currentCode;
+                    }
+                }
+                catch { }
 
                 // После завершения запроса: обновляем отображаемый текст без кодовых блоков
                 if (!string.IsNullOrEmpty(resp.AssistantText))
@@ -275,6 +306,17 @@ namespace Pw.Hub.ViewModels
         {
             if (!CanApply) return;
             ApplyCode?.Invoke(_lastProposedCode);
+            
+            // Сохраняем применённый код как "последний отправленный в AI"
+            try
+            {
+                if (ParentVm != null)
+                {
+                    ParentVm.LastCodeSentToAi = _lastProposedCode;
+                }
+            }
+            catch { }
+            
             UpdateApplyAvailability();
         }
     }

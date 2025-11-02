@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Models;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.ViewModels;
+using Pw.Hub.Services;
 
 namespace Pw.Hub.Windows;
 
@@ -42,6 +43,33 @@ public partial class ModuleArgsWindow : Window
         DataContext = Vm; // Заголовок и команды берутся из VM
         BuildUi();
         PrefillFromLastArgs();
+    }
+
+    /// <summary>
+    /// Конструктор для использования с InputDefinitionDto (например, при запуске из Lua редактора).
+    /// Создаёт временный ModuleDefinition из списка InputDefinitionDto.
+    /// </summary>
+    public ModuleArgsWindow(IList<InputDefinitionDto> inputs, string title = "Аргументы запуска")
+    {
+        InitializeComponent();
+        // Создаём временный ModuleDefinition из InputDefinitionDto
+        _module = new ModuleDefinition
+        {
+            Name = title,
+            Inputs = inputs.Select(dto => new ModuleInput
+            {
+                Name = dto.Name ?? string.Empty,
+                Label = string.IsNullOrWhiteSpace(dto.Label) ? (dto.Name ?? string.Empty) : dto.Label,
+                Type = string.IsNullOrWhiteSpace(dto.Type) ? "string" : dto.Type,
+                Default = dto.Default,
+                Required = dto.Required
+            }).ToList()
+        };
+        Vm = new ModuleArgsViewModel { Module = _module };
+        Vm.RequestClose += OnRequestClose;
+        DataContext = Vm;
+        BuildUi();
+        // Не вызываем PrefillFromLastArgs, т.к. нет сохранённых значений для временного модуля
     }
 
     private void BuildUi()

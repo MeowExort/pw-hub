@@ -19,7 +19,6 @@ namespace Pw.Hub.Windows
     {
         public bool IsSaved { get; private set; }
         private readonly ModuleDto _existing;
-        private readonly ObservableCollection<InputItem> _inputs = new();
         private CancellationTokenSource _previewCts;
         private string _script = string.Empty;
         // ViewModel для MVVM
@@ -49,9 +48,16 @@ namespace Pw.Hub.Windows
                 VersionText.Text = string.IsNullOrWhiteSpace(existing.Version) ? "1.0.0" : existing.Version;
                 DescriptionEditor.Text = existing.Description ?? string.Empty;
                 _script = existing.Script ?? string.Empty;
+
+                // Инициализируем VM из существующих данных
+                _vm.Name = NameText.Text;
+                _vm.Version = VersionText.Text;
+                _vm.Description = DescriptionEditor.Text;
+                _vm.Script = _script;
+                _vm.Inputs.Clear();
                 foreach (var i in existing.Inputs ?? Array.Empty<InputDefinitionDto>())
                 {
-                    _inputs.Add(new InputItem
+                    _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
                     {
                         Name = i.Name ?? string.Empty,
                         Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
@@ -60,22 +66,6 @@ namespace Pw.Hub.Windows
                         Required = i.Required
                     });
                 }
-
-                // Инициализируем VM из существующих данных
-                _vm.Name = NameText.Text;
-                _vm.Version = VersionText.Text;
-                _vm.Description = DescriptionEditor.Text;
-                _vm.Script = _script;
-                _vm.Inputs.Clear();
-                foreach (var it in _inputs)
-                    _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
-                    {
-                        Name = it.Name,
-                        Label = it.Label,
-                        Type = it.Type,
-                        Default = it.Default,
-                        Required = it.Required
-                    });
 
                 Title = $"Редактирование: {existing.Name}";
             }
@@ -90,7 +80,12 @@ namespace Pw.Hub.Windows
             }
 
             // Подписка на закрытие из VM
-            _vm.RequestClose += result => { try { DialogResult = result; } catch { } Close(); };
+            _vm.RequestClose += result => 
+            { 
+                if (result == true) IsSaved = true;
+                try { DialogResult = result; } catch { } 
+                Close(); 
+            };
         }
 
         private async Task InitPreviewAsync()
@@ -125,34 +120,6 @@ namespace Pw.Hub.Windows
             return _vm.BuildRequest();
         }
 
-        /// <summary>
-        /// Синхронизирует состояние визуальных контролов окна с полями ViewModel.
-        /// Вызывается перед формированием запроса и сохранением.
-        /// </summary>
-        private void SyncVmFromControls()
-        {
-            try
-            {
-                _vm.Name = NameText.Text?.Trim() ?? string.Empty;
-                _vm.Version = string.IsNullOrWhiteSpace(VersionText.Text) ? "1.0.0" : VersionText.Text.Trim();
-                _vm.Description = DescriptionEditor.Text ?? string.Empty;
-                _vm.Script = _script ?? string.Empty;
-                _vm.Inputs.Clear();
-                foreach (var it in _inputs)
-                {
-                    _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
-                    {
-                        Name = it.Name,
-                        Label = it.Label,
-                        Type = it.Type,
-                        Default = it.Default,
-                        Required = it.Required
-                    });
-                }
-            }
-            catch { }
-        }
-
         private void OnSaveClick(object sender, RoutedEventArgs e)
         {
             // Commit any pending edits in the grid so bindings (e.g., Type) are pushed to the underlying object
@@ -163,8 +130,8 @@ namespace Pw.Hub.Windows
             }
             catch { }
 
-            // Синхронизируем VM из текущих контролов
-            SyncVmFromControls();
+            // Обновляем _script из VM перед закрытием (синхронизация с Lua редактором)
+            try { _script = _vm.Script ?? string.Empty; } catch { }
 
             if (string.IsNullOrWhiteSpace(_vm.Name) || string.IsNullOrWhiteSpace(_vm.Script))
             {
@@ -184,7 +151,7 @@ namespace Pw.Hub.Windows
 
         private void AddInput_Click(object sender, RoutedEventArgs e)
         {
-            _inputs.Add(new InputItem
+            _vm.Inputs.Add(new ViewModels.ModulesApiEditorViewModel.InputItem
                 { Name = "param", Label = "Параметр", Type = "string", Default = string.Empty, Required = false });
         }
 
@@ -313,9 +280,9 @@ namespace Pw.Hub.Windows
 
         private void RemoveInput_Click(object sender, RoutedEventArgs e)
         {
-            if (InputsGrid.SelectedItem is InputItem item)
+            if (InputsGrid.SelectedItem is ViewModels.ModulesApiEditorViewModel.InputItem item)
             {
-                _inputs.Remove(item);
+                _vm.Inputs.Remove(item);
             }
         }
 

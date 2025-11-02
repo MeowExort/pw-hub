@@ -40,6 +40,9 @@ public partial class LuaEditorWindow : Window
     private bool _isDebugging;
     private bool _isSplitterDragging;
     private double _aiPaneLastWidth = 460; // remember last visible width for AI pane
+    
+    // Кешируем окно ввода аргументов для повторного использования
+    private ModuleArgsWindow _runArgsWindow;
 
     // Simple type model for Lua API objects (for autocomplete after '.')
     private sealed class ObjectType
@@ -155,6 +158,7 @@ end)", "Задержка с колбэком"),
         // MVVM: назначаем DataContext и пробрасываем раннер во ViewModel
         DataContext = _vm;
         _vm.SetRunner(_runner);
+        _vm.SetOwner(this); // для переиспользования окна ввода аргументов
         _vm.RequestOpenDebugVariables += (line, locals, globals) =>
         {
             try
@@ -292,6 +296,17 @@ end)", "Задержка с колбэком"),
             if (_vm?.Ai is INotifyPropertyChanged inpc)
                 inpc.PropertyChanged -= AiOnPropertyChanged;
             try { if (_vm?.Ai != null) _vm.Ai.RequestOpenFullDiff -= OnRequestOpenFullDiff; } catch { }
+        }
+        catch { }
+
+        // Закрываем кешированное окно ввода аргументов
+        try
+        {
+            if (_runArgsWindow != null)
+            {
+                _runArgsWindow.Close();
+                _runArgsWindow = null;
+            }
         }
         catch { }
 

@@ -39,4 +39,14 @@ public interface IUiDialogService
     /// </summary>
     /// <param name="inputs">Определения входных параметров.</param>
     Dictionary<string, object>? AskRunArguments(IList<InputDefinitionDto> inputs);
+
+    /// <summary>
+    /// Показывает диалог ввода аргументов запуска для Lua скрипта с возможностью переиспользования окна.
+    /// Если window не null и еще не закрыто, обновляет его данные и показывает снова.
+    /// Возвращает словарь введённых значений или null при отмене.
+    /// </summary>
+    /// <param name="inputs">Определения входных параметров.</param>
+    /// <param name="window">Существующее окно для переиспользования (ref параметр обновляется при создании нового).</param>
+    /// <param name="owner">Владелец окна.</param>
+    Dictionary<string, object>? AskRunArguments(IList<InputDefinitionDto> inputs, ref Windows.ModuleArgsWindow window, Window owner);
 }

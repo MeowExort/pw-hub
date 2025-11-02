@@ -15,7 +15,12 @@ namespace Pw.Hub.Services
         /// Отправляет запрос пользователю и возвращает ответ ассистента, включая извлечённый код и diff.
         /// onStreamDelta (если задан) вызывается при поступлении каждого фрагмента текста от ассистента (stream=true).
         /// </summary>
-        Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, CancellationToken ct = default, Action<string>? onStreamDelta = null);
+        /// <param name="prompt">Запрос пользователя к AI</param>
+        /// <param name="currentCode">Текущий код в редакторе</param>
+        /// <param name="manualChangesDiff">Diff ручных правок с момента последнего обращения к AI (null если нет изменений)</param>
+        /// <param name="ct">Токен отмены</param>
+        /// <param name="onStreamDelta">Callback для получения потоковых фрагментов ответа</param>
+        Task<AiAssistantResponse> SendAsync(string prompt, string currentCode, string? manualChangesDiff = null, CancellationToken ct = default, Action<string>? onStreamDelta = null);
 
         /// <summary>
         /// Начать новую сессию (очистить историю сообщений на стороне сервиса, если требуется).
