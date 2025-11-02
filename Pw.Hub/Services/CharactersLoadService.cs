@@ -43,12 +43,13 @@ public class CharactersLoadService : ICharactersLoadService
                 await Task.Delay(300);
 
                 // Дожидаемся появления селектов на странице
-                await browser.WaitForElementExistsAsync("#pw_promos_shards", 5000);
-                await browser.WaitForElementExistsAsync("#pw_promos_chars", 5000);
+                await browser.WaitForElementExistsAsync(".js-shard", 5000);
+                await browser.WaitForElementExistsAsync(".js-char", 5000);
 
                 // Получаем сервера (шарды) — возвращаем JSON через JSON.stringify
-                var jsGetShards = "(function(){var s=document.querySelector('#pw_promos_shards');if(!s)return '[]';return JSON.stringify(Array.from(s.options).map(o=>({value:o.value,text:o.text})));})()";
+                var jsGetShards = "(function(){var s=document.querySelector('.js-shard');if(!s)return '[]';return JSON.stringify(Array.from(s.options).map(o=>({value:o.value,text:o.text})));})()";
                 var shardsJson = await browser.ExecuteScriptAsync(jsGetShards);
+                shardsJson = TrimJs(shardsJson);
                 var shards = string.IsNullOrWhiteSpace(shardsJson) ? new List<JsOption>() : JsonSerializer.Deserialize<List<JsOption>>(shardsJson) ?? new List<JsOption>();
                 log.AppendLog($"Найдено серверов: {shards.Count}");
 
@@ -57,8 +58,9 @@ public class CharactersLoadService : ICharactersLoadService
                 {
                     if (string.IsNullOrWhiteSpace(shard?.value)) continue;
                     // Для каждого шарда получаем персонажей (устанавливаем значение и инициируем change)
-                    var jsChars = "(function(shard){var sel=document.querySelector('#pw_promos_shards');if(!sel)return '[]';sel.value=shard;var e=document.createEvent('HTMLEvents');e.initEvent('change',true,false);sel.dispatchEvent(e);var s2=document.querySelector('#pw_promos_chars');if(!s2)return '[]';return JSON.stringify(Array.from(s2.options).map(o=>({value:o.value,text:o.text})));})('" + EscapeJs(shard.value) + "')";
+                    var jsChars = "(function(shard){var sel=document.querySelector('.js-shard');if(!sel)return '[]';sel.value=shard;var e=document.createEvent('HTMLEvents');e.initEvent('change',true,false);sel.dispatchEvent(e);var s2=document.querySelector('.js-char');if(!s2)return '[]';return JSON.stringify(Array.from(s2.options).map(o=>({value:o.value,text:o.text})));})('" + EscapeJs(shard.value) + "')";
                     var charsJson = await browser.ExecuteScriptAsync(jsChars);
+                    charsJson = TrimJs(charsJson);
                     var chars = string.IsNullOrWhiteSpace(charsJson) ? new List<JsOption>() : JsonSerializer.Deserialize<List<JsOption>>(charsJson) ?? new List<JsOption>();
 
                     var server = new AccountServer
@@ -142,6 +144,12 @@ public class CharactersLoadService : ICharactersLoadService
             .Replace("\"", "\\\"")
             .Replace("\r", string.Empty)
             .Replace("\n", string.Empty);
+    }
+
+    private static string TrimJs(string s)
+    {
+        return (s ?? string.Empty)
+            .Replace("\\", string.Empty);
     }
 
     private class JsOption
