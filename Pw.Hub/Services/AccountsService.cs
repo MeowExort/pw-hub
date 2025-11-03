@@ -100,9 +100,33 @@ public class AccountsService : IAccountsService
     {
         if (account == null) return;
         await using var db = new AppDbContext();
-        var entity = await db.Accounts.FirstOrDefaultAsync(a => a.Id == account.Id);
+        var entity = await db.Accounts
+            .Include(a => a.Servers)
+            .FirstOrDefaultAsync(a => a.Id == account.Id);
         if (entity == null) return;
+
+        // Update basic fields
         entity.Name = newName;
+
+        // Persist per-server default character selection coming from the editor window
+        if (entity.Servers != null && entity.Servers.Count > 0)
+        {
+            var sourceServers = account.Servers ?? new List<AccountServer>();
+            foreach (var dbServer in entity.Servers)
+            {
+                var src = sourceServers.FirstOrDefault(s =>
+                    (!string.IsNullOrEmpty(dbServer.Id) && s.Id == dbServer.Id) ||
+                    (!string.IsNullOrEmpty(dbServer.OptionId) && s.OptionId == dbServer.OptionId));
+                if (src != null)
+                {
+                    // null or empty means "not selected"
+                    dbServer.DefaultCharacterOptionId = string.IsNullOrWhiteSpace(src.DefaultCharacterOptionId)
+                        ? null
+                        : src.DefaultCharacterOptionId;
+                }
+            }
+        }
+
         db.Update(entity);
         await db.SaveChangesAsync();
     }

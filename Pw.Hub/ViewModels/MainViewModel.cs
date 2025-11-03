@@ -182,7 +182,7 @@ public class MainViewModel : BaseViewModel
     /// <summary>
     /// Редактирует выбранный отряд: открывает диалог, сохраняет имя в БД и обновляет UI.
     /// </summary>
-    private void EditSquad(Squad squad)
+    private async void EditSquad(Squad squad)
     {
         if (squad == null) return;
         try
@@ -191,9 +191,14 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                // Сохранение через сервис аккаунтов
-                _ = _accounts.UpdateSquadAsync(squad, dlg.SquadName);
-                Reload();
+                // Сохраняем изменения и не перезагружаем всё дерево, чтобы не терять состояние раскрытия/выбора
+                await _accounts.UpdateSquadAsync(squad, dlg.SquadName);
+
+                // Локально обновляем имя отряда в памяти
+                if (!string.Equals(squad.Name, dlg.SquadName, StringComparison.Ordinal))
+                    squad.Name = dlg.SquadName;
+
+                // Нет Reload(): сохраняем состояние TreeView
             }
         }
         catch
@@ -204,7 +209,7 @@ public class MainViewModel : BaseViewModel
     /// <summary>
     /// Редактирует выбранный аккаунт: открывает диалог, сохраняет имя и обновляет UI.
     /// </summary>
-    private void EditAccount(Account account)
+    private async void EditAccount(Account account)
     {
         if (account == null) return;
         try
@@ -213,8 +218,14 @@ public class MainViewModel : BaseViewModel
             var ok = _windowService.ShowDialog(dlg);
             if (ok == true)
             {
-                _ = _accounts.UpdateAccountAsync(account, dlg.AccountName);
-                Reload();
+                // Persist changes first to ensure DB is updated
+                await _accounts.UpdateAccountAsync(account, dlg.AccountName);
+
+                // Update in-memory model to reflect new name without reloading the whole tree
+                if (!string.Equals(account.Name, dlg.AccountName, StringComparison.Ordinal))
+                    account.Name = dlg.AccountName;
+
+                // No Reload(): avoid collapsing/losing selection state in the navigation tree
             }
         }
         catch
