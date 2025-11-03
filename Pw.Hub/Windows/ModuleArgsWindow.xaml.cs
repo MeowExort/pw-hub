@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Models;
 using Pw.Hub.Infrastructure;
@@ -18,6 +19,25 @@ public partial class ModuleArgsWindow : Window
 {
     private readonly ModuleDefinition _module;
     private readonly Dictionary<string, FrameworkElement> _inputs = new();
+
+    // Helper selection models for grouped accounts UI
+    private class AccountSelectionRef
+    {
+        public Account Account { get; set; }
+        public CheckBox Toggle { get; set; }
+    }
+    private class SquadGroupRefs
+    {
+        public Squad Squad { get; set; }
+        public CheckBox HeaderCheck { get; set; }
+        public TextBlock HeaderText { get; set; }
+        public List<AccountSelectionRef> Items { get; set; } = new();
+    }
+    private class AccountsGroupedModel
+    {
+        public List<SquadGroupRefs> Groups { get; set; } = new();
+        public IEnumerable<AccountSelectionRef> AllItems => Groups.SelectMany(g => g.Items);
+    }
 
     /// <summary>
     /// VM диалога; хранит значения и команды (Отмена/ОК через ConfirmWithValues).
@@ -212,7 +232,9 @@ public partial class ModuleArgsWindow : Window
                     break;
                 case "аккаунты":
                 case "accounts":
-                    var panelAccounts = new StackPanel { Orientation = Orientation.Vertical };
+                    // Grouped view: accounts by squads with squad-level toggle and tri-state header
+                    var rootPanel = new StackPanel { Orientation = Orientation.Vertical };
+
                     var buttonsAccounts = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,6), HorizontalAlignment = HorizontalAlignment.Right };
                     var btnSelectAllAcc = new Button { Content = "Выбрать все", Margin = new Thickness(0,0,6,0) };
                     var btnClearAllAcc = new Button { Content = "Снять все" };
@@ -221,34 +243,136 @@ public partial class ModuleArgsWindow : Window
                         btnSelectAllAcc.Style = btnStyleAcc;
                         btnClearAllAcc.Style = btnStyleAcc;
                     }
-                    var lbAccounts = new ListBox { SelectionMode = SelectionMode.Extended, Height = 200 };
-                    if (TryFindResource("ModernListBox") is Style lbStyleAcc)
-                        lbAccounts.Style = lbStyleAcc;
+                    buttonsAccounts.Children.Add(btnSelectAllAcc);
+                    buttonsAccounts.Children.Add(btnClearAllAcc);
+                    rootPanel.Children.Add(buttonsAccounts);
+
+                    var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Height = 260 };
+                    var groupsPanel = new StackPanel { Orientation = Orientation.Vertical };
+                    scroll.Content = groupsPanel;
+                    rootPanel.Children.Add(scroll);
+
+                    // Build data model
+                    var model = new AccountsGroupedModel();
                     try
                     {
                         using var db4 = new AppDbContext();
-                        var accounts2 = db4.Accounts
-                            .Include(a => a.Servers)
-                                .ThenInclude(s => s.Characters)
-                            .Include(a => a.Squad)
-                            .OrderBy(a => a.OrderIndex)
-                            .ThenBy(a => a.Name)
+                        var squadsForAcc = db4.Squads
+                            .Include(s => s.Accounts)
+                            .OrderBy(s => s.OrderIndex).ThenBy(s => s.Name)
                             .ToList();
-                        lbAccounts.ItemsSource = accounts2;
-                        lbAccounts.DisplayMemberPath = nameof(Account.Name);
+                        foreach (var sq in squadsForAcc)
+                        {
+                            var g = new SquadGroupRefs { Squad = sq };
+
+                            // Header with tri-state checkbox and text
+                            var headerDock = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
+                            var headerCheck = new CheckBox { IsThreeState = true, VerticalAlignment = VerticalAlignment.Center };
+                            if (TryFindResource("ModernCheckBox") is Style cbStyleHeader)
+                                headerCheck.Style = cbStyleHeader;
+                            var headerText = new TextBlock { Text = sq.Name, Margin = new Thickness(8,0,0,0) };
+                            if (TryFindResource("ModernTextBlock") is Style lblStyleSq)
+                                headerText.Style = lblStyleSq;
+                            // Click on squad name should toggle selection for the whole group (like header checkbox)
+                            headerText.MouseLeftButtonUp += (_, __) =>
+                            {
+                                try
+                                {
+                                    var anySelected = g.Items.Any(i => i.Toggle.IsChecked == true);
+                                    var target = !anySelected; // if any selected -> clear all; else select all
+                                    foreach (var it in g.Items)
+                                        it.Toggle.IsChecked = target;
+                                    UpdateGroupHeader(g);
+                                }
+                                catch { }
+                            };
+                            DockPanel.SetDock(headerCheck, Dock.Left);
+                            headerDock.Children.Add(headerCheck);
+                            headerDock.Children.Add(headerText);
+
+                            g.HeaderCheck = headerCheck;
+                            g.HeaderText = headerText;
+
+                            // Accounts list for the squad
+                            var accsSrc = sq.Accounts ?? new System.Collections.ObjectModel.ObservableCollection<Account>();
+                            var accs = accsSrc.OrderBy(a => a.OrderIndex).ThenBy(a => a.Name).ToList();
+                            var accsPanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(24, 2, 0, 8) };
+                            foreach (var a in accs)
+                            {
+                                var t = new CheckBox
+                                {
+                                    Content = a.Name,
+                                    Margin = new Thickness(0, 2, 0, 2),
+                                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                                    Padding = new Thickness(10, 6, 10, 6),
+                                };
+                                // Apply modern checkbox style
+                                if (TryFindResource("ModernCheckBox") is Style cbItemStyle)
+                                    t.Style = cbItemStyle;
+                                var item = new AccountSelectionRef { Account = a, Toggle = t };
+                                // When account toggle changes, update header state text/tri-state
+                                t.Checked += (_, __) => { try { UpdateGroupHeader(g); } catch { } };
+                                t.Unchecked += (_, __) => { try { UpdateGroupHeader(g); } catch { } };
+                                accsPanel.Children.Add(t);
+                                g.Items.Add(item);
+                            }
+
+                            // Header toggle behavior: click toggles select all/clear all
+                            headerCheck.Click += (_, __) =>
+                            {
+                                try
+                                {
+                                    var anySelected = g.Items.Any(i => i.Toggle.IsChecked == true);
+                                    var target = !(anySelected);
+                                    foreach (var it in g.Items)
+                                        it.Toggle.IsChecked = target;
+                                    UpdateGroupHeader(g);
+                                }
+                                catch { }
+                            };
+
+                            // Container for group
+                            var groupContainer = new StackPanel { Orientation = Orientation.Vertical };
+                            groupContainer.Children.Add(headerDock);
+                            groupContainer.Children.Add(accsPanel);
+
+                            groupsPanel.Children.Add(groupContainer);
+                            model.Groups.Add(g);
+
+                            // Initialize header state
+                            UpdateGroupHeader(g);
+                        }
                     }
                     catch { }
-                    btnSelectAllAcc.Click += (_, __) => { try { lbAccounts.SelectAll(); } catch { } };
-                    btnClearAllAcc.Click += (_, __) => { try { lbAccounts.UnselectAll(); } catch { } };
-                    buttonsAccounts.Children.Add(btnSelectAllAcc);
-                    buttonsAccounts.Children.Add(btnClearAllAcc);
-                    panelAccounts.Children.Add(buttonsAccounts);
-                    panelAccounts.Children.Add(lbAccounts);
-                    editor = panelAccounts;
-                    editor.Tag = input;
-                    lbAccounts.Tag = input;
-                    _inputs[input.Name] = lbAccounts; // map to underlying selector
-                    sp.Children.Add(editor);
+
+                    // Global buttons behavior
+                    btnSelectAllAcc.Click += (_, __) =>
+                    {
+                        try
+                        {
+                            foreach (var it in model.AllItems)
+                                it.Toggle.IsChecked = true;
+                            foreach (var g in model.Groups) UpdateGroupHeader(g);
+                        }
+                        catch { }
+                    };
+                    btnClearAllAcc.Click += (_, __) =>
+                    {
+                        try
+                        {
+                            foreach (var it in model.AllItems)
+                                it.Toggle.IsChecked = false;
+                            foreach (var g in model.Groups) UpdateGroupHeader(g);
+                        }
+                        catch { }
+                    };
+
+                    // Store control and model for later prefill/value extraction
+                    rootPanel.Tag = input; // keep ModuleInput here (used by generic code)
+                    rootPanel.DataContext = model;
+                    editor = rootPanel;
+                    _inputs[input.Name] = rootPanel;
+                    sp.Children.Add(rootPanel);
                     continue;
                 default:
                     var tb = new TextBox { Text = input.Default ?? string.Empty };
@@ -263,6 +387,25 @@ public partial class ModuleArgsWindow : Window
         }
         
         InputsPanel.Children.Add(sp);
+    }
+
+    private void UpdateGroupHeader(SquadGroupRefs g)
+    {
+        try
+        {
+            var total = g.Items.Count;
+            var selected = g.Items.Count(i => i.Toggle.IsChecked == true);
+            bool any = selected > 0;
+            bool all = selected == total && total > 0;
+            g.HeaderCheck.IsChecked = all ? true : any ? (bool?)null : false;
+            // Show counts in header text: "Name — X / N"
+            if (g.HeaderText != null)
+            {
+                var baseName = g.Squad?.Name ?? string.Empty;
+                g.HeaderText.Text = total > 0 ? ($"{baseName} — {selected} / {total}") : baseName;
+            }
+        }
+        catch { }
     }
 
     private void PrefillFromLastArgs()
@@ -344,17 +487,32 @@ public partial class ModuleArgsWindow : Window
                     }
                     catch { }
                 }
-                else if (editor is ListBox listAcc && (type == "аккаунты" || type == "accounts"))
+                else if ((type == "аккаунты" || type == "accounts"))
                 {
                     try
                     {
                         var ids = (saved ?? string.Empty).Split(new[]{',',';',' '}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         var set = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
-                        foreach (var item in listAcc.Items)
+                        if (editor is ListBox listAcc)
                         {
-                            if (item is Account a && set.Contains(a.Id))
+                            foreach (var item in listAcc.Items)
                             {
-                                listAcc.SelectedItems.Add(item);
+                                if (item is Account a && set.Contains(a.Id))
+                                {
+                                    listAcc.SelectedItems.Add(item);
+                                }
+                            }
+                        }
+                        else if (editor is FrameworkElement fe && fe.DataContext is AccountsGroupedModel gm)
+                        {
+                            foreach (var g in gm.Groups)
+                            {
+                                foreach (var it in g.Items)
+                                {
+                                    if (it.Account != null && !string.IsNullOrEmpty(it.Account.Id))
+                                        it.Toggle.IsChecked = set.Contains(it.Account.Id);
+                                }
+                                UpdateGroupHeader(g);
                             }
                         }
                     }
@@ -430,11 +588,24 @@ public partial class ModuleArgsWindow : Window
                 value = selectedAccount; // convert later to Lua table
                 stringValue = selectedAccount?.Id ?? string.Empty; // persist Account Id
             }
-            else if (editor is ListBox listAcc && (type == "аккаунты" || type == "accounts"))
+            else if ((type == "аккаунты" || type == "accounts"))
             {
-                var accounts = listAcc.SelectedItems.Cast<object>().OfType<Account>().ToList();
-                value = accounts; // list of accounts
-                stringValue = string.Join(",", accounts.Select(a => a.Id ?? string.Empty));
+                if (editor is ListBox listAcc)
+                {
+                    var accounts = listAcc.SelectedItems.Cast<object>().OfType<Account>().ToList();
+                    value = accounts; // list of accounts
+                    stringValue = string.Join(",", accounts.Select(a => a.Id ?? string.Empty));
+                }
+                else if (editor is FrameworkElement fe && fe.DataContext is AccountsGroupedModel gm)
+                {
+                    var selected = gm.AllItems
+                        .Where(i => i.Toggle.IsChecked == true)
+                        .Select(i => i.Account)
+                        .Where(a => a != null)
+                        .ToList();
+                    value = selected;
+                    stringValue = string.Join(",", selected.Select(a => a.Id ?? string.Empty));
+                }
             }
 
             if (def.Required && (value == null 

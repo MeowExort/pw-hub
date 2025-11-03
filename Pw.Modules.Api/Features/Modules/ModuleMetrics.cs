@@ -27,4 +27,29 @@ public static class ModuleMetrics
         name: "modules.searches",
         unit: null,
         description: "Количество запросов поиска модулей");
+
+    // --- Telegram metrics ---
+    /// <summary>
+    /// Counts successful Telegram links (user accounts linked to Telegram).
+    /// </summary>
+    public static readonly Counter<long> TelegramLinked = Meter.CreateCounter<long>(
+        name: "telegram.linked",
+        unit: null,
+        description: "Количество успешных привязок Telegram");
+
+    /// <summary>
+    /// Counts successful Telegram unlinks.
+    /// </summary>
+    public static readonly Counter<long> TelegramUnlinked = Meter.CreateCounter<long>(
+        name: "telegram.unlinked",
+        unit: null,
+        description: "Количество успешных отвязок Telegram");
+
+    /// <summary>
+    /// Counts successfully sent Telegram messages via API sender.
+    /// </summary>
+    public static readonly Counter<long> TelegramMessagesSent = Meter.CreateCounter<long>(
+        name: "telegram.messages.sent",
+        unit: null,
+        description: "Количество успешно отправленных сообщений в Telegram");
 }

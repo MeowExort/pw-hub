@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
+using Pw.Modules.Api.Features.Modules;
 
 namespace Pw.Modules.Api.Infrastructure.Telegram;
 
@@ -33,6 +34,9 @@ public class TelegramSender : ITelegramSender
 
             var bot = new TelegramBotClient(token);
             await bot.SendTextMessageAsync(telegramId, message, parseMode: ParseMode.Markdown, cancellationToken: ct);
+
+            // Metrics: successful Telegram message sent
+            ModuleMetrics.TelegramMessagesSent.Add(1);
             return true;
         }
         catch (Exception ex)

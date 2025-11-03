@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Pw.Modules.Api.Data;
+using Pw.Modules.Api.Features.Modules;
 
 namespace Pw.Modules.Api.Features.Auth.Telegram;
 
@@ -78,6 +79,9 @@ public static class ConsumeTelegramStateEndpoint
         linkState.ConsumedAt = now;
 
         await db.SaveChangesAsync();
+
+        // Metrics: successful Telegram link
+        ModuleMetrics.TelegramLinked.Add(1);
 
         return Results.Ok(new { userId = user.Id, username = user.Username, linkedAt = user.TelegramLinkedAt });
     }

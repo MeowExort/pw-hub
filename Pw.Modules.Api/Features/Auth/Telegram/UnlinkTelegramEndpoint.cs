@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Pw.Modules.Api.Application.Auth.Dtos;
 using Pw.Modules.Api.Data;
+using Pw.Modules.Api.Features.Modules;
 
 namespace Pw.Modules.Api.Features.Auth.Telegram;
 
@@ -28,6 +29,9 @@ public static class UnlinkTelegramEndpoint
             user.TelegramUsername = null;
             user.TelegramLinkedAt = null;
             await db.SaveChangesAsync();
+
+            // Metrics: successful Telegram unlink
+            ModuleMetrics.TelegramUnlinked.Add(1);
         }
 
         return Results.Ok(new UserDto
