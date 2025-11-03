@@ -32,7 +32,7 @@ public class TelegramSender : ITelegramSender
             }
 
             var bot = new TelegramBotClient(token);
-            await bot.SendTextMessageAsync(telegramId, message, parseMode: ParseMode.MarkdownV2, cancellationToken: ct);
+            await bot.SendTextMessageAsync(telegramId, message, parseMode: ParseMode.Markdown, cancellationToken: ct);
             return true;
         }
         catch (Exception ex)
