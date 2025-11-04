@@ -9,24 +9,43 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Windows;
+using System.ComponentModel;
 
 namespace Pw.Hub.Pages;
 
-public partial class AccountPage : IWebViewHost
+public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 {
     public IAccountManager AccountManager;
     public IBrowser Browser;
     public LuaScriptRunner LuaRunner;
 
+    // Overlay: show until the first successful account change
     public bool IsCoreInitialized => Wv?.CoreWebView2?.CookieManager != null;
+
+    // Overlay state property (bindable)
+    private bool _isNoAccountOverlayVisible = true; // show until first account is selected successfully
+
+    public bool IsNoAccountOverlayVisible
+    {
+        get => _isNoAccountOverlayVisible;
+        set { if (value != _isNoAccountOverlayVisible) { _isNoAccountOverlayVisible = value; OnPropertyChanged(nameof(IsNoAccountOverlayVisible)); } }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged(string name) { try { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)); } catch { } }
 
     // IWebViewHost implementation
     public WebView2 Current => Wv;
     public Task ReplaceAsync(WebView2 newControl) => ReplaceWebViewControlAsync(newControl);
 
+    public Task PreloadAsync(WebView2 newControl) => PreloadWebViewControlAsync(newControl);
+    public Task FinalizeSwapAsync(WebView2 newControl) => FinalizeSwapWebViewControlAsync(newControl);
+
     public AccountPage()
     {
         InitializeComponent();
+        DataContext = this; // for overlay bindings
+
         Wv.Source = new Uri("https://pwonline.ru");
         Wv.NavigationCompleted += WvOnNavigationCompleted;
         Wv.NavigationStarting += WvOnNavigationStarting;
@@ -35,7 +54,35 @@ public partial class AccountPage : IWebViewHost
         {
             EnsureNewSessionBeforeSwitchAsync = () => Browser.CreateNewSessionAsync()
         };
+
+        // Subscribe only to account changed to hide initial overlay after first successful switch
+        try
+        {
+            AccountManager.CurrentAccountChanged += OnCurrentAccountChanged;
+        }
+        catch { }
+
         LuaRunner = new LuaScriptRunner(AccountManager, Browser);
+    }
+
+
+    private void OnCurrentAccountChanged(Account account)
+    {
+        try
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.InvokeAsync(() => OnCurrentAccountChanged(account));
+                return;
+            }
+            if (account == null)
+                return;
+            // Hide the initial placeholder after the first successful account change
+            IsNoAccountOverlayVisible = false;
+            // Unsubscribe to avoid further UI updates for subsequent switches
+            try { AccountManager.CurrentAccountChanged -= OnCurrentAccountChanged; } catch { }
+        }
+        catch { }
     }
 
     // Host delegate for WebCoreBrowser: safely replace Wv in the visual tree and rewire handlers
@@ -82,6 +129,67 @@ public partial class AccountPage : IWebViewHost
         try { Wv.CoreWebView2InitializationCompleted += Wv_OnCoreWebView2InitializationCompleted; } catch { }
 
         // Ensure core of the new control if possible (browser will also try)
+        try { await Wv.EnsureCoreWebView2Async(); } catch { }
+    }
+
+    // Preload new WebView2 hidden without removing old one (to avoid white flash)
+    private async Task PreloadWebViewControlAsync(WebView2 newWv)
+    {
+        if (newWv == null) return;
+        var parent = Wv.Parent as Grid;
+        if (parent == null) return;
+
+        // Put new control into the same cell but keep it hidden until final swap
+        int row = Grid.GetRow(Wv);
+        int column = Grid.GetColumn(Wv);
+        int rowSpan = Grid.GetRowSpan(Wv);
+        int columnSpan = Grid.GetColumnSpan(Wv);
+
+        newWv.Visibility = Visibility.Hidden;
+        if (!parent.Children.Contains(newWv))
+        {
+            // Insert directly before old Wv to preserve z-order of overlay elements
+            var index = parent.Children.IndexOf(Wv);
+            if (index >= 0)
+                parent.Children.Insert(index, newWv);
+            else
+                parent.Children.Add(newWv);
+        }
+        Grid.SetRow(newWv, row);
+        Grid.SetColumn(newWv, column);
+        Grid.SetRowSpan(newWv, rowSpan);
+        Grid.SetColumnSpan(newWv, columnSpan);
+
+        // Try to initialize core (safe to ignore errors)
+        try { await newWv.EnsureCoreWebView2Async(); } catch { }
+    }
+
+    // Finalize swap: remove old control, show new one, rewire handlers
+    private async Task FinalizeSwapWebViewControlAsync(WebView2 newWv)
+    {
+        if (newWv == null) return;
+
+        // Detach handlers from old control
+        try { Wv.NavigationCompleted -= WvOnNavigationCompleted; } catch { }
+        try { Wv.NavigationStarting -= WvOnNavigationStarting; } catch { }
+        try { Wv.NavigationCompleted -= Wv_OnNavigationCompleted; } catch { }
+        try { Wv.CoreWebView2InitializationCompleted -= Wv_OnCoreWebView2InitializationCompleted; } catch { }
+
+        var parent = Wv.Parent as Grid;
+        try { Wv.Dispose(); } catch { }
+        try { parent?.Children.Remove(Wv); } catch { }
+
+        // Switch field and attach handlers to the new control
+        Wv = newWv;
+        try { Wv.NavigationCompleted += WvOnNavigationCompleted; } catch { }
+        try { Wv.NavigationStarting += WvOnNavigationStarting; } catch { }
+        try { Wv.NavigationCompleted += Wv_OnNavigationCompleted; } catch { }
+        try { Wv.CoreWebView2InitializationCompleted += Wv_OnCoreWebView2InitializationCompleted; } catch { }
+
+        // Make it visible
+        try { Wv.Visibility = Visibility.Visible; } catch { }
+
+        // Ensure core again just in case
         try { await Wv.EnsureCoreWebView2Async(); } catch { }
     }
 

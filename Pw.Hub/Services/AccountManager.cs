@@ -61,6 +61,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
             // attach to new account PropertyChanged
             AttachToCurrentAccountPropertyChanged();
 
+            var previousUri = browser.Source.ToString();
             // Ensure a fresh isolated browser session before applying target account cookies
             if (EnsureNewSessionBeforeSwitchAsync != null)
             {
@@ -79,7 +80,8 @@ public class AccountManager(IBrowser browser) : IAccountManager
             }
 
             await browser.SetCookieAsync(cookies);
-            await browser.ReloadAsync();
+            // After creating a brand-new session, force a deterministic navigation instead of Reload to avoid staying on about:blank
+            await browser.NavigateAsync(previousUri);
             var pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 30000);
             if (!pageLoaded)
             {

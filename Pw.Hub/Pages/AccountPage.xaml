@@ -5,14 +5,55 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:wpf="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
       mc:Ignorable="d">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <wpf:WebView2 Grid.Row="1"
-            x:Name="Wv"
-            NavigationCompleted="Wv_OnNavigationCompleted"
-            CoreWebView2InitializationCompleted="Wv_OnCoreWebView2InitializationCompleted" />
+        <!-- Browser host layer with overlay on top -->
+        <Grid Grid.Row="1" Background="#1E1E1E">
+            <wpf:WebView2
+                x:Name="Wv"
+                NavigationCompleted="Wv_OnNavigationCompleted"
+                CoreWebView2InitializationCompleted="Wv_OnCoreWebView2InitializationCompleted">
+                <wpf:WebView2.Style>
+                    <Style TargetType="{x:Type wpf:WebView2}">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNoAccountOverlayVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </wpf:WebView2.Style>
+            </wpf:WebView2>
+
+            <!-- Overlay: blocks interactions and shows placeholder text until first account selection -->
+            <Border Background="#CC0B0B0B"
+                    Visibility="{Binding IsNoAccountOverlayVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                    CornerRadius="8"
+                    Margin="12"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical" Margin="16">
+                        <TextBlock Text="Выберите аккаунт"
+                                   Foreground="White"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

@@ -3,6 +3,7 @@ using Microsoft.Web.WebView2.Core;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Models;
 using System.Windows.Threading;
+using System.Windows;
 
 namespace Pw.Hub.Services;
 
@@ -28,11 +29,24 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
         await _webView.Dispatcher.InvokeAsync(func, DispatcherPriority.Normal).Task;
     }
 
+    private async Task EnsureCoreAndSetBackgroundAsync()
+    {
+        await _webView.EnsureCoreWebView2Async();
+        try
+        {
+            // Ensure about:blank (and any transparent area) is dark
+            _webView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30);
+        }
+        catch
+        {
+        }
+    }
+
     public Task<string> ExecuteScriptAsync(string script)
     {
         return OnUiAsync(async () =>
         {
-            await _webView.EnsureCoreWebView2Async();
+            await EnsureCoreAndSetBackgroundAsync();
             var result = await _webView.ExecuteScriptAsync(script);
             return result.Trim('"');
         });
@@ -45,7 +59,7 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
             var uri = new Uri(url);
             if (uri.Host != "pwonline.ru")
                 return;
-            await _webView.EnsureCoreWebView2Async();
+            await EnsureCoreAndSetBackgroundAsync();
             _webView.CoreWebView2.Navigate(url);
         });
     }
@@ -54,7 +68,7 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            await _webView.EnsureCoreWebView2Async();
+            await EnsureCoreAndSetBackgroundAsync();
             _webView.CoreWebView2.Reload();
         });
     }
@@ -89,7 +103,7 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            await _webView.EnsureCoreWebView2Async();
+            await EnsureCoreAndSetBackgroundAsync();
             var cookieManager = _webView.CoreWebView2.CookieManager;
             var coreCookies = await cookieManager.GetCookiesAsync(null);
             return coreCookies.Select(Cookie.FromCoreWebView2Cookie).ToArray();
@@ -100,7 +114,7 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            await _webView.EnsureCoreWebView2Async();
+            await EnsureCoreAndSetBackgroundAsync();
             var cookieManager = _webView.CoreWebView2.CookieManager;
             cookieManager.DeleteAllCookies();
             foreach (var c in cookie)
@@ -123,23 +137,59 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            // Create a completely new WebView2 instance in InPrivate mode and replace the control via host delegate
-            var previousUri = _webView?.Source ?? new Uri("https://pwonline.ru");
             var newWv = new WebView2
             {
                 CreationProperties = new CoreWebView2CreationProperties
                 {
                     IsInPrivateModeEnabled = true
-                },
-                Source = previousUri
+                }
             };
 
-            // Ask host (UI) to swap controls safely (detach/attach handlers, keep grid placement)
-            await _host.ReplaceAsync(newWv);
+            // Prepare new control hidden and dark before it ever becomes visible
+            try { newWv.Visibility = Visibility.Hidden; } catch { }
+            try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
 
-            // Update internal reference and ensure core is ready
+            // Preload hidden into visual tree (old remains visible)
+            await _host.PreloadAsync(newWv);
+
+            // Initialize core and enforce dark background again post-init
+            try { await newWv.EnsureCoreWebView2Async(); } catch { }
+            try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
+
+            // Swap internal reference so subsequent Browser calls use the new control
             _webView = newWv;
-            try { await _webView.EnsureCoreWebView2Async(); } catch { }
+
+            // Finalize swap when first navigation of the new control starts, ensuring we never show about:blank
+            var finalized = false;
+            void EnsureFinalize()
+            {
+                if (finalized) return;
+                finalized = true;
+                _ = OnUiAsync(async () =>
+                {
+                    try { await _host.FinalizeSwapAsync(newWv); } catch { }
+                });
+            }
+
+            try
+            {
+                newWv.CoreWebView2.NavigationStarting += (s, e) =>
+                {
+                    EnsureFinalize();
+                };
+            }
+            catch
+            {
+                // If we cannot hook event (unlikely), finalize immediately to avoid hidden control
+                EnsureFinalize();
+            }
+
+            // Safety fallback: finalize after short delay if no navigation started (e.g., caller navigates later)
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(500);
+                EnsureFinalize();
+            });
         });
     }
 
