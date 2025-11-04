@@ -1,35 +1,39 @@
 ﻿using Microsoft.Web.WebView2.Wpf;
+using Microsoft.Web.WebView2.Core;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Models;
 using System.Windows.Threading;
 
 namespace Pw.Hub.Services;
 
-public class WebCoreBrowser(WebView2 webView) : IBrowser
+public class WebCoreBrowser(IWebViewHost host) : IBrowser
 {
+    private WebView2 _webView = host.Current;
+    private readonly IWebViewHost _host = host;
+
     private async Task<T> OnUiAsync<T>(Func<Task<T>> func)
     {
-        if (webView.Dispatcher.CheckAccess())
+        if (_webView.Dispatcher.CheckAccess())
             return await func();
-        return await webView.Dispatcher.InvokeAsync(func, DispatcherPriority.Normal).Task.Unwrap();
+        return await _webView.Dispatcher.InvokeAsync(func, DispatcherPriority.Normal).Task.Unwrap();
     }
 
     private async Task OnUiAsync(Func<Task> func)
     {
-        if (webView.Dispatcher.CheckAccess())
+        if (_webView.Dispatcher.CheckAccess())
         {
             await func();
             return;
         }
-        await webView.Dispatcher.InvokeAsync(func, DispatcherPriority.Normal).Task;
+        await _webView.Dispatcher.InvokeAsync(func, DispatcherPriority.Normal).Task;
     }
 
     public Task<string> ExecuteScriptAsync(string script)
     {
         return OnUiAsync(async () =>
         {
-            await webView.EnsureCoreWebView2Async();
-            var result = await webView.ExecuteScriptAsync(script);
+            await _webView.EnsureCoreWebView2Async();
+            var result = await _webView.ExecuteScriptAsync(script);
             return result.Trim('"');
         });
     }
@@ -41,8 +45,8 @@ public class WebCoreBrowser(WebView2 webView) : IBrowser
             var uri = new Uri(url);
             if (uri.Host != "pwonline.ru")
                 return;
-            await webView.EnsureCoreWebView2Async();
-            webView.CoreWebView2.Navigate(url);
+            await _webView.EnsureCoreWebView2Async();
+            _webView.CoreWebView2.Navigate(url);
         });
     }
 
@@ -50,8 +54,8 @@ public class WebCoreBrowser(WebView2 webView) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            await webView.EnsureCoreWebView2Async();
-            webView.CoreWebView2.Reload();
+            await _webView.EnsureCoreWebView2Async();
+            _webView.CoreWebView2.Reload();
         });
     }
 
@@ -85,8 +89,8 @@ public class WebCoreBrowser(WebView2 webView) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            await webView.EnsureCoreWebView2Async();
-            var cookieManager = webView.CoreWebView2.CookieManager;
+            await _webView.EnsureCoreWebView2Async();
+            var cookieManager = _webView.CoreWebView2.CookieManager;
             var coreCookies = await cookieManager.GetCookiesAsync(null);
             return coreCookies.Select(Cookie.FromCoreWebView2Cookie).ToArray();
         });
@@ -96,8 +100,8 @@ public class WebCoreBrowser(WebView2 webView) : IBrowser
     {
         return OnUiAsync(async () =>
         {
-            await webView.EnsureCoreWebView2Async();
-            var cookieManager = webView.CoreWebView2.CookieManager;
+            await _webView.EnsureCoreWebView2Async();
+            var cookieManager = _webView.CoreWebView2.CookieManager;
             cookieManager.DeleteAllCookies();
             foreach (var c in cookie)
             {
@@ -115,5 +119,29 @@ public class WebCoreBrowser(WebView2 webView) : IBrowser
         });
     }
 
-    public Uri Source => webView.Source;
+    public Task CreateNewSessionAsync()
+    {
+        return OnUiAsync(async () =>
+        {
+            // Create a completely new WebView2 instance in InPrivate mode and replace the control via host delegate
+            var previousUri = _webView?.Source ?? new Uri("https://pwonline.ru");
+            var newWv = new WebView2
+            {
+                CreationProperties = new CoreWebView2CreationProperties
+                {
+                    IsInPrivateModeEnabled = true
+                },
+                Source = previousUri
+            };
+
+            // Ask host (UI) to swap controls safely (detach/attach handlers, keep grid placement)
+            await _host.ReplaceAsync(newWv);
+
+            // Update internal reference and ensure core is ready
+            _webView = newWv;
+            try { await _webView.EnsureCoreWebView2Async(); } catch { }
+        });
+    }
+
+    public Uri Source => _webView.Source;
 }

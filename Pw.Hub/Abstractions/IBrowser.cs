@@ -11,5 +11,6 @@ public interface IBrowser
     Task<bool> WaitForElementExistsAsync(string selector, int timeoutMs = 5000);
     Task<Cookie[]> GetCookiesAsync();
     Task SetCookieAsync(Cookie[] cookie);
+    Task CreateNewSessionAsync();
     Uri Source { get; }
 }

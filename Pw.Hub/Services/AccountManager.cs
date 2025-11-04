@@ -22,6 +22,9 @@ public class AccountManager(IBrowser browser) : IAccountManager
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
     private PropertyChangedEventHandler _accountPropertyChangedHandler;
 
+    // Optional hook to ensure a brand new browser session before applying target account's cookies
+    public Func<Task>? EnsureNewSessionBeforeSwitchAsync { get; set; }
+
     private void SetChanging(bool value)
     {
         _isChanging = value;
@@ -44,7 +47,9 @@ public class AccountManager(IBrowser browser) : IAccountManager
         SetChanging(true);
         try
         {
+            // Save cookies from the previous account before session reset
             await SaveCookies();
+
             await using var db = new AppDbContext();
             var account = await db.Accounts.FindAsync(accountId);
             // detach from previous account PropertyChanged
@@ -55,6 +60,12 @@ public class AccountManager(IBrowser browser) : IAccountManager
             CurrentAccount = account ?? throw new InvalidOperationException("Account not found");
             // attach to new account PropertyChanged
             AttachToCurrentAccountPropertyChanged();
+
+            // Ensure a fresh isolated browser session before applying target account cookies
+            if (EnsureNewSessionBeforeSwitchAsync != null)
+            {
+                try { await EnsureNewSessionBeforeSwitchAsync(); } catch { }
+            }
 
             Cookie[] cookies;
             if (!File.Exists(GetCookieFilePath()))

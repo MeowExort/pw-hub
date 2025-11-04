@@ -33,10 +33,19 @@ public partial class MainWindow
     private List<ModuleDefinition> _modules = new();
 
     private readonly ModulesApiClient _modulesApi = new();
-    private readonly IModulesSyncService _modulesSync = App.Services.GetService(typeof(IModulesSyncService)) as IModulesSyncService ?? new ModulesSyncService();
-    private readonly ILuaExecutionService _luaExec = App.Services.GetService(typeof(ILuaExecutionService)) as ILuaExecutionService ?? new LuaExecutionService();
-    private readonly ICharactersLoadService _charsLoad = App.Services.GetService(typeof(ICharactersLoadService)) as ICharactersLoadService ?? new CharactersLoadService();
-    private readonly IOrderingService _ordering = App.Services.GetService(typeof(IOrderingService)) as IOrderingService ?? new OrderingService();
+
+    private readonly IModulesSyncService _modulesSync =
+        App.Services.GetService(typeof(IModulesSyncService)) as IModulesSyncService ?? new ModulesSyncService();
+
+    private readonly ILuaExecutionService _luaExec =
+        App.Services.GetService(typeof(ILuaExecutionService)) as ILuaExecutionService ?? new LuaExecutionService();
+
+    private readonly ICharactersLoadService _charsLoad =
+        App.Services.GetService(typeof(ICharactersLoadService)) as ICharactersLoadService ??
+        new CharactersLoadService();
+
+    private readonly IOrderingService _ordering =
+        App.Services.GetService(typeof(IOrderingService)) as IOrderingService ?? new OrderingService();
 
     /// <summary>
     /// Конструктор главного окна. Подключает ViewModel из DI, настраивает подписки на события
@@ -46,22 +55,65 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
-        
+
         _vm = App.Services.GetService(typeof(MainViewModel)) as MainViewModel ?? new MainViewModel();
         DataContext = _vm;
-        
+
         // Подписываемся на запросы из VM
-        try { _vm.RequestLoadCharacters += OnRequestLoadCharacters; } catch { }
-        try { _vm.RequestSelectTreeItem += OnRequestSelectTreeItem; } catch { }
-        
+        try
+        {
+            _vm.RequestLoadCharacters += OnRequestLoadCharacters;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            _vm.RequestSelectTreeItem += OnRequestSelectTreeItem;
+        }
+        catch
+        {
+        }
+
         // Reposition updates popup when window size or position changes
         try
         {
-            SizeChanged += (_, _) => { try { if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup(); } catch { } };
-            LocationChanged += (_, _) => { try { if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup(); } catch { } };
-            StateChanged += (_, _) => { try { if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup(); } catch { } };
+            SizeChanged += (_, _) =>
+            {
+                try
+                {
+                    if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup();
+                }
+                catch
+                {
+                }
+            };
+            LocationChanged += (_, _) =>
+            {
+                try
+                {
+                    if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup();
+                }
+                catch
+                {
+                }
+            };
+            StateChanged += (_, _) =>
+            {
+                try
+                {
+                    if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup();
+                }
+                catch
+                {
+                }
+            };
         }
-        catch { }
+        catch
+        {
+        }
+
         try
         {
             // Subscribe to account change events to sync TreeView selection
@@ -71,11 +123,27 @@ public partial class MainWindow
             // Subscribe to account changing progress to block UI interactions during switch
             AccountPage.AccountManager.CurrentAccountChanging += OnCurrentAccountChanging;
         }
-        catch { }
+        catch
+        {
+        }
+
         Loaded += async (_, _) =>
         {
-            try { LoadModules(); } catch { }
-            try { await SyncInstalledModulesAsync(); } catch { }
+            try
+            {
+                LoadModules();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                await SyncInstalledModulesAsync();
+            }
+            catch
+            {
+            }
         };
     }
 
@@ -83,12 +151,12 @@ public partial class MainWindow
     {
         try
         {
-            await Dispatcher.InvokeAsync(async () =>
-            {
-                await SelectInNavigationTreeAsync(item);
-            }, System.Windows.Threading.DispatcherPriority.Background);
+            await Dispatcher.InvokeAsync(async () => { await SelectInNavigationTreeAsync(item); },
+                System.Windows.Threading.DispatcherPriority.Background);
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private async Task SelectInNavigationTreeAsync(object item)
@@ -96,7 +164,13 @@ public partial class MainWindow
         if (item == null) return;
 
         // If a different account is being changed, postpone selection
-        try { if (AccountPage?.AccountManager?.IsChanging == true) return; } catch { }
+        try
+        {
+            if (AccountPage?.AccountManager?.IsChanging == true) return;
+        }
+        catch
+        {
+        }
 
         if (item is Account acc)
         {
@@ -151,9 +225,17 @@ public partial class MainWindow
                     if (container != null) return container;
                 }
             }
+
             await Task.Delay(25);
-            try { parent.UpdateLayout(); } catch { }
+            try
+            {
+                parent.UpdateLayout();
+            }
+            catch
+            {
+            }
         }
+
         return null;
     }
 
@@ -168,19 +250,33 @@ public partial class MainWindow
             var changed = await _modulesSync.SyncInstalledAsync();
             if (changed)
             {
-                try { LoadModules(); } catch { }
+                try
+                {
+                    LoadModules();
+                }
+                catch
+                {
+                }
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     /// <summary>
-        /// Устанавливает или обновляет модуль локально по данным, полученным с сервера (Modules API).
-        /// Сохраняет файл скрипта и обновляет запись в локальном каталоге модулей.
-        /// </summary>
-        private void InstallModuleLocally(Pw.Hub.Services.ModuleDto module)
+    /// Устанавливает или обновляет модуль локально по данным, полученным с сервера (Modules API).
+    /// Сохраняет файл скрипта и обновляет запись в локальном каталоге модулей.
+    /// </summary>
+    private void InstallModuleLocally(Pw.Hub.Services.ModuleDto module)
     {
-        try { _modulesSync.InstallModuleLocally(module); } catch { }
+        try
+        {
+            _modulesSync.InstallModuleLocally(module);
+        }
+        catch
+        {
+        }
     }
 
     /// <summary>
@@ -189,7 +285,13 @@ public partial class MainWindow
     /// </summary>
     private void RemoveModuleLocally(Guid id)
     {
-        try { _modulesSync.RemoveModuleLocally(id); } catch { }
+        try
+        {
+            _modulesSync.RemoveModuleLocally(id);
+        }
+        catch
+        {
+        }
     }
 
     private void OpenProfile_Click(object sender, RoutedEventArgs e)
@@ -299,13 +401,18 @@ public partial class MainWindow
                         NavigationTree.IsHitTestVisible = !isChanging;
                         NavigationTree.Focusable = !isChanging;
                     }
+
                     if (StatusBarText != null)
                         StatusBarText.Text = isChanging ? "Смена аккаунта..." : string.Empty;
                 }
-                catch { }
+                catch
+                {
+                }
             });
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private static void CollapseSiblings(TreeViewItem item)
@@ -322,10 +429,6 @@ public partial class MainWindow
             }
         }
     }
-
-
-
-
 
     private void NavigationTree_OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
@@ -357,9 +460,11 @@ public partial class MainWindow
             // Centralized selection change processing (handles both user and programmatic selection)
             ControlsList_SelectedItemChanged();
         }
-        catch { }
+        catch
+        {
+        }
     }
- 
+
     private void NavigationTree_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         try
@@ -395,7 +500,13 @@ public partial class MainWindow
     private async void ControlsList_SelectedItemChanged()
     {
         // Block account switching from TreeView while AccountManager is in progress
-        try { if (AccountPage?.AccountManager?.IsChanging == true) return; } catch { }
+        try
+        {
+            if (AccountPage?.AccountManager?.IsChanging == true) return;
+        }
+        catch
+        {
+        }
 
         if (NavigationTree.SelectedItem is Account account)
         {
@@ -429,8 +540,21 @@ public partial class MainWindow
             _vm.IsUpdatesPopupOpen = false;
 
         // Отписываемся от событий VM, чтобы избежать утечек памяти
-        try { _vm.RequestLoadCharacters -= OnRequestLoadCharacters; } catch { }
-        try { _vm.RequestSelectTreeItem -= OnRequestSelectTreeItem; } catch { }
+        try
+        {
+            _vm.RequestLoadCharacters -= OnRequestLoadCharacters;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            _vm.RequestSelectTreeItem -= OnRequestSelectTreeItem;
+        }
+        catch
+        {
+        }
 
         Hide();
     }
@@ -445,7 +569,13 @@ public partial class MainWindow
             await _vm.CheckUpdatesDebouncedAsync();
             if (_vm.IsUpdatesPopupOpen)
             {
-                try { PositionUpdatesPopup(); } catch { }
+                try
+                {
+                    PositionUpdatesPopup();
+                }
+                catch
+                {
+                }
             }
         }
         catch
@@ -460,7 +590,13 @@ public partial class MainWindow
     /// </summary>
     private void UpdatesPopup_CloseClick(object sender, RoutedEventArgs e)
     {
-        try { _vm.IsUpdatesPopupOpen = false; } catch { }
+        try
+        {
+            _vm.IsUpdatesPopupOpen = false;
+        }
+        catch
+        {
+        }
     }
 
     // Close updates popup when window loses activation (user switches to other app)
@@ -469,7 +605,13 @@ public partial class MainWindow
     /// </summary>
     private void MainWindow_OnDeactivated(object sender, EventArgs e)
     {
-        try { if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false; } catch { }
+        try
+        {
+            if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false;
+        }
+        catch
+        {
+        }
     }
 
     // Close updates popup when window is minimized; otherwise keep it positioned
@@ -490,7 +632,9 @@ public partial class MainWindow
                 if (_vm.IsUpdatesPopupOpen) PositionUpdatesPopup();
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     /// <summary>
@@ -515,7 +659,9 @@ public partial class MainWindow
                 // Break any PlacementTarget binding to avoid relative positioning glitches
                 UpdatesPopup.PlacementTarget = null;
             }
-            catch { }
+            catch
+            {
+            }
 
             // Determine popup size (fallback when not yet measured)
             var child = UpdatesPopup.Child as FrameworkElement;
@@ -529,7 +675,7 @@ public partial class MainWindow
                 return;
 
             var bottomRight = new Point(Math.Max(0, gridWidth - popupWidth - rightMargin),
-                                        Math.Max(0, gridHeight - popupHeight - bottomMargin));
+                Math.Max(0, gridHeight - popupHeight - bottomMargin));
 
             // Convert from element coordinates to screen pixels
             var screenPoint = RootGrid.PointToScreen(bottomRight);
@@ -550,7 +696,9 @@ public partial class MainWindow
                 UpdatesPopup.VerticalOffset = screenPoint.Y;
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private static string NormalizeSemVer(string v)
@@ -572,17 +720,25 @@ public partial class MainWindow
         {
             return sv > lv;
         }
+
         // fallback string compare
         return !string.Equals(local, server, StringComparison.Ordinal);
     }
-    
+
     public void LoadModules()
     {
         try
         {
             _modules = _moduleService.LoadModules();
             // Синхронизируем коллекцию VM для блока быстрого запуска (биндинг ItemsSource в XAML)
-            try { _vm.ReloadQuickModules(); } catch { }
+            try
+            {
+                _vm.ReloadQuickModules();
+            }
+            catch
+            {
+            }
+
             // Кнопка будет управляться CanExecute команды, но оставим явную блокировку как fallback
             RunModuleButton.IsEnabled = _modules?.Count > 0;
         }
@@ -637,7 +793,13 @@ public partial class MainWindow
             // Show modeless so it doesn't block MainWindow/UI
             win.Show();
             // Hide popup if it was open
-            try { if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false; } catch { }
+            try
+            {
+                if (_vm.IsUpdatesPopupOpen) _vm.IsUpdatesPopupOpen = false;
+            }
+            catch
+            {
+            }
         }
         catch
         {
@@ -672,10 +834,22 @@ public partial class MainWindow
 
             // 2) Зафиксировать текущий выбор непосредственно перед перезагрузкой данных
             object selected = null;
-            try { selected = NavigationTree?.SelectedItem; } catch { }
+            try
+            {
+                selected = NavigationTree?.SelectedItem;
+            }
+            catch
+            {
+            }
 
             // 3) Перезагрузить коллекции отрядов/аккаунтов в VM
-            try { _vm.Reload(); } catch { }
+            try
+            {
+                _vm.Reload();
+            }
+            catch
+            {
+            }
 
             // 4) Восстановить выбор, если он был. Не переопределяем выбор, если его нет.
             try
@@ -692,7 +866,9 @@ public partial class MainWindow
                     await SelectInNavigationTreeAsync(descriptor);
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }
         catch
         {

@@ -1,32 +1,88 @@
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
 using Pw.Hub.Services;
 using Pw.Hub.Tools;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Windows;
 
 namespace Pw.Hub.Pages;
 
-public partial class AccountPage
+public partial class AccountPage : IWebViewHost
 {
-    public readonly IAccountManager AccountManager;
-    public readonly IBrowser Browser;
+    public IAccountManager AccountManager;
+    public IBrowser Browser;
     public LuaScriptRunner LuaRunner;
 
     public bool IsCoreInitialized => Wv?.CoreWebView2?.CookieManager != null;
 
+    // IWebViewHost implementation
+    public WebView2 Current => Wv;
+    public Task ReplaceAsync(WebView2 newControl) => ReplaceWebViewControlAsync(newControl);
+
     public AccountPage()
     {
         InitializeComponent();
-        Wv.Source = new Uri("https://pwonline.ru/promo_items.php");
+        Wv.Source = new Uri("https://pwonline.ru");
         Wv.NavigationCompleted += WvOnNavigationCompleted;
         Wv.NavigationStarting += WvOnNavigationStarting;
-        Browser = new WebCoreBrowser(Wv);
-        AccountManager = new AccountManager(Browser);
+        Browser = new WebCoreBrowser(this);
+        AccountManager = new AccountManager(Browser)
+        {
+            EnsureNewSessionBeforeSwitchAsync = () => Browser.CreateNewSessionAsync()
+        };
         LuaRunner = new LuaScriptRunner(AccountManager, Browser);
+    }
+
+    // Host delegate for WebCoreBrowser: safely replace Wv in the visual tree and rewire handlers
+    private async Task ReplaceWebViewControlAsync(WebView2 newWv)
+    {
+        if (newWv == null) return;
+
+        // Detach handlers from old control
+        try { Wv.NavigationCompleted -= WvOnNavigationCompleted; } catch { }
+        try { Wv.NavigationStarting -= WvOnNavigationStarting; } catch { }
+        try { Wv.NavigationCompleted -= Wv_OnNavigationCompleted; } catch { }
+        try { Wv.CoreWebView2InitializationCompleted -= Wv_OnCoreWebView2InitializationCompleted; } catch { }
+
+        // Preserve placement
+        var parent = Wv.Parent as Grid;
+        int row = Grid.GetRow(Wv);
+        int column = Grid.GetColumn(Wv);
+        int rowSpan = Grid.GetRowSpan(Wv);
+        int columnSpan = Grid.GetColumnSpan(Wv);
+        int index = parent?.Children.IndexOf(Wv) ?? -1;
+
+        // Remove and dispose old control
+        try { Wv.Dispose(); } catch { }
+        parent?.Children.Remove(Wv);
+
+        // Insert new control
+        if (parent != null)
+        {
+            if (index >= 0)
+                parent.Children.Insert(index, newWv);
+            else
+                parent.Children.Add(newWv);
+            Grid.SetRow(newWv, row);
+            Grid.SetColumn(newWv, column);
+            Grid.SetRowSpan(newWv, rowSpan);
+            Grid.SetColumnSpan(newWv, columnSpan);
+        }
+
+        // Update field and reattach handlers
+        Wv = newWv;
+        try { Wv.NavigationCompleted += WvOnNavigationCompleted; } catch { }
+        try { Wv.NavigationStarting += WvOnNavigationStarting; } catch { }
+        try { Wv.NavigationCompleted += Wv_OnNavigationCompleted; } catch { }
+        try { Wv.CoreWebView2InitializationCompleted += Wv_OnCoreWebView2InitializationCompleted; } catch { }
+
+        // Ensure core of the new control if possible (browser will also try)
+        try { await Wv.EnsureCoreWebView2Async(); } catch { }
     }
 
     private void WvOnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
