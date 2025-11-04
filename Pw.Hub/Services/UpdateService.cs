@@ -245,55 +245,108 @@ public class UpdateService
         {
             var tempDir = Path.Combine(Path.GetTempPath(), "PwHubUpdate");
             Directory.CreateDirectory(tempDir);
-            var scriptPath = Path.Combine(tempDir, "update.cmd");
+            var scriptPath = Path.Combine(tempDir, "update.ps1");
             var procId = Process.GetCurrentProcess().Id;
 
+            // PowerShell script content (UTF-8 with BOM) to properly handle Cyrillic paths and UTF-8 output
             var sb = new StringBuilder();
-            sb.AppendLine("@echo off");
-            sb.AppendLine("setlocal enabledelayedexpansion");
-            sb.AppendLine($"set APPDIR=\"{appDir}\"");
-            sb.AppendLine($"set APPEXE=\"{appExePath}\"");
-            if (replaceExeOnly)
-            {
-                sb.AppendLine($"set NEWEXE=\"{newPayloadPath}\"");
-            }
-            else
-            {
-                sb.AppendLine($"set SRC=\"{newPayloadPath}\"");
-            }
-            sb.AppendLine("echo Ожидание завершения работы приложения...");
-            sb.AppendLine($"powershell -NoProfile -Command \"try {{ $p = Get-Process -Id {procId} -ErrorAction SilentlyContinue; while($p) {{ Start-Sleep -Milliseconds 200; $p = Get-Process -Id {procId} -ErrorAction SilentlyContinue }} }} catch {{}}\"");
+            sb.AppendLine("Param(\n  [Parameter(Mandatory=$true)][string]$NewPayloadPath,\n  [Parameter(Mandatory=$true)][string]$AppDir,\n  [Parameter(Mandatory=$true)][string]$AppExePath,\n  [Parameter(Mandatory=$true)][int]$ProcId,\n  [switch]$ReplaceExeOnly\n)");
+            sb.AppendLine("$ErrorActionPreference = 'Stop'");
+            sb.AppendLine("try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {} ");
+            sb.AppendLine("$LogDir = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath 'PwHubUpdate'");
+            sb.AppendLine("$LogPath = Join-Path -Path $LogDir -ChildPath 'update.log'");
+            sb.AppendLine("New-Item -ItemType Directory -Force -Path $LogDir | Out-Null");
+            // Write the very first bootstrap line before any Transcript starts (ensures the file exists)
+            sb.AppendLine("try { $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'; Add-Content -LiteralPath $LogPath -Value \"[$ts] Bootstrap: скрипт запущен\" -Encoding UTF8 } catch {} ");
+            sb.AppendLine("function Write-Log([string]$msg){ try { $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'; $line = \"[$ts] $msg\"; Write-Host $line; Add-Content -LiteralPath $LogPath -Value $line -Encoding UTF8 } catch {} }");
+            sb.AppendLine("try { Start-Transcript -Path $LogPath -Append -Force | Out-Null } catch {} ");
+            sb.AppendLine("Write-Log '== Старт обновления =='");
+            sb.AppendLine("Write-Log \"Параметры: NewPayloadPath=[$NewPayloadPath], AppDir=[$AppDir], AppExePath=[$AppExePath], ProcId=[$ProcId], ReplaceExeOnly=[$ReplaceExeOnly]\"");
+            sb.AppendLine("function Ensure-Elevation {\n  try {\n    $testFile = Join-Path -Path $AppDir -ChildPath ('write_test_' + [guid]::NewGuid().ToString() + '.tmp')\n    Set-Content -LiteralPath $testFile -Value 'test' -Encoding UTF8\n    Remove-Item -LiteralPath $testFile -Force -ErrorAction SilentlyContinue\n    return $true\n  } catch {\n    return $false\n  }\n}");
+            sb.AppendLine("if (-not (Ensure-Elevation)) {\n  Write-Log 'Требуются права администратора. Запрашиваем повышение привилегий...'\n  $args = @('-NoProfile','-ExecutionPolicy','Bypass','-File', $PSCommandPath, '-NewPayloadPath', $NewPayloadPath, '-AppDir', $AppDir, '-AppExePath', $AppExePath, '-ProcId', $ProcId.ToString())\n  if ($ReplaceExeOnly) { $args += '-ReplaceExeOnly' }\n  Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $args\n  exit 0\n}");
+            sb.AppendLine("Write-Log 'Ожидание завершения работы приложения...'");
+            sb.AppendLine("try { $p = Get-Process -Id $ProcId -ErrorAction SilentlyContinue; while ($p) { Start-Sleep -Milliseconds 200; $p = Get-Process -Id $ProcId -ErrorAction SilentlyContinue } } catch { Write-Log ('Ошибка ожидания процесса: ' + $_) }");
+            sb.AppendLine("Start-Sleep -Milliseconds 200");
+            sb.AppendLine("try {");
+            sb.AppendLine("  if ($ReplaceExeOnly) {");
+            sb.AppendLine("    Write-Log 'Замена исполняемого файла...' ");
+            sb.AppendLine("    $attempts = 0; while ($true) { try { Copy-Item -LiteralPath $NewPayloadPath -Destination $AppExePath -Force; Write-Log 'EXE заменен.'; break } catch { $attempts++; Write-Log ('Попытка копирования неудачна: ' + $_.Exception.Message); if ($attempts -ge 10) { throw }; Start-Sleep -Milliseconds 200 } } ");
+            sb.AppendLine("  } else {");
+            sb.AppendLine("    Write-Log 'Копирование новых файлов...' ");
+            sb.AppendLine("    $items = Get-ChildItem -LiteralPath $NewPayloadPath -Force ");
+            sb.AppendLine("    foreach ($it in $items) { try { Write-Log (\"Копируем: \" + $it.FullName); Copy-Item -LiteralPath $it.FullName -Destination $AppDir -Recurse -Force } catch { Write-Log ('Ошибка копирования ' + $it.FullName + ': ' + $_.Exception.Message); throw } }");
+            sb.AppendLine("  }");
+            sb.AppendLine("  try { Unblock-File -LiteralPath $AppExePath } catch { Write-Log ('Unblock-File ошибка: ' + $_.Exception.Message) } ");
+            sb.AppendLine("  Write-Log 'Запуск приложения...'");
+            sb.AppendLine("  Start-Process -FilePath $AppExePath -WorkingDirectory $AppDir | Out-Null");
+            sb.AppendLine("  Write-Log 'Готово. Выход.'");
+            sb.AppendLine("  try { Stop-Transcript | Out-Null } catch {} ");
+            sb.AppendLine("  exit 0");
+            sb.AppendLine("} catch { Write-Log ('ФАТАЛЬНАЯ ОШИБКА: ' + $_.Exception.ToString()); try { Stop-Transcript | Out-Null } catch {}; Write-Host 'Нажмите Enter, чтобы закрыть окно...'; Read-Host | Out-Null; exit 1 }");
 
-            if (replaceExeOnly)
+            // Write script with BOM to ensure PowerShell reads as UTF-8
+            File.WriteAllText(scriptPath, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            // Pre-launch diagnostic log
+            try
             {
-                // Replace only exe
-                sb.AppendLine("echo Замена исполняемого файла...");
-                sb.AppendLine("copy /Y %NEWEXE% %APPEXE% >nul");
+                var prelaunch = Path.Combine(tempDir, "prelauncher.log");
+                File.AppendAllText(prelaunch, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Preparing to start PowerShell.\r\nScriptPath={scriptPath}\r\nNewPayloadPath={newPayloadPath}\r\nAppDir={appDir}\r\nAppExePath={appExePath}\r\nReplaceExeOnly={replaceExeOnly}\r\n", Encoding.UTF8);
             }
-            else
+            catch { }
+
+            // Try launch strategy A: direct powershell.exe with visible window
+            string psFullPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+            if (!File.Exists(psFullPath)) psFullPath = "powershell.exe"; // fallback to PATH
+
+            bool started = false;
+            Exception lastStartEx = null;
+            try
             {
-                // Copy all files from extracted folder into app folder
-                sb.AppendLine("echo Копирование новых файлов...");
-                // Use robocopy to preserve structure and overwrite files
-                sb.AppendLine("robocopy %SRC% %APPDIR% /E /R:2 /W:1 /NP /NFL /NDL >nul");
-                sb.AppendLine("if %ERRORLEVEL% GEQ 8 ( echo Robocopy failed with code %ERRORLEVEL% & exit /b %ERRORLEVEL% )");
+                var psiA = new ProcessStartInfo
+                {
+                    FileName = psFullPath,
+                    UseShellExecute = true,
+                    WindowStyle = ProcessWindowStyle.Normal,
+                    WorkingDirectory = tempDir,
+                    Verb = "open",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -NewPayloadPath \"{newPayloadPath}\" -AppDir \"{appDir}\" -AppExePath \"{appExePath}\" -ProcId {procId}{(replaceExeOnly ? " -ReplaceExeOnly" : string.Empty)}"
+                };
+                started = Process.Start(psiA) != null;
+            }
+            catch (Exception ex)
+            {
+                lastStartEx = ex;
             }
 
-            sb.AppendLine("echo Запуск приложения...");
-            sb.AppendLine("start \"\" /D %APPDIR% %APPEXE%");
-            sb.AppendLine("exit /b 0");
-
-            File.WriteAllText(scriptPath, sb.ToString(), Encoding.UTF8);
-
-            // Start the updater script and shutdown the app
-            var psi = new ProcessStartInfo
+            // Fallback B: run via cmd.exe /k to force a visible console that stays open
+            if (!started)
             {
-                FileName = scriptPath,
-                UseShellExecute = true,
-                Verb = "open",
-                WorkingDirectory = tempDir
-            };
-            Process.Start(psi);
+                try
+                {
+                    var psiB = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        UseShellExecute = true,
+                        WindowStyle = ProcessWindowStyle.Normal,
+                        WorkingDirectory = tempDir,
+                        Arguments = $"/c \"\"{psFullPath}\" -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -NewPayloadPath \"{newPayloadPath}\" -AppDir \"{appDir}\" -AppExePath \"{appExePath}\" -ProcId {procId}{(replaceExeOnly ? " -ReplaceExeOnly" : string.Empty)}\""
+                    };
+                    started = Process.Start(psiB) != null;
+                }
+                catch (Exception ex)
+                {
+                    lastStartEx = ex;
+                }
+            }
+
+            if (!started)
+            {
+                ShowMessage($"Не удалось запустить окно обновления PowerShell.\\n{lastStartEx?.Message}", "Обновление", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            // Shutdown the app to allow files to be replaced
             Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
         }
         catch (Exception ex)
