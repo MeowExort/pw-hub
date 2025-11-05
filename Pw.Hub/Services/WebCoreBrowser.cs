@@ -4,6 +4,9 @@ using Pw.Hub.Abstractions;
 using Pw.Hub.Models;
 using System.Windows.Threading;
 using System.Windows;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Pw.Hub.Services;
 
@@ -11,6 +14,13 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
 {
     private WebView2 _webView = host.Current;
     private readonly IWebViewHost _host = host;
+    // Текущая папка пользовательских данных (профиль) для данного инстанса браузера
+    private string _userDataDir;
+
+    /// <summary>
+    /// Папка профиля WebView2, используемая текущим инстансом. Нужна для диагностики/очистки.
+    /// </summary>
+    public string UserDataFolder => _userDataDir;
 
     private async Task<T> OnUiAsync<T>(Func<Task<T>> func)
     {
@@ -137,29 +147,37 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
     {
         return OnUiAsync(async () =>
         {
+            var oldDir = _userDataDir;
+            var newDir = CreateProfileDir();
+            var previousUri = _webView?.Source ?? new Uri("https://pwonline.ru");
+
             var newWv = new WebView2
             {
                 CreationProperties = new CoreWebView2CreationProperties
                 {
-                    IsInPrivateModeEnabled = true
+                    // Для полной изоляции используем отдельную папку профиля вместо InPrivate
+                    UserDataFolder = newDir,
                 }
             };
 
-            // Prepare new control hidden and dark before it ever becomes visible
+            // Готовим новый контрол скрытым и с тёмным фоном до показа
             try { newWv.Visibility = Visibility.Hidden; } catch { }
             try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
 
-            // Preload hidden into visual tree (old remains visible)
+            // Предзагружаем в визуальное дерево (старый остаётся видимым)
             await _host.PreloadAsync(newWv);
 
-            // Initialize core and enforce dark background again post-init
+            // Инициализируем ядро и ещё раз страхуем фон
             try { await newWv.EnsureCoreWebView2Async(); } catch { }
             try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
 
-            // Swap internal reference so subsequent Browser calls use the new control
-            _webView = newWv;
+            newWv.Source = previousUri;
 
-            // Finalize swap when first navigation of the new control starts, ensuring we never show about:blank
+            // Переключаем внутреннюю ссылку и сохраняем папку профиля
+            _webView = newWv;
+            _userDataDir = newDir;
+
+            // Финализация показа при первом старте навигации
             var finalized = false;
             void EnsureFinalize()
             {
@@ -180,18 +198,95 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
             }
             catch
             {
-                // If we cannot hook event (unlikely), finalize immediately to avoid hidden control
                 EnsureFinalize();
             }
 
-            // Safety fallback: finalize after short delay if no navigation started (e.g., caller navigates later)
+            // Фолбэк: если навигации нет — показать через 500 мс
             _ = Task.Run(async () =>
             {
                 await Task.Delay(500);
                 EnsureFinalize();
             });
+
+            // Асинхронно пытаемся удалить старую папку профиля (если была)
+            if (!string.IsNullOrWhiteSpace(oldDir))
+            {
+                _ = TryDeleteDirWithRetries(oldDir);
+            }
         });
     }
 
     public Uri Source => _webView.Source;
+
+    // === Helpers: профили WebView2 ===
+    private static string ProfilesRoot()
+    {
+        try
+        {
+            var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var dir = Path.Combine(baseDir, "PwHub", "WebViewProfiles");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+        catch
+        {
+            var fallback = Path.Combine(Path.GetTempPath(), "PwHub", "WebViewProfiles");
+            try { Directory.CreateDirectory(fallback); } catch { }
+            return fallback;
+        }
+    }
+
+    private static string CreateProfileDir()
+    {
+        var root = ProfilesRoot();
+        string path;
+        int attempt = 0;
+        do
+        {
+            var id = Guid.NewGuid().ToString("N");
+            path = Path.Combine(root, id);
+            attempt++;
+        } while (Directory.Exists(path) && attempt < 5);
+
+        try { Directory.CreateDirectory(path); } catch { }
+        return path;
+    }
+
+    private static async Task<bool> TryDeleteDirWithRetries(string path, int attempts = 10, int delayMs = 250)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        for (int i = 0; i < attempts; i++)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    // Снимаем атрибуты только чтение, удаляем рекурсивно
+                    try
+                    {
+                        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                        {
+                            try { File.SetAttributes(file, FileAttributes.Normal); } catch { }
+                        }
+                    }
+                    catch { }
+                    Directory.Delete(path, true);
+                }
+                return true;
+            }
+            catch
+            {
+                try { await Task.Delay(delayMs); } catch { }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Публичный вспомогательный метод для удаления папки профиля из внешнего кода (BrowserManager).
+    /// </summary>
+    public static Task<bool> TryDeleteDirForExternal(string path)
+    {
+        return TryDeleteDirWithRetries(path);
+    }
 }

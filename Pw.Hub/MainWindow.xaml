@@ -314,11 +314,23 @@
             </DockPanel>
         </Border>
 
-        <!-- Main Content Area -->
+        <!-- Main Content Area + Workspace for multiple browsers (v2) -->
         <Border Grid.Row="0" Grid.Column="1"
                 Background="{StaticResource BackgroundPrimaryBrush}"
                 Padding="0">
-            <pages:AccountPage x:Name="AccountPage" />
+            <Grid>
+                <!-- Историческая страница аккаунта (v1) -->
+                <pages:AccountPage x:Name="AccountPage" />
+                
+                <!-- Рабочее пространство динамических браузеров v2.
+                     Находится поверх AccountPage и отображается, когда есть созданные браузеры. -->
+                <UniformGrid x:Name="BrowserWorkspace"
+                             Rows="1" Columns="1"
+                             Visibility="Collapsed"
+                             Margin="0"
+                             Background="#1E1E1E">
+                </UniformGrid>
+            </Grid>
         </Border>
 
         <!-- Status Bar -->

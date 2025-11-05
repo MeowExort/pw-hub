@@ -6,6 +6,9 @@ using System.Windows;
 using NLua;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Models;
+using Pw.Hub;
+
+using Pw.Hub.Infrastructure;
 
 namespace Pw.Hub.Tools;
 
@@ -42,52 +45,133 @@ public class LuaIntegration
     public void Register(Lua lua)
     {
         _lua = lua;
-        // Callback variants for Account
+
+        var entries = new List<LuaApiRegistry.Entry>();
+        void Add(string name, string version, string category, string signature, string description, string snippet)
+        {
+            entries.Add(new LuaApiRegistry.Entry
+            {
+                Name = name,
+                Version = version,
+                Category = category,
+                Signature = signature,
+                Description = description,
+                Snippet = snippet
+            });
+        }
+
+        // Account (v1 shared)
         lua.RegisterFunction("Account_GetAccountCb", this,
             GetType().GetMethod(nameof(Account_GetAccountCb), new[] { typeof(LuaFunction) }));
+        Add("Account_GetAccountCb", "v1", "Account", "Account_GetAccountCb(function(acc) ... end)", "Получить текущий аккаунт в callback(acc)", "Account_GetAccountCb(function(acc)\n    __CURSOR__\nend)");
+
         lua.RegisterFunction("Account_IsAuthorizedCb", this,
             GetType().GetMethod(nameof(Account_IsAuthorizedCb), new[] { typeof(LuaFunction) }));
+        Add("Account_IsAuthorizedCb", "v1", "Account", "Account_IsAuthorizedCb(function(isAuth) ... end)", "Проверить авторизацию аккаунта", "Account_IsAuthorizedCb(function(isAuth)\n    __CURSOR__\nend)");
+
         lua.RegisterFunction("Account_GetAccountsCb", this,
             GetType().GetMethod(nameof(Account_GetAccountsCb), new[] { typeof(LuaFunction) }));
+        Add("Account_GetAccountsCb", "v1", "Account", "Account_GetAccountsCb(function(accounts) ... end)", "Список аккаунтов (таблица)", "Account_GetAccountsCb(function(accounts)\n    __CURSOR__\nend)");
+
         lua.RegisterFunction("Account_ChangeAccountCb", this,
             GetType().GetMethod(nameof(Account_ChangeAccountCb), new[] { typeof(string), typeof(LuaFunction) }));
+        Add("Account_ChangeAccountCb", "v1", "Account", "Account_ChangeAccountCb(accountId, function(ok) ... end)", "Сменить активный аккаунт", "Account_ChangeAccountCb(accountId, function(ok)\n    __CURSOR__\nend)");
 
-        // Browser related
+        // Browser related (v1 — совместимость: регистрируем только если доступен базовый браузер)
         if (_browser != null)
         {
-            // Callback variants
             lua.RegisterFunction("Browser_NavigateCb", this,
                 GetType().GetMethod(nameof(Browser_NavigateCb), new[] { typeof(string), typeof(LuaFunction) }));
+            Add("Browser_NavigateCb", "v1", "Browser", "Browser_NavigateCb(url, function() ... end)", "Открыть URL", "Browser_NavigateCb(url, function()\n    __CURSOR__\nend)");
+
             lua.RegisterFunction("Browser_ReloadCb", this,
                 GetType().GetMethod(nameof(Browser_ReloadCb), new[] { typeof(LuaFunction) }));
+            Add("Browser_ReloadCb", "v1", "Browser", "Browser_ReloadCb(function() ... end)", "Перезагрузить страницу", "Browser_ReloadCb(function()\n    __CURSOR__\nend)");
+
             lua.RegisterFunction("Browser_ExecuteScriptCb", this,
                 GetType().GetMethod(nameof(Browser_ExecuteScriptCb), new[] { typeof(string), typeof(LuaFunction) }));
+            Add("Browser_ExecuteScriptCb", "v1", "Browser", "Browser_ExecuteScriptCb(jsCode, function(result) ... end)", "Выполнить JS и вернуть результат", "Browser_ExecuteScriptCb(jsCode, function(result)\n    __CURSOR__\nend)");
+
             lua.RegisterFunction("Browser_ElementExistsCb", this,
                 GetType().GetMethod(nameof(Browser_ElementExistsCb), new[] { typeof(string), typeof(LuaFunction) }));
+            Add("Browser_ElementExistsCb", "v1", "Browser", "Browser_ElementExistsCb(selector, function(exists) ... end)", "Проверить наличие элемента", "Browser_ElementExistsCb(selector, function(exists)\n    __CURSOR__\nend)");
+
             lua.RegisterFunction("Browser_WaitForElementCb", this,
-                GetType().GetMethod(nameof(Browser_WaitForElementCb),
-                    new[] { typeof(string), typeof(int), typeof(LuaFunction) }));
+                GetType().GetMethod(nameof(Browser_WaitForElementCb), new[] { typeof(string), typeof(int), typeof(LuaFunction) }));
+            Add("Browser_WaitForElementCb", "v1", "Browser", "Browser_WaitForElementCb(selector, timeoutMs, function(found) ... end)", "Ждать появления элемента", "Browser_WaitForElementCb(selector, timeoutMs, function(found)\n    __CURSOR__\nend)");
         }
+
+        // BrowserV2 — новая версия Lua API для мульти-браузеров (без cookies/фокуса/видимости)
+        try
+        {
+            lua.RegisterFunction("BrowserV2_Create", this,
+                GetType().GetMethod(nameof(BrowserV2_Create), new[] { typeof(object), typeof(LuaFunction) }));
+            Add("BrowserV2_Create", "v2", "BrowserV2", "BrowserV2_Create(options, function(handle) ... end)", "Создать новый браузер и вернуть дескриптор", "BrowserV2_Create({}, function(handle)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_Close", this,
+                GetType().GetMethod(nameof(BrowserV2_Close), new[] { typeof(int), typeof(LuaFunction) }));
+            Add("BrowserV2_Close", "v2", "BrowserV2", "BrowserV2_Close(handle, function(ok) ... end)", "Закрыть созданный браузер", "BrowserV2_Close(handle, function(ok)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_Navigate", this,
+                GetType().GetMethod(nameof(BrowserV2_Navigate), new[] { typeof(int), typeof(string), typeof(LuaFunction) }));
+            Add("BrowserV2_Navigate", "v2", "BrowserV2", "BrowserV2_Navigate(handle, url, function(ok) ... end)", "Открыть URL в указанном браузере", "BrowserV2_Navigate(handle, url, function(ok)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_Reload", this,
+                GetType().GetMethod(nameof(BrowserV2_Reload), new[] { typeof(int), typeof(LuaFunction) }));
+            Add("BrowserV2_Reload", "v2", "BrowserV2", "BrowserV2_Reload(handle, function(ok) ... end)", "Перезагрузить страницу", "BrowserV2_Reload(handle, function(ok)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_ExecuteScript", this,
+                GetType().GetMethod(nameof(BrowserV2_ExecuteScript), new[] { typeof(int), typeof(string), typeof(LuaFunction) }));
+            Add("BrowserV2_ExecuteScript", "v2", "BrowserV2", "BrowserV2_ExecuteScript(handle, jsCode, function(result) ... end)", "Выполнить JS в браузере v2", "BrowserV2_ExecuteScript(handle, jsCode, function(result)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_ElementExists", this,
+                GetType().GetMethod(nameof(BrowserV2_ElementExists), new[] { typeof(int), typeof(string), typeof(LuaFunction) }));
+            Add("BrowserV2_ElementExists", "v2", "BrowserV2", "BrowserV2_ElementExists(handle, selector, function(exists) ... end)", "Проверить наличие элемента", "BrowserV2_ElementExists(handle, selector, function(exists)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_WaitForElement", this,
+                GetType().GetMethod(nameof(BrowserV2_WaitForElement), new[] { typeof(int), typeof(string), typeof(int), typeof(LuaFunction) }));
+            Add("BrowserV2_WaitForElement", "v2", "BrowserV2", "BrowserV2_WaitForElement(handle, selector, timeoutMs, function(found) ... end)", "Ждать появления элемента", "BrowserV2_WaitForElement(handle, selector, timeoutMs, function(found)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_ChangeAccount", this,
+                GetType().GetMethod(nameof(BrowserV2_ChangeAccount), new[] { typeof(int), typeof(string), typeof(LuaFunction) }));
+            Add("BrowserV2_ChangeAccount", "v2", "BrowserV2", "BrowserV2_ChangeAccount(handle, accountId, function(ok) ... end)", "Сменить аккаунт для указанного браузера v2", "BrowserV2_ChangeAccount(handle, accountId, function(ok)\n    __CURSOR__\nend)");
+
+            lua.RegisterFunction("BrowserV2_GetCurrentAccount", this,
+                GetType().GetMethod(nameof(BrowserV2_GetCurrentAccount), new[] { typeof(int), typeof(LuaFunction) }));
+            Add("BrowserV2_GetCurrentAccount", "v2", "BrowserV2", "BrowserV2_GetCurrentAccount(handle, function(acc) ... end)", "Вернуть Lua‑таблицу текущего аккаунта", "BrowserV2_GetCurrentAccount(handle, function(acc)\n    __CURSOR__\nend)");
+        }
+        catch { }
 
         // Helpers
         lua.RegisterFunction("Print", this, GetType().GetMethod(nameof(Print)));
+        Add("Print", "v1", "Helpers", "Print(value)", "Вывести текст в лог редактора", "Print('text')");
+
         lua.RegisterFunction("DelayCb", this,
             GetType().GetMethod(nameof(DelayCb), new[] { typeof(int), typeof(LuaFunction) }));
+        Add("DelayCb", "v1", "Helpers", "DelayCb(ms, function() ... end)", "Задержка с колбэком", "DelayCb(1000, function()\n    __CURSOR__\nend)");
 
         // Progress reporting helpers
         lua.RegisterFunction("ReportProgress", this,
             GetType().GetMethod(nameof(ReportProgress), new[] { typeof(int) }));
+        Add("ReportProgress", "v1", "Helpers", "ReportProgress(percent)", "Обновить прогресс выполнения", "ReportProgress(50)");
+
         lua.RegisterFunction("ReportProgressMsg", this,
             GetType().GetMethod(nameof(ReportProgressMsg), new[] { typeof(int), typeof(string) }));
+        Add("ReportProgressMsg", "v1", "Helpers", "ReportProgressMsg(percent, message)", "Обновить прогресс с сообщением", "ReportProgressMsg(25, 'Старт')");
 
         // Net api
         lua.RegisterFunction("Net_PostJsonCb", this,
             GetType().GetMethod(nameof(NetPostJsonSb),
                 new[] { typeof(string), typeof(string), typeof(string), typeof(LuaFunction) }));
+        Add("Net_PostJsonCb", "v1", "Net", "Net_PostJsonCb(url, jsonBody, contentType, function(res) ... end)", "HTTP POST JSON, вернуть ответ в res", "Net_PostJsonCb(url, json, 'application/json', function(res)\n    __CURSOR__\nend)");
 
         // Telegram API
         lua.RegisterFunction("Telegram_SendMessageCb", this,
             GetType().GetMethod(nameof(Telegram_SendMessageCb), new[] { typeof(string), typeof(LuaFunction) }));
+        Add("Telegram_SendMessageCb", "v1", "Telegram", "Telegram_SendMessageCb(text, function(ok) ... end)", "Отправить сообщение в Telegram", "Telegram_SendMessageCb('текст', function(ok)\n    __CURSOR__\nend)");
+
+        // Publish registry for editor/AI
+        try { LuaApiRegistry.ReplaceAll(entries); } catch { }
     }
 
     public void SetPrintSink(Action<string> sink)
@@ -626,15 +710,22 @@ public class LuaIntegration
 
     public void Account_ChangeAccountCb(string accountId, LuaFunction callback)
     {
-        _accountManager.ChangeAccountAsync(accountId).ContinueWith(t =>
+        // Политика V1: ПЕРЕД каждой сменой аккаунта создаём НОВУЮ сессию браузера (изолированный профиль)
+        // Это касается только legacy Lua API v1. UI‑навигация и Lua API v2 не создают новую сессию.
+        Task.Run(async () =>
         {
             try
             {
-                var ok = t.IsCompletedSuccessfully && (t.Exception == null);
-                CallLuaVoid(callback, ok);
+                if (_browser != null)
+                {
+                    try { await _browser.CreateNewSessionAsync(); } catch { }
+                }
+                await _accountManager.ChangeAccountAsync(accountId);
+                CallLuaVoid(callback, true);
             }
             catch
             {
+                try { CallLuaVoid(callback, false); } catch { }
             }
         });
     }
@@ -814,4 +905,220 @@ public class LuaIntegration
             }
         });
     }
+
+    #region Lua API v2: многобраузерный интерфейс без cookies/фокуса/видимости
+
+    // Вспомогательный метод: получить BrowserManager из главного окна
+    private Services.BrowserManager? GetBrowserManager()
+    {
+        try
+        {
+            var app = Application.Current;
+            if (app == null) return null;
+
+            // Доступ к MainWindow всегда выполняем через Dispatcher, чтобы избежать проблем с потоками UI
+            MainWindow mw = null;
+            if (app.Dispatcher?.CheckAccess() == true)
+            {
+                mw = app.MainWindow as MainWindow ?? app.Windows?.OfType<MainWindow>()?.FirstOrDefault();
+            }
+            else
+            {
+                mw = app.Dispatcher?.Invoke(() => app.MainWindow as MainWindow
+                                              ?? app.Windows?.OfType<MainWindow>()?.FirstOrDefault());
+            }
+            if (mw == null) return null;
+
+            // Если менеджер уже инициализирован в окне — возвращаем его
+            var mgr = mw.BrowserManager;
+            if (mgr != null) return mgr;
+
+            // Фолбэк: окно создано, но менеджер ещё не сконструирован (или занулён).
+            // Пытаемся создать и присвоить через приватный setter с помощью рефлексии.
+            try
+            {
+                var newMgr = new Services.BrowserManager(mw);
+                var prop = typeof(MainWindow).GetProperty("BrowserManager",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                var setMethod = prop?.GetSetMethod(true);
+                setMethod?.Invoke(mw, new object[] { newMgr });
+                return newMgr;
+            }
+            catch
+            {
+                // В крайнем случае возвращаем null — вызов в Lua получит 0/false и не упадёт.
+                return null;
+            }
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// BrowserV2.Create(options, cb) — создаёт новый браузер, добавляет его в рабочее пространство и возвращает дескриптор (int handle).
+    /// options — Lua-таблица (необязательно): { StartUrl = "https://pwonline.ru/" }
+    /// </summary>
+    public void BrowserV2_Create(object options, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null)
+        {
+            CallLuaVoid(callback, 0); // 0 = ошибка
+            return;
+        }
+
+        var opts = new Services.BrowserManager.CreateOptions();
+        try
+        {
+            if (options is LuaTable t)
+            {
+                var startUrl = t["StartUrl"] as string;
+                if (!string.IsNullOrWhiteSpace(startUrl)) opts.StartUrl = startUrl;
+            }
+        }
+        catch { }
+
+        mgr.CreateAsync(opts).ContinueWith((Task<int> t) =>
+        {
+            try
+            {
+                var handle = t.IsCompletedSuccessfully ? t.Result : 0;
+                CallLuaVoid(callback, handle);
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>
+    /// BrowserV2.Close(handle, cbOk)
+    /// </summary>
+    public void BrowserV2_Close(int handle, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null)
+        {
+            CallLuaVoid(callback, false);
+            return;
+        }
+        var ok = mgr.Close(handle);
+        CallLuaVoid(callback, ok);
+    }
+
+    /// <summary>
+    /// BrowserV2.Navigate(handle, url, cbOk)
+    /// </summary>
+    public void BrowserV2_Navigate(int handle, string url, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var browser, out var _))
+        {
+            CallLuaVoid(callback, false);
+            return;
+        }
+        browser.NavigateAsync(url).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { } });
+    }
+
+    /// <summary>
+    /// BrowserV2.Reload(handle, cbOk)
+    /// </summary>
+    public void BrowserV2_Reload(int handle, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var browser, out var _))
+        {
+            CallLuaVoid(callback, false);
+            return;
+        }
+        browser.ReloadAsync().ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { } });
+    }
+
+    /// <summary>
+    /// BrowserV2.ExecuteScript(handle, script, cbResult)
+    /// </summary>
+    public void BrowserV2_ExecuteScript(int handle, string script, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var browser, out var _))
+        {
+            CallLuaVoid(callback, string.Empty);
+            return;
+        }
+        browser.ExecuteScriptAsync(script).ContinueWith(t =>
+        {
+            try
+            {
+                var res = t.IsCompletedSuccessfully ? t.Result ?? string.Empty : string.Empty;
+                CallLuaVoid(callback, res);
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>
+    /// BrowserV2.ElementExists(handle, selector, cbBool)
+    /// </summary>
+    public void BrowserV2_ElementExists(int handle, string selector, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var browser, out var _))
+        {
+            CallLuaVoid(callback, false);
+            return;
+        }
+        browser.ElementExistsAsync(selector).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { } });
+    }
+
+    /// <summary>
+    /// BrowserV2.WaitForElement(handle, selector, timeoutMs, cbBool)
+    /// </summary>
+    public void BrowserV2_WaitForElement(int handle, string selector, int timeoutMs, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var browser, out var _))
+        {
+            CallLuaVoid(callback, false);
+            return;
+        }
+        browser.WaitForElementExistsAsync(selector, timeoutMs).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { } });
+    }
+
+    /// <summary>
+    /// BrowserV2.ChangeAccount(handle, accountId, cbOk) — меняет аккаунт для конкретного браузера v2.
+    /// Всегда создаётся новая InPrivate-сессия (см. AccountManager.EnsureNewSessionBeforeSwitchAsync).
+    /// </summary>
+    public void BrowserV2_ChangeAccount(int handle, string accountId, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var _, out var am))
+        {
+            CallLuaVoid(callback, false);
+            return;
+        }
+        am.ChangeAccountAsync(accountId).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && (t.Exception == null)); } catch { } });
+    }
+
+    /// <summary>
+    /// BrowserV2.GetCurrentAccount(handle, cbAccountTable) — возвращает Lua-таблицу с данными текущего аккаунта данного браузера.
+    /// </summary>
+    public void BrowserV2_GetCurrentAccount(int handle, LuaFunction callback)
+    {
+        var mgr = GetBrowserManager();
+        if (mgr == null || !mgr.TryGet(handle, out var _, out var am))
+        {
+            CallLuaVoid(callback, null);
+            return;
+        }
+        am.GetAccountAsync().ContinueWith(t =>
+        {
+            try
+            {
+                var acc = t.IsCompletedSuccessfully ? t.Result : null;
+                var table = ToLuaAccount(acc, includeSquad: true);
+                CallLuaVoid(callback, table);
+            }
+            catch { }
+        });
+    }
+
+    #endregion
 }
+

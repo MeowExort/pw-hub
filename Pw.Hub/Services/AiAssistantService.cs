@@ -206,93 +206,80 @@ namespace Pw.Hub.Services
 
         private void EnsureSystemPriming()
         {
+            // Если системное сообщение уже есть — не дублируем
             if (_messages.Count > 0 && _messages[0].role == "system") return;
+
+            // Динамически формируем раздел API на основе централизованного реестра,
+            // чтобы автодополнение/регистрация и AI‑промпт всегда были синхронизированы.
+            string apiCheatSheet = string.Empty;
+            try
+            {
+                apiCheatSheet = Pw.Hub.Infrastructure.LuaApiRegistry.ToCheatSheetText();
+            }
+            catch { }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Ты - эксперт по Lua скриптам для автоматизации игровых процессов.\nПиши корректный, рабочий код на Lua 5.1 под среду PW Hub.");
+            sb.AppendLine();
+            sb.AppendLine("ФОРМАТ ОТВЕТА:");
+            sb.AppendLine("1) Краткое резюме изменений (1–2 предложения)");
+            sb.AppendLine("2) Пустая строка");
+            sb.AppendLine("3) Весь итоговый код в блоке ```lua ... ```");
+            sb.AppendLine();
+            sb.AppendLine("Никаких дополнительных разделов после кода.");
+            sb.AppendLine();
+
+            // Раздел с доступным API: предпочитаем динамический реестр; иначе — минимальный фолбэк.
+            if (!string.IsNullOrWhiteSpace(apiCheatSheet))
+            {
+                sb.AppendLine("ДОСТУПНОЕ LUA API (v1/v2) — актуально, сформировано из кода:");
+                sb.AppendLine(apiCheatSheet.Trim());
+            }
+            else
+            {
+                sb.AppendLine("ДОСТУПНОЕ API (все функции асинхронные с callback):");
+                sb.AppendLine();
+                sb.AppendLine("=== РАБОТА С АККАУНТАМИ ===");
+                sb.AppendLine("Account_GetAccountCb(cb) — текущий аккаунт");
+                sb.AppendLine("Account_GetAccountsCb(cb) — все аккаунты (таблица)");
+                sb.AppendLine("Account_IsAuthorizedCb(cb) — проверка авторизации");
+                sb.AppendLine("Account_ChangeAccountCb(accountId, cb) — сменить аккаунт");
+                sb.AppendLine();
+                sb.AppendLine("=== РАБОТА С БРАУЗЕРОМ ===");
+                sb.AppendLine("Browser_NavigateCb(url, cb) — перейти по URL");
+                sb.AppendLine("Browser_ReloadCb(cb) — перезагрузить");
+                sb.AppendLine("Browser_ExecuteScriptCb(jsCode, cb) — выполнить JS");
+                sb.AppendLine("Browser_ElementExistsCb(selector, cb) — проверить наличие элемента");
+                sb.AppendLine("Browser_WaitForElementCb(selector, timeoutMs, cb) — ожидать элемент");
+                sb.AppendLine();
+                sb.AppendLine("=== ВСПОМОГАТЕЛЬНЫЕ ===");
+                sb.AppendLine("Print(text), DelayCb(ms, cb), ReportProgress(p), ReportProgressMsg(p, msg), Complete(result)");
+                sb.AppendLine("Net_PostJsonCb(url, jsonBody, contentType, cb), Telegram_SendMessageCb(text, cb)");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("=== АРГУМЕНТЫ ЗАПУСКА (глобальная таблица args) ===");
+            sb.AppendLine("Если у модуля заданы входные параметры, в среде Lua доступна глобальная таблица args с введёнными значениями.");
+            sb.AppendLine("Пример:");
+            sb.AppendLine("```lua");
+            sb.AppendLine("local username = (args and args.username) or 'guest'\nPrint('Пользователь: ' .. username)");
+            sb.AppendLine("```");
+            sb.AppendLine();
+
+            sb.AppendLine("ВАЖНЫЕ ПРАВИЛА:");
+            sb.AppendLine("1. Используй асинхронные функции (…Cb) и колбэки");
+            sb.AppendLine("2. Добавляй комментарии на русском");
+            sb.AppendLine("3. Обрабатывай ошибки и пограничные случаи");
+            sb.AppendLine("4. Понятные имена переменных, логируй этапы через Print()");
+            sb.AppendLine("5. Если доступна Complete — вызывай в конце");
+            sb.AppendLine("6. Перед обращением к элементу — дождись его появления (например, 1000 мс)");
+            sb.AppendLine("7. Навигация разрешена только на домен pwonline.ru");
+            sb.AppendLine("8. JS должен возвращать строку; массивы кодируй в строку и парси в Lua");
+
             _messages.Insert(0, new AiMessage
             {
                 role = "system",
-                content = @"Ты - эксперт по Lua скриптам для автоматизации игровых процессов.
-Сгенерируй чистый, рабочий код на Lua.
-
-ФОРМАТ ОТВЕТА:
-1) Краткое резюме изменений (1–2 предложения)
-2) Пустая строка
-3) Весь итоговый код в блоке ```lua ... ```
-
-Никаких дополнительных разделов после кода.
-
-ДОСТУПНОЕ API (все функции асинхронные с callback):
-
-=== РАБОТА С АККАУНТАМИ ===
-Account_GetAccountCb(cb) - получить текущий аккаунт
-Account_GetAccountsCb(cb) - получить все аккаунты (возвращает таблицу с полями: Id, Name, OrderIndex, Squad, Servers)
-Account_IsAuthorizedCb(cb) - проверка авторизации (возвращает boolean)
-Account_ChangeAccountCb(accountId, cb) - сменить аккаунт
-
-=== РАБОТА С БРАУЗЕРОМ ===
-Browser_NavigateCb(url, cb) - перейти по URL
-Browser_ReloadCb(cb) - перезагрузить страницу
-Browser_ExecuteScriptCb(jsCode, cb) - выполнить JavaScript
-Browser_ElementExistsCb(selector, cb) - проверить наличие элемента
-Browser_WaitForElementCb(selector, timeoutMs, cb) - ждать появление элемента
-
-=== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
-Print(text) - вывести текст в лог
-DelayCb(ms, cb) - асинхронная задержка
-ReportProgress(percent) - отчет о прогрессе
-ReportProgressMsg(percent, message) - отчет с сообщением
-Complete(result) - завершить выполнение модуля (если скрипт запущен как модуль)
-Net_PostJsonCb(url, jsonBody, contentType, cb) - отправить POST запрос (возвращает таблицу с полями: Success, ResponseBody, Error)
-Telegram_SendMessageCb(textMessage, cb) - отправить сообщение пользователю
-
-=== СТРУКТУРА ДАННЫХ ===
-Аккаунт: {Id, Name, OrderIndex, Squad, Servers[]}
-Отряд: {Id, Name, OrderIndex}
-Сервер: {Id, Name, OptionId, DefaultCharacterOptionId, Characters[]}
-Персонаж: {Id, Name, OptionId}
-
-=== АРГУМЕНТЫ ЗАПУСКА (глобальная таблица args) ===
-При запуске/отладке из редактора перед показом диалога запуска появляется окно ввода параметров.
-Если у модуля заданы входные параметры, в среде Lua доступна глобальная таблица args с введёнными значениями:
-- Доступ: args.param или args[""param""]; Если параметр не введён — значение будет nil.
-- Возможные типы значений по типу ввода:
-  • string/password — строка
-  • number — число (если введено корректно), иначе строка; проверяй через type(...) или tonumber
-  • bool — boolean (true/false)
-  • squad — таблица Отряд {Id, Name, OrderIndex, Accounts?}
-  • squads — массив таблиц Отряд
-  • account — таблица Аккаунт {Id, Name, OrderIndex, Squad, Servers[]}
-  • accounts — массив таблиц Аккаунт
-Пример использования:
-```lua
--- Безопасно читаем строковый параметр username
-local username = (args and args.username) or ""guest""
-Print(""Пользователь:"" .. username)
-
--- Перебор выбранных аккаунтов (если есть)
-if args and args.accounts then
-    for i, acc in ipairs(args.accounts) do
-        Print(string.format(""[%d] %s (%s)"", i, acc.Name or """" , acc.Id or """"))
-    end
-end
-```
-
-ВАЖНЫЕ ПРАВИЛА:
-1. ВСЕГДА используй асинхронные версии функций (оканчиваются на Cb)
-2. Добавляй комментарии на русском языке для основных блоков
-3. Обрабатывай возможные ошибки и пограничные случаи
-4. Используй понятные именования переменных
-5. Логируй ключевые этапы через Print()
-6. Если функция Complete доступна - вызывай ее в конце
-7. Для работы с таблицами используй ipairs и # для размера
-8. Всегда проверяй существование данных перед использованием
-10. JavaScript для выполнения должен быть объявлен в однострочной переменной.
-11. Выполненный JavaScript может вернуть только строку.
-12. Если результатом выполнения нужен массив, то в JavaScript нужно соединить результат в одну строку с разделителем, а в lua потом разбить строку на массив через разделитель.
-13. Переходить можно только по ссылкам с доменом pwonline.ru
-14. Перед обращением к элементу нужно ждать, пока он появится (1000 МС достаточно).
-15. Все фукнции должны быть объявлены в начале скрипта для взаимных вызовов.
-16. Все константы и настройки должны быть объявлены в начале скрипта.
-17. Сообщение пользователю для телеграмм должно быть красивым и информативным, используй смайлы и улучшай читаемость."
+                content = sb.ToString()
             });
         }
 

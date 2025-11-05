@@ -57,6 +57,9 @@ public class LuaEditorViewModel : BaseViewModel
     public void SetRunner(LuaScriptRunner runner)
     {
         _runner = runner;
+        // При установке раннера сразу оповещаем об изменении состояния, чтобы кнопки обновили доступность
+        try { OnPropertyChanged(nameof(CanRun)); } catch { }
+        try { System.Windows.Input.CommandManager.InvalidateRequerySuggested(); } catch { }
     }
 
     /// <summary>
@@ -75,7 +78,7 @@ public class LuaEditorViewModel : BaseViewModel
     public string Code
     {
         get => _code;
-        set { _code = value ?? string.Empty; OnPropertyChanged(); OnPropertyChanged(nameof(CanRun)); }
+        set { _code = value ?? string.Empty; OnPropertyChanged(); OnPropertyChanged(nameof(CanRun)); try { System.Windows.Input.CommandManager.InvalidateRequerySuggested(); } catch { } }
     }
 
     /// <summary>

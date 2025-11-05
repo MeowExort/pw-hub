@@ -50,10 +50,9 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         Wv.NavigationCompleted += WvOnNavigationCompleted;
         Wv.NavigationStarting += WvOnNavigationStarting;
         Browser = new WebCoreBrowser(this);
-        AccountManager = new AccountManager(Browser)
-        {
-            EnsureNewSessionBeforeSwitchAsync = () => Browser.CreateNewSessionAsync()
-        };
+        // Внимание: начиная с этой версии новая сессия создаётся ТОЛЬКО в legacy Lua API (v1).
+        // Переключения из панели навигации (UI) больше не пересоздают сессию автоматически.
+        AccountManager = new AccountManager(Browser);
 
         // Subscribe only to account changed to hide initial overlay after first successful switch
         try

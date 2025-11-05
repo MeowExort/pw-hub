@@ -61,7 +61,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
             // attach to new account PropertyChanged
             AttachToCurrentAccountPropertyChanged();
 
-            var previousUri = browser.Source.ToString();
+            var previousUri = browser.Source?.ToString() ?? "https://pwonline.ru";
             // Ensure a fresh isolated browser session before applying target account cookies
             if (EnsureNewSessionBeforeSwitchAsync != null)
             {

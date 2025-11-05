@@ -119,6 +119,15 @@ namespace Pw.Hub.ViewModels
             _lastPreviewCode = string.Empty;
             _assistantRaw.Clear();
             _ai.NewSession();
+            // В начало сессии добавляем краткую шпаргалку по доступному Lua API (v1/v2),
+            // полученную из централизованного реестра
+            try
+            {
+                var cheat = Infrastructure.LuaApiRegistry.ToCheatSheetText();
+                if (!string.IsNullOrWhiteSpace(cheat))
+                    AddSystem(cheat);
+            }
+            catch { }
             AddSystem("Новая сессия начата. Опишите задачу для AI.");
             RequeryCommands();
         }

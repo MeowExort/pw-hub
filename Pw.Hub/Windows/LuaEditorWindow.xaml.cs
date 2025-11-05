@@ -22,6 +22,8 @@ using Pw.Hub.Services;
 using System.Linq;
 using System.ComponentModel;
 using System.Collections.Generic;
+using Pw.Hub;
+using Pw.Hub.Infrastructure;
 
 namespace Pw.Hub.Windows;
 
@@ -30,7 +32,7 @@ public partial class LuaEditorWindow : Window
     // ViewModel редактора Lua (MVVM). Содержит команды запуска/отладки и состояние.
     private readonly Pw.Hub.ViewModels.LuaEditorViewModel _vm = new Pw.Hub.ViewModels.LuaEditorViewModel();
 
-    private readonly LuaScriptRunner _runner;
+    private LuaScriptRunner _runner;
     private readonly IDiffPreviewService _diffService;
     private CompletionWindow _completionWindow;
     // Перенесено в MVVM: брейкпоинты теперь живут в VM и синхронизируются через EditorBreakpointsBehavior
@@ -151,59 +153,141 @@ end)", "Задержка с колбэком"),
 
     public LuaEditorWindow(LuaScriptRunner runner)
     {
-        _runner = runner;
-        _diffService = Pw.Hub.App.Services?.GetService<IDiffPreviewService>() ?? new DiffPreviewService();
-        InitializeComponent();
+            _runner = runner;
+            _diffService = Pw.Hub.App.Services?.GetService<IDiffPreviewService>() ?? new DiffPreviewService();
+            InitializeComponent();
         
-        // MVVM: назначаем DataContext и пробрасываем раннер во ViewModel
-        DataContext = _vm;
-        _vm.SetRunner(_runner);
-        _vm.SetOwner(this); // для переиспользования окна ввода аргументов
-        _vm.RequestOpenDebugVariables += (line, locals, globals) =>
-        {
+            // MVVM: назначаем DataContext и пробрасываем раннер во ViewModel
+            DataContext = _vm;
+            _vm.SetRunner(_runner);
+            _vm.SetOwner(this); // для переиспользования окна ввода аргументов
+            CommonInit();
+    }
+
+    /// <summary>
+    /// Пустой конструктор для открытия редактора «без модуля»: создаёт дефолтный LuaScriptRunner
+    /// из текущего MainWindow.AccountPage и активирует команды Run/Debug для ad-hoc кода.
+    /// </summary>
+    public LuaEditorWindow()
+    {
+            _diffService = Pw.Hub.App.Services?.GetService<IDiffPreviewService>() ?? new DiffPreviewService();
+            InitializeComponent();
+        
+            // MVVM
+            DataContext = _vm;
             try
             {
-                var dlg = new DebugVariablesWindow { Owner = this };
-                dlg.SetData(line, locals, globals);
-                dlg.ShowDialog();
-            }
-            catch { }
-        };
-
-        // Автопоказ AI‑панели при появлении диффа
-        try
-        {
-            if (_vm?.Ai is INotifyPropertyChanged inpc)
-            {
-                inpc.PropertyChanged += AiOnPropertyChanged;
-            }
-            // Открытие окна полного diff по запросу из AI VM
-            try { _vm.Ai.RequestOpenFullDiff += OnRequestOpenFullDiff; } catch { }
-        }
-        catch { }
-
-        // Синхронизация текста редактора с VM.Code (двусторонняя через события)
-        Loaded += (_, __) =>
-        {
-            try { Editor.Text = _vm.Code ?? Editor.Text; } catch { }
-            // Копируем ApiInputs в VM для показа диалога аргументов при запуске/отладке
-            try
-            {
-                if (ApiInputs != null && ApiInputs.Count > 0)
+                var mw = Application.Current?.MainWindow as MainWindow;
+                var accPage = mw?.AccountPage;
+                var runner = (accPage != null) ? new LuaScriptRunner(accPage.AccountManager, accPage.Browser) : null;
+                if (runner != null)
                 {
-                    _vm.Inputs.Clear();
-                    foreach (var input in ApiInputs)
-                    {
-                        _vm.Inputs.Add(input);
-                    }
+                    _runner = runner;
+                    _vm.SetRunner(_runner);
+                }
+                else
+                {
+                    // Если по какой-то причине MainWindow/AccountPage ещё не готовы — кнопки активируются после первого SetCode/Loaded, когда раннер будет доступен.
                 }
             }
             catch { }
-        };
+            _vm.SetOwner(this);
+            CommonInit();
+    }
+
+    /// <summary>
+    /// Общая инициализация обработчиков/подписок, используемая обоими конструкторами.
+    /// </summary>
+    private void CommonInit()
+    {
+            _vm.RequestOpenDebugVariables += (line, locals, globals) =>
+            {
+                try
+                {
+                    var dlg = new DebugVariablesWindow { Owner = this };
+                    dlg.SetData(line, locals, globals);
+                    dlg.ShowDialog();
+                }
+                catch { }
+            };
+
+            // Автопоказ AI‑панели при появлении диффа
+            try
+            {
+                if (_vm?.Ai is INotifyPropertyChanged inpc)
+                {
+                    inpc.PropertyChanged += AiOnPropertyChanged;
+                }
+                // Открытие окна полного diff по запросу из AI VM
+                try { _vm.Ai.RequestOpenFullDiff += OnRequestOpenFullDiff; } catch { }
+            }
+            catch { }
+
+            // Синхронизация текста редактора с VM.Code (двусторонняя через события)
+            Loaded += (_, __) =>
+            {
+                try { Editor.Text = _vm.Code ?? Editor.Text; } catch { }
+
+                // Привязка текста редактора к VM.Code: AvalonEdit не поддерживает TwoWay биндинг по умолчанию
+                try
+                {
+                    if (Editor != null)
+                    {
+                        // Подписка на изменение текста: синхронизируем VM.Code и переоцениваем команды
+                        Editor.TextChanged += (s, e2) =>
+                        {
+                            try
+                            {
+                                var text = Editor?.Text ?? string.Empty;
+                                text = text.Replace("\r\n", "\n");
+                                _vm.Code = text;
+                                try { System.Windows.Input.CommandManager.InvalidateRequerySuggested(); } catch { }
+                            }
+                            catch { }
+                        };
+                    }
+                }
+                catch { }
+
+                // Если редактор открыт «без модуля» и раннер ещё не создан — создаём дефолтный раннер здесь (после загрузки окна)
+                try
+                {
+                    if (_runner == null)
+                    {
+                        var mw = Application.Current?.MainWindow as MainWindow;
+                        var accPage = mw?.AccountPage;
+                        if (accPage != null)
+                        {
+                            _runner = new LuaScriptRunner(accPage.AccountManager, accPage.Browser);
+                            _vm.SetRunner(_runner);
+                            _vm.SetOwner(this);
+                            try { System.Windows.Input.CommandManager.InvalidateRequerySuggested(); } catch { }
+                        }
+                    }
+                }
+                catch { }
+
+                // Копируем ApiInputs в VM для показа диалога аргументов при запуске/отладке
+                try
+                {
+                    if (ApiInputs != null && ApiInputs.Count > 0)
+                    {
+                        _vm.Inputs.Clear();
+                        foreach (var input in ApiInputs)
+                        {
+                            _vm.Inputs.Add(input);
+                        }
+                    }
+                }
+                catch { }
+
+                // Устанавливаем фокус в редактор для удобства
+                try { Editor?.Focus(); } catch { }
+            };        
         
-        // Остальные жизненные события окна
-        Loaded += OnLoaded;
-        Closed += OnClosed;
+            // Остальные жизненные события окна
+            Loaded += OnLoaded;
+            Closed += OnClosed;
     }
 
     public void SetCode(string code)
@@ -356,10 +440,15 @@ end)", "Задержка с колбэком"),
             // Build and cache global API completion items once
             if (_cachedCompletionItems == null)
             {
-                _cachedCompletionItems = new List<ICompletionData>(_apiSymbols.Length);
-                foreach (var s in _apiSymbols)
+                // Строим список автодополнения из актуального реестра Lua API
+                var api = LuaApiRegistry.GetAll();
+                _cachedCompletionItems = new List<ICompletionData>(Math.Max(1, api.Count));
+                foreach (var f in api)
                 {
-                    _cachedCompletionItems.Add(new SignatureCompletionData(s));
+                    // Используем сниппет, если он задан; иначе подставляем подпись
+                    var signatureOrSnippet = string.IsNullOrWhiteSpace(f.Snippet) ? (f.Signature ?? f.Name) : f.Snippet;
+                    var sym = new ApiSymbol(f.Name, signatureOrSnippet, f.Description ?? string.Empty);
+                    _cachedCompletionItems.Add(new SignatureCompletionData(sym));
                 }
             }
 

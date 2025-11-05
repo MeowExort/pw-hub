@@ -26,6 +26,95 @@ namespace Pw.Hub;
 /// </summary>
 public partial class MainWindow
 {
+    // Менеджер динамических браузеров v2
+    public Services.BrowserManager BrowserManager { get; private set; }
+
+    // Добавление BrowserView в рабочее пространство
+    public void AddBrowserView(Controls.BrowserView view)
+    {
+        try
+        {
+            if (view == null) return;
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(() => AddBrowserView(view));
+                return;
+            }
+            BrowserWorkspace.Visibility = Visibility.Visible;
+            BrowserWorkspace.Children.Add(view);
+            
+            // Когда есть хотя бы один динамический браузер (v2), прячем основной AccountPage,
+            // чтобы избежать наложения двух HWND (WebView2) и артефактов отрисовки (airspace).
+            try
+            {
+                if (AccountPage != null)
+                {
+                    AccountPage.Visibility = Visibility.Collapsed;
+                    AccountPage.IsHitTestVisible = false;
+                }
+            }
+            catch { }
+
+            UpdateBrowserWorkspaceGrid();
+        }
+        catch { }
+    }
+
+    // Удаление BrowserView из рабочего пространства
+    public void RemoveBrowserView(Controls.BrowserView view)
+    {
+        try
+        {
+            if (view == null) return;
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(() => RemoveBrowserView(view));
+                return;
+            }
+            BrowserWorkspace.Children.Remove(view);
+            if (BrowserWorkspace.Children.Count == 0)
+            {
+                BrowserWorkspace.Visibility = Visibility.Collapsed;
+                // Возвращаем основной браузер AccountPage на экран
+                try
+                {
+                    if (AccountPage != null)
+                    {
+                        AccountPage.Visibility = Visibility.Visible;
+                        AccountPage.IsHitTestVisible = true;
+                    }
+                }
+                catch { }
+            }
+            UpdateBrowserWorkspaceGrid();
+        }
+        catch { }
+    }
+
+    // Пересчёт строк/колонок для равных размеров ячеек
+    public void UpdateBrowserWorkspaceGrid()
+    {
+        try
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(UpdateBrowserWorkspaceGrid);
+                return;
+            }
+            int n = BrowserWorkspace.Children.Count;
+            if (n <= 0)
+            {
+                BrowserWorkspace.Rows = 1;
+                BrowserWorkspace.Columns = 1;
+                return;
+            }
+            int cols = (int)Math.Ceiling(Math.Sqrt(n));
+            int rows = (int)Math.Ceiling((double)n / cols);
+            BrowserWorkspace.Columns = cols;
+            BrowserWorkspace.Rows = rows;
+        }
+        catch { }
+    }
     private readonly MainViewModel _vm;
 
 
@@ -55,6 +144,9 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
+
+        // Инициализируем менеджер браузеров v2
+        BrowserManager = new BrowserManager(this);
 
         _vm = App.Services.GetService(typeof(MainViewModel)) as MainViewModel ?? new MainViewModel();
         DataContext = _vm;
