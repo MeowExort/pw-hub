@@ -13,10 +13,88 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+
+        <!-- Navigation toolbar with subtle loading bar -->
+        <Grid Grid.Row="0" Margin="6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" LastChildFill="True" VerticalAlignment="Center">
+                <DockPanel.Style>
+                    <Style TargetType="DockPanel">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNoAccountOverlayVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DockPanel.Style>
+
+                <!-- Left controls: back/forward/refresh + quick actions -->
+                <Border DockPanel.Dock="Left"
+                        Background="#23272E"
+                        BorderBrush="#3A3F47"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="4"
+                        SnapsToDevicePixels="True">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnBack" Width="28" Height="24" Padding="0" ToolTip="Назад" Click="BtnBack_OnClick" Margin="0,0,4,0" FontFamily="Segoe MDL2 Assets" FontSize="14" Content="&#xE72B;" />
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnRefresh" Width="28" Height="24" Padding="0" ToolTip="Обновить" Click="BtnRefresh_OnClick" Margin="0,0,4,0" FontFamily="Segoe MDL2 Assets" FontSize="14" Content="&#xE72C;" />
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnForward" Width="28" Height="24" Padding="0" ToolTip="Вперёд" Click="BtnForward_OnClick" Margin="0,0,6,0" FontFamily="Segoe MDL2 Assets" FontSize="14" Content="&#xE72A;" />
+
+                        <Separator Margin="2,0" Width="1" Background="#3A3F47"/>
+
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnHome" Height="24" Padding="8,0" Margin="6,0,4,0" ToolTip="Главная (pwonline.ru)" Click="BtnHome_OnClick">🏠 Главная</Button>
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnPromo" Height="24" Padding="8,0" Margin="0,0,4,0" ToolTip="Перевод (promo_items)" Click="BtnPromo_OnClick">💱 Перевод</Button>
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnMdm" Height="24" Padding="8,0" ToolTip="МДМ (chests2)" Click="BtnMdm_OnClick">🎁 МДМ</Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Address bar -->
+                <Border Margin="8,0,0,0"
+                        Background="#1E1E1E"
+                        BorderBrush="#3A3F47"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="2">
+                    <TextBox x:Name="AddressBox"
+                             VerticalContentAlignment="Center"
+                             Height="24"
+                             Background="#262626" Foreground="#EEEEEE"
+                             BorderBrush="#262626" BorderThickness="1"
+                             KeyDown="AddressBox_OnKeyDown"
+                             ToolTip="Адрес (только pwonline.ru)"/>
+                </Border>
+            </DockPanel>
+
+            <!-- Subtle loading indicator -->
+            <ProgressBar Grid.Row="1"
+                         IsIndeterminate="True">
+                <ProgressBar.Style>
+                    <Style TargetType="ProgressBar" BasedOn="{StaticResource ModernProgressBar.Thin.Dark}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNoAccountOverlayVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ProgressBar.Style>
+            </ProgressBar>
+        </Grid>
+
         <!-- Browser host layer with overlay on top -->
         <Grid Grid.Row="1" Background="#1E1E1E">
             <wpf:WebView2
                 x:Name="Wv"
+                Grid.Row="1"
                 NavigationCompleted="Wv_OnNavigationCompleted"
                 CoreWebView2InitializationCompleted="Wv_OnCoreWebView2InitializationCompleted">
                 <wpf:WebView2.Style>

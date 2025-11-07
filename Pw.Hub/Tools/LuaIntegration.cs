@@ -710,21 +710,36 @@ public class LuaIntegration
 
     public void Account_ChangeAccountCb(string accountId, LuaFunction callback)
     {
-        // Политика V1: ПЕРЕД каждой сменой аккаунта создаём НОВУЮ сессию браузера (изолированный профиль)
-        // Это касается только legacy Lua API v1. UI‑навигация и Lua API v2 не создают новую сессию.
+        // Политика V1: создаём НОВУЮ сессию через перегрузку AccountManager.ChangeAccountAsync с опциями
+        // (атомарно внутри менеджера: новая сессия -> куки -> навигация -> проверка авторизации).
         Task.Run(async () =>
         {
             try
             {
-                if (_browser != null)
+                try { System.Diagnostics.Debug.WriteLine($"[LuaV1] Switch -> ChangeAccountAsync(opts: CreateFreshSession=TRUE, SeparateProfile), accountId={accountId}"); } catch { }
+
+                var am = _accountManager as Pw.Hub.Services.AccountManager;
+                if (am != null)
                 {
-                    try { await _browser.CreateNewSessionAsync(); } catch { }
+                    var opts = new Pw.Hub.Services.AccountSwitchOptions(true, BrowserSessionIsolationMode.SeparateProfile);
+                    await am.ChangeAccountAsync(accountId, opts);
                 }
-                await _accountManager.ChangeAccountAsync(accountId);
+                else
+                {
+                    // Фолбэк на старую схему, если IAccountManager не наш тип
+                    if (_browser != null)
+                    {
+                        try { await _browser.CreateNewSessionAsync(BrowserSessionIsolationMode.SeparateProfile); } catch { }
+                    }
+                    await _accountManager.ChangeAccountAsync(accountId);
+                }
+
+                try { System.Diagnostics.Debug.WriteLine($"[LuaV1] Switch -> ChangeAccountAsync done, accountId={accountId}"); } catch { }
                 CallLuaVoid(callback, true);
             }
-            catch
+            catch (Exception ex)
             {
+                try { System.Diagnostics.Debug.WriteLine($"[LuaV1] Switch FAILED: {ex.Message}"); } catch { }
                 try { CallLuaVoid(callback, false); } catch { }
             }
         });

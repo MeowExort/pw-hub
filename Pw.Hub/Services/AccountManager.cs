@@ -8,6 +8,8 @@ using Pw.Hub.Models;
 
 namespace Pw.Hub.Services;
 
+public readonly record struct AccountSwitchOptions(bool CreateFreshSession, BrowserSessionIsolationMode SessionMode);
+
 public class AccountManager(IBrowser browser) : IAccountManager
 {
     public event Action<Account> CurrentAccountChanged;
@@ -25,10 +27,123 @@ public class AccountManager(IBrowser browser) : IAccountManager
     // Optional hook to ensure a brand new browser session before applying target account's cookies
     public Func<Task>? EnsureNewSessionBeforeSwitchAsync { get; set; }
 
+    // Перегрузка для v1: централизованное создание новой сессии внутри AccountManager
+    public async Task ChangeAccountAsync(string accountId, AccountSwitchOptions opts)
+    {
+        await _semaphoreSlim.WaitAsync();
+        SetChanging(true);
+        try
+        {
+            // Save cookies from the previous account before session reset
+            await SaveCookies();
+
+            await using var db = new AppDbContext();
+            var account = await db.Accounts.FindAsync(accountId);
+            // detach from previous account PropertyChanged
+            if (CurrentAccount is INotifyPropertyChanged oldInpc && _accountPropertyChangedHandler != null)
+            {
+                try { oldInpc.PropertyChanged -= _accountPropertyChangedHandler; } catch { }
+            }
+            CurrentAccount = account ?? throw new InvalidOperationException("Account not found");
+            // attach to new account PropertyChanged
+            AttachToCurrentAccountPropertyChanged();
+
+            var previousUri = browser.Source?.ToString() ?? "https://pwonline.ru";
+
+            // Централизованно создаём новую сессию, если это требуется опциями
+            if (opts.CreateFreshSession)
+            {
+                try { await browser.CreateNewSessionAsync(opts.SessionMode); } catch { }
+            }
+            else if (EnsureNewSessionBeforeSwitchAsync != null)
+            {
+                // Совместимость: если хук задан, выполняем его (для старых сценариев)
+                try { await EnsureNewSessionBeforeSwitchAsync(); } catch { }
+            }
+
+            // Гарантируем, что новая сессия создана и ядро WebView2 готово к операциям (CoreWebView2 инициализирован)
+            await EnsureBrowserReadyAsync();
+
+            Cookie[] cookies;
+            if (!File.Exists(GetCookieFilePath()))
+            {
+                cookies = [];
+            }
+            else
+            {
+                var json = await File.ReadAllTextAsync(GetCookieFilePath());
+                cookies = JsonSerializer.Deserialize<Cookie[]>(json, JsonSerializerOptions.Web) ?? [];
+            }
+
+            await Task.Delay(3000);
+            await browser.SetCookieAsync(cookies);
+            // After creating a brand-new session, force a deterministic navigation instead of Reload to avoid staying on about:blank
+            await browser.NavigateAsync(previousUri);
+            await browser.ReloadAsync();
+            var pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 30000);
+            if (!pageLoaded)
+            {
+                // Мягкий повтор: пробуем перейти на базовый URL и подождать ещё раз
+                try { await browser.NavigateAsync("https://pwonline.ru/"); } catch { }
+                pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 15000);
+                if (!pageLoaded)
+                {
+                    throw new InvalidOperationException("Page did not load in time (after retry)");
+                }
+            }
+
+            var isAuthorized = await IsAuthorizedAsync();
+            if (!isAuthorized)
+            {
+                // Мягкий повтор авторизационной проверки: один раз перезайдём на базовую
+                try { await browser.NavigateAsync("https://pwonline.ru/"); } catch { }
+                await Task.Delay(300);
+                var pageReady = await browser.WaitForElementExistsAsync(".main_menu", 10000);
+                if (pageReady)
+                {
+                    isAuthorized = await IsAuthorizedAsync();
+                }
+                if (!isAuthorized)
+                {
+                    return;
+                }
+            }
+
+            await SaveCookies();
+            account.LastVisit = DateTime.UtcNow;
+            db.Update(account);
+            await db.SaveChangesAsync();
+            try { CurrentAccountChanged?.Invoke(account); } catch { }
+        }
+        finally
+        {
+            SetChanging(false);
+            _semaphoreSlim.Release();
+        }
+    }
+
     private void SetChanging(bool value)
     {
         _isChanging = value;
         try { CurrentAccountChanging?.Invoke(value); } catch { }
+    }
+
+    /// <summary>
+    /// Гарантирует готовность браузера к операциям (инициализирован CoreWebView2) перед установкой кук/навигацией.
+    /// Поскольку IBrowser не раскрывает прямого EnsureCore, используем безвредное выполнение JS, которое внутри
+    /// реализации WebCoreBrowser вызывает EnsureCoreWebView2Async().
+    /// </summary>
+    private async Task EnsureBrowserReadyAsync()
+    {
+        try
+        {
+            // Ничего не делает на странице, но заставляет инициализировать ядро WebView2, если оно ещё не готово
+            await browser.ExecuteScriptAsync("(function(){return 'ok';})()");
+        }
+        catch
+        {
+            // Игнорируем: готовность будет проверена повторно следующими вызовами
+        }
     }
 
     public async Task<Account[]> GetAccountsAsync()
@@ -68,6 +183,9 @@ public class AccountManager(IBrowser browser) : IAccountManager
                 try { await EnsureNewSessionBeforeSwitchAsync(); } catch { }
             }
 
+            // Гарантируем готовность браузера (CoreWebView2 инициализирован) перед установкой кук
+            await EnsureBrowserReadyAsync();
+
             Cookie[] cookies;
             if (!File.Exists(GetCookieFilePath()))
             {
@@ -85,13 +203,30 @@ public class AccountManager(IBrowser browser) : IAccountManager
             var pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 30000);
             if (!pageLoaded)
             {
-                throw new InvalidOperationException("Page did not load in time");
+                // Мягкий повтор: пробуем перейти на базовый URL и подождать ещё раз
+                try { await browser.NavigateAsync("https://pwonline.ru/"); } catch { }
+                pageLoaded = await browser.WaitForElementExistsAsync(".main_menu", 15000);
+                if (!pageLoaded)
+                {
+                    throw new InvalidOperationException("Page did not load in time (after retry)");
+                }
             }
 
             var isAuthorized = await IsAuthorizedAsync();
             if (!isAuthorized)
             {
-                return;
+                // Мягкий повтор авторизационной проверки: один раз перезайдём на базовую
+                try { await browser.NavigateAsync("https://pwonline.ru/"); } catch { }
+                await Task.Delay(300);
+                var pageReady = await browser.WaitForElementExistsAsync(".main_menu", 10000);
+                if (pageReady)
+                {
+                    isAuthorized = await IsAuthorizedAsync();
+                }
+                if (!isAuthorized)
+                {
+                    return;
+                }
             }
 
             await SaveCookies();
@@ -109,11 +244,18 @@ public class AccountManager(IBrowser browser) : IAccountManager
 
     public async Task<bool> IsAuthorizedAsync()
     {
+        // На "холодном" профиле (SeparateProfile) элементы и данные могут появляться с задержкой,
+        // поэтому ждём дольше и допускаем повторное чтение SiteId.
         var exists = await browser.WaitForElementExistsAsync(".auth_h > h2 > a > strong", 500);
         if (!exists)
             return false;
         
         var siteId = await GetSiteId();
+        if (string.IsNullOrWhiteSpace(siteId))
+        {
+            await Task.Delay(200);
+            siteId = await GetSiteId();
+        }
         if (siteId != CurrentAccount.SiteId)
             return false;
 

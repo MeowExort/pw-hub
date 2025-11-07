@@ -144,6 +144,8 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
+        // Фоновая очистка старых профилей WebView2 (best-effort, не блокирует UI)
+        try { _ = Services.ProfileCleanupService.CleanupLeftoversAsync(TimeSpan.FromHours(12)); } catch { }
 
         // Инициализируем менеджер браузеров v2
         BrowserManager = new BrowserManager(this);

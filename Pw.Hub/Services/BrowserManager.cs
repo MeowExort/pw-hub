@@ -66,7 +66,8 @@ public class BrowserManager
         });
 
         // 2) Создаём движок браузера и менеджер аккаунтов, привязанный к нему
-        var browser = new WebCoreBrowser(view);
+        // Для v2 используем отдельные профили (каждый браузер — своя папка профиля)
+        var browser = new WebCoreBrowser(view, BrowserSessionIsolationMode.SeparateProfile);
         var am = new AccountManager(browser);
         // ВНИМАНИЕ: В Lua API v2 смена аккаунта НЕ создаёт новую сессию.
         // Новая сессия на смену аккаунта разрешена только для legacy Lua API v1.

@@ -10,10 +10,11 @@ using System.Threading.Tasks;
 
 namespace Pw.Hub.Services;
 
-public class WebCoreBrowser(IWebViewHost host) : IBrowser
+public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode = BrowserSessionIsolationMode.SeparateProfile) : IBrowser
 {
     private WebView2 _webView = host.Current;
     private readonly IWebViewHost _host = host;
+    private readonly BrowserSessionIsolationMode _mode = mode;
     // Текущая папка пользовательских данных (профиль) для данного инстанса браузера
     private string _userDataDir;
 
@@ -143,80 +144,110 @@ public class WebCoreBrowser(IWebViewHost host) : IBrowser
         });
     }
 
-    public Task CreateNewSessionAsync()
+    public Task CreateNewSessionAsync(BrowserSessionIsolationMode? overrideMode = null)
     {
-        return OnUiAsync(async () =>
-        {
-            var oldDir = _userDataDir;
-            var newDir = CreateProfileDir();
-            var previousUri = _webView?.Source ?? new Uri("https://pwonline.ru");
-
-            var newWv = new WebView2
+            return OnUiAsync(async () =>
             {
-                CreationProperties = new CoreWebView2CreationProperties
+                var previousUri = _webView?.Source ?? new Uri("https://pwonline.ru");
+
+                string oldDir = _userDataDir;
+                string newDir = null;
+                var creationProps = new CoreWebView2CreationProperties();
+
+                var effMode = overrideMode ?? _mode;
+                if (effMode == BrowserSessionIsolationMode.SeparateProfile)
                 {
-                    // Для полной изоляции используем отдельную папку профиля вместо InPrivate
-                    UserDataFolder = newDir,
+                    // Полная изоляция через отдельную папку профиля
+                    newDir = CreateProfileDir();
+                    creationProps.UserDataFolder = newDir;
                 }
-            };
-
-            // Готовим новый контрол скрытым и с тёмным фоном до показа
-            try { newWv.Visibility = Visibility.Hidden; } catch { }
-            try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
-
-            // Предзагружаем в визуальное дерево (старый остаётся видимым)
-            await _host.PreloadAsync(newWv);
-
-            // Инициализируем ядро и ещё раз страхуем фон
-            try { await newWv.EnsureCoreWebView2Async(); } catch { }
-            try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
-
-            newWv.Source = previousUri;
-
-            // Переключаем внутреннюю ссылку и сохраняем папку профиля
-            _webView = newWv;
-            _userDataDir = newDir;
-
-            // Финализация показа при первом старте навигации
-            var finalized = false;
-            void EnsureFinalize()
-            {
-                if (finalized) return;
-                finalized = true;
-                _ = OnUiAsync(async () =>
+                else
                 {
-                    try { await _host.FinalizeSwapAsync(newWv); } catch { }
-                });
-            }
+                    // Основной браузер: используем InPrivate (инкогнито). Папка профиля не задаётся.
+                    creationProps.IsInPrivateModeEnabled = true;
+                }
 
-            try
-            {
-                newWv.CoreWebView2.NavigationStarting += (s, e) =>
+                var newWv = new WebView2
+                {
+                    CreationProperties = creationProps
+                };
+
+                // Готовим новый контрол скрытым и с тёмным фоном до показа
+                try { newWv.Visibility = Visibility.Hidden; } catch { }
+                try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
+
+                // Предзагружаем в визуальное дерево (старый остаётся видимым)
+                await _host.PreloadAsync(newWv);
+
+                // Инициализируем ядро и ещё раз страхуем фон
+                try { await newWv.EnsureCoreWebView2Async(); } catch { }
+                try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
+
+                newWv.Source = previousUri;
+
+                // Переключаем внутреннюю ссылку и сохраняем сведения о профиле (только для SeparateProfile)
+                _webView = newWv;
+                _userDataDir = (effMode == BrowserSessionIsolationMode.SeparateProfile) ? newDir : null;
+
+                // Финализация показа при первом старте навигации
+                var finalized = false;
+                void EnsureFinalize()
+                {
+                    if (finalized) return;
+                    finalized = true;
+                    _ = OnUiAsync(async () =>
+                    {
+                        try { await _host.FinalizeSwapAsync(newWv); } catch { }
+                    });
+                }
+
+                try
+                {
+                    newWv.CoreWebView2.NavigationStarting += (s, e) =>
+                    {
+                        EnsureFinalize();
+                    };
+                }
+                catch
                 {
                     EnsureFinalize();
-                };
+                }
+
+                // Фолбэк: если навигации нет — показать через 500 мс
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(500);
+                    EnsureFinalize();
+                });
+
+                // Удаляем старую папку профиля только если мы работаем в режиме SeparateProfile и есть что удалять
+                if (effMode == BrowserSessionIsolationMode.SeparateProfile && !string.IsNullOrWhiteSpace(oldDir))
+                {
+                    _ = TryDeleteDirWithRetries(oldDir);
+                }
+            });
+    }
+
+    public Uri Source
+    {
+        get
+        {
+            try
+            {
+                if (_webView?.Dispatcher?.CheckAccess() == true)
+                    return _webView.Source;
+                // Доступ к свойству WebView2.Source должен выполняться на UI-потоке
+                return _webView.Dispatcher.Invoke(() => _webView.Source);
             }
             catch
             {
-                EnsureFinalize();
+                // В случае недоступности UI-потока/исключения — вернуть безопасный дефолтный URI
+                try { return new Uri("https://pwonline.ru"); } catch { }
+                // Последний фолбэк — пустой about:blank
+                return new Uri("about:blank", UriKind.RelativeOrAbsolute);
             }
-
-            // Фолбэк: если навигации нет — показать через 500 мс
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(500);
-                EnsureFinalize();
-            });
-
-            // Асинхронно пытаемся удалить старую папку профиля (если была)
-            if (!string.IsNullOrWhiteSpace(oldDir))
-            {
-                _ = TryDeleteDirWithRetries(oldDir);
-            }
-        });
+        }
     }
-
-    public Uri Source => _webView.Source;
 
     // === Helpers: профили WebView2 ===
     private static string ProfilesRoot()

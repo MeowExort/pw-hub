@@ -17,6 +17,7 @@
         StateChanged="MainWindow_OnStateChanged">
             <Window.Resources>
                 <conv:SelectedSquadEmptyConverter x:Key="SelectedSquadEmptyConverter" />
+                <conv:OneBasedIndexConverter x:Key="OneBasedIndexConverter" />
                 
                 <!-- Close button style matching the window titlebar close button -->
                 <Style x:Key="PopupCloseButtonStyle" TargetType="Button">
@@ -154,6 +155,7 @@
                                   ItemsSource="{Binding Squads}"
                                   Background="Transparent"
                                   Padding="8"
+                                  AlternationCount="1000"
                                   SelectedItemChanged="NavigationTree_OnSelectedItemChanged"
                                   PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp"
                                   PreviewMouseRightButtonDown="NavigationTree_OnPreviewMouseRightButtonDown"
@@ -193,7 +195,7 @@
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
 
-                                                <!-- Header row (icon + name) -->
+                                                <!-- Header row (icon + name + subtle count) -->
                                                 <StackPanel Orientation="Horizontal" Grid.Row="0">
                                                     <TextBlock Text="📁"
                                                                VerticalAlignment="Center"
@@ -203,6 +205,35 @@
                                                                Text="{Binding Name}"
                                                                FontWeight="SemiBold"
                                                                Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <TextBlock VerticalAlignment="Center"
+                                                               Margin="6,0,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               FontSize="11">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Setter Property="Text" Value="(0)"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="0">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="1">
+                                                                        <Setter Property="Text" Value="(1)"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="2">
+                                                                        <Setter Property="Text" Value="(2)"/>
+                                                                    </DataTrigger>
+                                                                    <!-- Default: bind directly for other values -->
+                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="3">
+                                                                        <Setter Property="Text" Value="(3)"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                        <TextBlock.Text>
+                                                            <Binding Path="Accounts.Count" StringFormat="({0})"/>
+                                                        </TextBlock.Text>
+                                                    </TextBlock>
                                                 </StackPanel>
 
                                                 <!-- Inline empty-state with Add Account button (visible when there are no accounts and squad is selected) -->
@@ -245,9 +276,17 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <Border Width="32" Height="32"
+                                                <!-- Subtle ordinal index -->
+                                                <TextBlock Grid.Column="0"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,6,0"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           FontSize="11"
+                                                           Text="{Binding RelativeSource={RelativeSource AncestorType=TreeViewItem}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource OneBasedIndexConverter}}"/>
+                                                <Border Grid.Column="1" Width="32" Height="32"
                                                        CornerRadius="16"
                                                        Margin="0,0,10,0"
                                                        BorderBrush="{StaticResource BorderBrush}"
@@ -258,7 +297,7 @@
                                                         </Ellipse.Fill>
                                                     </Ellipse>
                                                 </Border>
-                                                <TextBlock Grid.Column="1"
+                                                <TextBlock Grid.Column="2"
                                                           VerticalAlignment="Center"
                                                           Text="{Binding Name}"
                                                           Foreground="{StaticResource TextPrimaryBrush}"/>

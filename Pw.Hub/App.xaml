@@ -294,6 +294,89 @@
                         </Style.Triggers>
                     </Style>
 
+                    <!-- ProgressBar templates for dark theme -->
+                    <ControlTemplate x:Key="ProgressBarTemplate.Determinate.Dark" TargetType="ProgressBar">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2">
+                            <Grid>
+                                <Rectangle x:Name="PART_Track" Fill="{TemplateBinding Background}"/>
+                                <Rectangle x:Name="PART_Indicator"
+                                           Fill="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Left"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+
+                    <ControlTemplate x:Key="ProgressBarTemplate.Indeterminate.Thin.Dark" TargetType="ProgressBar">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                SnapsToDevicePixels="True">
+                            <Grid ClipToBounds="True">
+                                <!-- Full-width overlay whose opacity mask creates a moving highlight band -->
+                                <Rectangle x:Name="IndeterminateOverlay"
+                                           Fill="{TemplateBinding Foreground}"
+                                           Height="{TemplateBinding Height}"
+                                           HorizontalAlignment="Stretch"
+                                           VerticalAlignment="Stretch"
+                                           Opacity="0.9"
+                                           SnapsToDevicePixels="True">
+                                    <Rectangle.OpacityMask>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0" MappingMode="RelativeToBoundingBox">
+                                            <GradientStop Color="#00FFFFFF" Offset="0.00"/>
+                                            <GradientStop Color="#FFFFFFFF" Offset="0.30"/>
+                                            <GradientStop Color="#FFFFFFFF" Offset="0.70"/>
+                                            <GradientStop Color="#00FFFFFF" Offset="1.00"/>
+                                            <LinearGradientBrush.RelativeTransform>
+                                                <!-- Start fully off the left side; animate X from -1 to 1 -->
+                                                <TranslateTransform x:Name="MaskTransform" X="-1"/>
+                                            </LinearGradientBrush.RelativeTransform>
+                                        </LinearGradientBrush>
+                                    </Rectangle.OpacityMask>
+                                </Rectangle>
+                            </Grid>
+                            <Border.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <!-- Move mask across the entire width regardless of control size -->
+                                            <DoubleAnimation Storyboard.TargetName="MaskTransform"
+                                                             Storyboard.TargetProperty="X"
+                                                             From="-1" To="1" Duration="0:0:1.4"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Border.Triggers>
+                        </Border>
+                    </ControlTemplate>
+
+                    <!-- Dark themed ProgressBar styles -->
+                    <Style x:Key="ModernProgressBar.Dark" TargetType="ProgressBar">
+                        <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Foreground" Value="{StaticResource AccentHighlightBrush}"/>
+                        <Setter Property="Template" Value="{StaticResource ProgressBarTemplate.Determinate.Dark}"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsIndeterminate" Value="True">
+                                <Setter Property="Template" Value="{StaticResource ProgressBarTemplate.Indeterminate.Thin.Dark}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.6"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+
+                    <!-- Thin variant for loaders under toolbars -->
+                    <Style x:Key="ModernProgressBar.Thin.Dark" TargetType="ProgressBar" BasedOn="{StaticResource ModernProgressBar.Dark}">
+                        <Setter Property="Height" Value="3"/>
+                        <Setter Property="Margin" Value="2,6,2,0"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                    </Style>
+
                     <!-- Modern TextBox Style -->
                     <Style x:Key="ModernTextBox" TargetType="TextBox">
                         <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
