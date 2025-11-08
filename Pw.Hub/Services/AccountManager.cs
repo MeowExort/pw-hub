@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Infrastructure;
 using Pw.Hub.Models;
+using Pw.Hub.Infrastructure.Logging;
+using System.Diagnostics;
 
 namespace Pw.Hub.Services;
 
@@ -12,6 +14,7 @@ public readonly record struct AccountSwitchOptions(bool CreateFreshSession, Brow
 
 public class AccountManager(IBrowser browser) : IAccountManager
 {
+    private static readonly ILogger _log = Log.For<AccountManager>();
     public event Action<Account> CurrentAccountChanged;
     public event Action<Account> CurrentAccountDataChanged;
     public event Action<bool> CurrentAccountChanging;
@@ -34,6 +37,8 @@ public class AccountManager(IBrowser browser) : IAccountManager
         SetChanging(true);
         try
         {
+            var sw = Stopwatch.StartNew();
+            _log.Info("ChangeAccount(v1): start", new System.Collections.Generic.Dictionary<string, object?> { { "accountId", accountId }, { "createFreshSession", opts.CreateFreshSession }, { "sessionMode", opts.SessionMode.ToString() } });
             // Save cookies from the previous account before session reset
             await SaveCookies();
 
@@ -70,6 +75,7 @@ public class AccountManager(IBrowser browser) : IAccountManager
 
             // Гарантируем, что новая сессия создана и ядро WebView2 готово к операциям (CoreWebView2 инициализирован)
             await EnsureBrowserReadyAsync();
+            try { _log.Debug("ChangeAccount(v1): browser ready"); } catch { }
 
             Cookie[] cookies;
             if (!File.Exists(GetCookieFilePath()))

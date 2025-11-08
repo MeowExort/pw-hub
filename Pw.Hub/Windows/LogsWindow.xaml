@@ -1,0 +1,35 @@
+﻿<Window x:Class="Pw.Hub.Windows.LogsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Логи (Debug)" Height="600" Width="900" WindowStartupLocation="CenterOwner"
+        Style="{StaticResource ModernWindow}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <DockPanel Grid.Row="0" Margin="8">
+            <TextBlock Text="Уровень:" VerticalAlignment="Center" Margin="0,0,6,0" Style="{StaticResource ModernTextBlock}"/>
+            <ComboBox x:Name="LevelFilter" Width="140" SelectedIndex="1" Style="{StaticResource ModernComboBox}">
+                <ComboBoxItem Content="Debug+"/>
+                <ComboBoxItem Content="Info+"/>
+                <ComboBoxItem Content="Warn+"/>
+                <ComboBoxItem Content="Error+"/>
+            </ComboBox>
+            <TextBlock Text="Категория:" VerticalAlignment="Center" Margin="12,0,6,0" Style="{StaticResource ModernTextBlock}"/>
+            <TextBox x:Name="CategoryFilter" Width="200" Style="{StaticResource ModernTextBox}"/>
+            <CheckBox x:Name="AutoScroll" Content="Автопрокрутка" Margin="12,0,0,0" IsChecked="True"
+                      Style="{StaticResource ModernCheckBox}"/>
+        </DockPanel>
+        <ListView Grid.Row="1" x:Name="List" Style="{StaticResource ModernListView}">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Время" Width="170" DisplayMemberBinding="{Binding TimestampUtc}"/>
+                    <GridViewColumn Header="Уровень" Width="90" DisplayMemberBinding="{Binding Level}"/>
+                    <GridViewColumn Header="Категория" Width="260" DisplayMemberBinding="{Binding Category}"/>
+                    <GridViewColumn Header="Сообщение" Width="600" DisplayMemberBinding="{Binding Message}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </Grid>
+</Window>

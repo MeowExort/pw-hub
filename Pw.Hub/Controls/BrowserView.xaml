@@ -8,22 +8,46 @@
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
-    <!-- Навигационная панель -->
-    <DockPanel Grid.Row="0" LastChildFill="True" Margin="4" VerticalAlignment="Center">
-      <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-        <Button x:Name="BtnBack" Width="28" Height="24" ToolTip="Назад" Click="BtnBack_OnClick" Margin="0,0,4,0">←</Button>
-        <Button x:Name="BtnRefresh" Width="28" Height="24" ToolTip="Обновить" Click="BtnRefresh_OnClick" Margin="0,0,4,0">↻</Button>
-        <Button x:Name="BtnForward" Width="28" Height="24" ToolTip="Вперёд" Click="BtnForward_OnClick">→</Button>
-      </StackPanel>
-      <TextBox x:Name="AddressBox"
-               Margin="8,0,0,0"
-               VerticalContentAlignment="Center"
-               Height="24"
-               Background="#262626" Foreground="#EEEEEE"
-               BorderBrush="#3A3A3A" BorderThickness="1"
-               KeyDown="AddressBox_OnKeyDown"
-               ToolTip="Адрес (только pwonline.ru)"/>
-    </DockPanel>
+    <!-- Навигационная панель с тонким индикатором загрузки -->
+    <Grid Grid.Row="0" Margin="4">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="3"/>
+      </Grid.RowDefinitions>
+      <DockPanel Grid.Row="0" LastChildFill="True" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+          <Button x:Name="BtnBack" Width="28" Height="24" ToolTip="Назад" Click="BtnBack_OnClick" Margin="0,0,4,0">←</Button>
+          <Button x:Name="BtnRefresh" Width="28" Height="24" ToolTip="Обновить" Click="BtnRefresh_OnClick" Margin="0,0,4,0">↻</Button>
+          <Button x:Name="BtnForward" Width="28" Height="24" ToolTip="Вперёд" Click="BtnForward_OnClick">→</Button>
+        </StackPanel>
+        <TextBox x:Name="AddressBox"
+                 Margin="8,0,0,0"
+                 VerticalContentAlignment="Center"
+                 Height="24"
+                 Background="#262626" Foreground="#EEEEEE"
+                 BorderBrush="#3A3A3A" BorderThickness="1"
+                 KeyDown="AddressBox_OnKeyDown"
+                 ToolTip="Адрес (только pwonline.ru)"/>
+      </DockPanel>
+      <ProgressBar Grid.Row="1"
+                   IsIndeterminate="True"
+                   Height="3"
+                   IsHitTestVisible="False"
+                   Background="#2A2A2A"
+                   Foreground="#66C0F4">
+        <ProgressBar.Style>
+          <Style TargetType="ProgressBar">
+            <Setter Property="Visibility" Value="Visible" />
+            <Setter Property="Opacity" Value="0" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsLoading, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                <Setter Property="Opacity" Value="1" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </ProgressBar.Style>
+      </ProgressBar>
+    </Grid>
 
     <!-- Встроенный браузер WebView2. Видимость может быть временно скрыта до инициализации, чтобы не было белых вспышек. -->
     <wpf:WebView2 x:Name="Wv"

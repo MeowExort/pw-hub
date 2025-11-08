@@ -79,7 +79,7 @@
                          Background="{StaticResource BackgroundSecondaryBrush}"
                          Foreground="{StaticResource AccentHighlightBrush}">
                 <ProgressBar.Style>
-                    <Style TargetType="ProgressBar" BasedOn="{StaticResource ModernProgressBar.Thin.Dark}">
+                    <Style TargetType="ProgressBar">
                         <!-- Always keep in layout; fade in/out -->
                         <Setter Property="Visibility" Value="Visible" />
                         <Setter Property="Opacity" Value="0" />

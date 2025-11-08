@@ -15,37 +15,43 @@
         Activated="MainWindow_OnActivated"
         Deactivated="MainWindow_OnDeactivated"
         StateChanged="MainWindow_OnStateChanged">
-            <Window.Resources>
-                <conv:SelectedSquadEmptyConverter x:Key="SelectedSquadEmptyConverter" />
-                <conv:OneBasedIndexConverter x:Key="OneBasedIndexConverter" />
-                
-                <!-- Close button style matching the window titlebar close button -->
-                <Style x:Key="PopupCloseButtonStyle" TargetType="Button">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="BorderThickness" Value="0"/>
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="border" Background="{TemplateBinding Background}">
-                                    <Path Width="10" Height="10"
-                                         Data="M 0,0 L 10,10 M 0,10 L 10,0"
-                                         Stroke="{TemplateBinding Foreground}"
-                                         StrokeThickness="1"
-                                         HorizontalAlignment="Center"
-                                         VerticalAlignment="Center"/>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="border" Property="Background" Value="#C42B1C"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Style>
-            </Window.Resources>
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control+Shift" Key="L" Command="ApplicationCommands.NotACommand" CommandParameter="ToggleLogs" />
+    </Window.InputBindings>
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.NotACommand" Executed="OnGlobalCommandExecuted" />
+    </Window.CommandBindings>
+    <Window.Resources>
+        <conv:SelectedSquadEmptyConverter x:Key="SelectedSquadEmptyConverter" />
+        <conv:OneBasedIndexConverter x:Key="OneBasedIndexConverter" />
+
+        <!-- Close button style matching the window titlebar close button -->
+        <Style x:Key="PopupCloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <Path Width="10" Height="10"
+                                  Data="M 0,0 L 10,10 M 0,10 L 10,0"
+                                  Stroke="{TemplateBinding Foreground}"
+                                  StrokeThickness="1"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#C42B1C" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -77,11 +83,11 @@
                             <TextBlock Text="📚"
                                        FontSize="16"
                                        Margin="0,0,10,0"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center" />
                             <TextBlock Text="Библиотека модулей"
                                        Style="{StaticResource ModernTextBlock}"
                                        FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
@@ -98,11 +104,11 @@
                             <TextBlock Text="👤"
                                        FontSize="16"
                                        Margin="0,0,10,0"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center" />
                             <TextBlock Text="Профиль"
                                        Style="{StaticResource ModernTextBlock}"
                                        FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
@@ -114,23 +120,23 @@
                             Padding="12">
                         <StackPanel>
                             <TextBlock Text="БЫСТРЫЙ ЗАПУСК"
-                                      Style="{StaticResource ModernTextBlock}"
-                                      FontWeight="SemiBold"
-                                      FontSize="11"
-                                      Foreground="{StaticResource TextSecondaryBrush}"
-                                      Margin="0,0,0,8"/>
+                                       Style="{StaticResource ModernTextBlock}"
+                                       FontWeight="SemiBold"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,0,0,8" />
                             <ComboBox x:Name="ModulesList"
-                                     Style="{StaticResource ModernComboBox}"
-                                     DisplayMemberPath="Name"
-                                     ItemsSource="{Binding QuickModules}"
-                                     SelectedItem="{Binding SelectedQuickModule, Mode=TwoWay}"
-                                     Margin="0,0,0,8"/>
+                                      Style="{StaticResource ModernComboBox}"
+                                      DisplayMemberPath="Name"
+                                      ItemsSource="{Binding QuickModules}"
+                                      SelectedItem="{Binding SelectedQuickModule, Mode=TwoWay}"
+                                      Margin="0,0,0,8" />
                             <Button x:Name="RunModuleButton"
-                                   Style="{StaticResource PrimaryButton}"
-                                   Content="▶ Запустить"
-                                   HorizontalAlignment="Stretch"
-                                   Padding="12,8"
-                                   Command="{Binding RunSelectedModuleCommand}"/>
+                                    Style="{StaticResource PrimaryButton}"
+                                    Content="▶ Запустить"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="12,8"
+                                    Command="{Binding RunSelectedModuleCommand}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -146,7 +152,7 @@
                                    Style="{StaticResource ModernTextBlock}"
                                    FontWeight="SemiBold"
                                    FontSize="12"
-                                   Foreground="{StaticResource AccentHighlightBrush}"/>
+                                   Foreground="{StaticResource AccentHighlightBrush}" />
                     </Border>
                     <Grid>
                         <!-- Tree content -->
@@ -160,151 +166,158 @@
                                   PreviewMouseLeftButtonUp="NavigationTree_OnPreviewMouseLeftButtonUp"
                                   PreviewMouseRightButtonDown="NavigationTree_OnPreviewMouseRightButtonDown"
                                   beh:TreeViewReorderBehavior.Enabled="True">
-                                <TreeView.ContextMenu>
-                                    <ContextMenu x:Name="NavigationContextMenu"
-                                               Background="{StaticResource BackgroundSecondaryBrush}"
-                                               BorderBrush="{StaticResource BorderBrush}"
-                                               Foreground="{StaticResource TextPrimaryBrush}">
-                                        <MenuItem Header="➕ Добавить отряд" Command="{Binding AddSquadCommand}" />
-                                        <MenuItem x:Name="AddAccountMenuItem" Header="👤 Добавить аккаунт"
-                                                  Command="{Binding AddAccountCommand}"
-                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                        <Separator Style="{StaticResource ModernSeparator}"/>
-                                        <MenuItem x:Name="EditSquadMenuItem" Header="✏ Редактировать отряд"
-                                                  Command="{Binding EditSquadCommand}"
-                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                        <MenuItem x:Name="EditAccountMenuItem" Header="✏ Редактировать аккаунт"
-                                                  Command="{Binding EditAccountCommand}"
-                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                        <MenuItem x:Name="LoadCharactersMenuItem" Header="⬇ Загрузить персонажей"
-                                                  Command="{Binding LoadCharactersCommand}"
-                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                        <Separator Style="{StaticResource ModernSeparator}"/>
-                                        <MenuItem x:Name="DeleteMenuItem" Header="🗑 Удалить"
-                                                  Command="{Binding DeleteNodeCommand}"
-                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                    </ContextMenu>
-                                </TreeView.ContextMenu>
-                                <TreeView.Resources>
-                                    <HierarchicalDataTemplate DataType="{x:Type models:Squad}" ItemsSource="{Binding Accounts}">
-                                        <Border Padding="8,6" Margin="0,2" CornerRadius="3"
-                                                Background="Transparent">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="Auto"/>
-                                                </Grid.RowDefinitions>
+                            <TreeView.ContextMenu>
+                                <ContextMenu x:Name="NavigationContextMenu"
+                                             Background="{StaticResource BackgroundSecondaryBrush}"
+                                             BorderBrush="{StaticResource BorderBrush}"
+                                             Foreground="{StaticResource TextPrimaryBrush}">
+                                    <MenuItem Header="➕ Добавить отряд" Command="{Binding AddSquadCommand}" />
+                                    <MenuItem x:Name="AddAccountMenuItem" Header="👤 Добавить аккаунт"
+                                              Command="{Binding AddAccountCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <Separator Style="{StaticResource ModernSeparator}" />
+                                    <MenuItem x:Name="EditSquadMenuItem" Header="✏ Редактировать отряд"
+                                              Command="{Binding EditSquadCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <MenuItem x:Name="EditAccountMenuItem" Header="✏ Редактировать аккаунт"
+                                              Command="{Binding EditAccountCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <MenuItem x:Name="LoadCharactersMenuItem" Header="⬇ Загрузить персонажей"
+                                              Command="{Binding LoadCharactersCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <Separator Style="{StaticResource ModernSeparator}" />
+                                    <MenuItem x:Name="DeleteMenuItem" Header="🗑 Удалить"
+                                              Command="{Binding DeleteNodeCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                            <TreeView.Resources>
+                                <HierarchicalDataTemplate DataType="{x:Type models:Squad}"
+                                                          ItemsSource="{Binding Accounts}">
+                                    <Border Padding="8,6" Margin="0,2" CornerRadius="3"
+                                            Background="Transparent">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
 
-                                                <!-- Header row (icon + name + subtle count) -->
-                                                <StackPanel Orientation="Horizontal" Grid.Row="0">
-                                                    <TextBlock Text="📁"
-                                                               VerticalAlignment="Center"
-                                                               FontSize="14"
-                                                               Margin="0,0,8,0"/>
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               Text="{Binding Name}"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               Margin="6,0,0,0"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                               FontSize="11">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                <Setter Property="Text" Value="(0)"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="0">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="1">
-                                                                        <Setter Property="Text" Value="(1)"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="2">
-                                                                        <Setter Property="Text" Value="(2)"/>
-                                                                    </DataTrigger>
-                                                                    <!-- Default: bind directly for other values -->
-                                                                    <DataTrigger Binding="{Binding Accounts.Count}" Value="3">
-                                                                        <Setter Property="Text" Value="(3)"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                        <TextBlock.Text>
-                                                            <Binding Path="Accounts.Count" StringFormat="({0})"/>
-                                                        </TextBlock.Text>
-                                                    </TextBlock>
-                                                </StackPanel>
-
-                                                <!-- Inline empty-state with Add Account button (visible when there are no accounts and squad is selected) -->
-                                                <Border x:Name="EmptyInlinePanel"
-                                                        Grid.Row="1"
-                                                        Background="{StaticResource AccentBlueBrush}"
-                                                        BorderBrush="{StaticResource BorderBrush}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="4"
-                                                        Padding="8"
-                                                        Margin="24,6,0,0">
-                                                    <Border.Visibility>
-                                                        <MultiBinding Converter="{StaticResource SelectedSquadEmptyConverter}" Mode="OneWay">
-                                                            <!-- 0: current squad (DataContext of template) -->
-                                                            <Binding />
-                                                            <!-- 1: selected item in the TreeView -->
-                                                            <Binding ElementName="NavigationTree" Path="SelectedItem" />
-                                                            <!-- 2: number of accounts in squad -->
-                                                            <Binding Path="Accounts.Count" />
-                                                        </MultiBinding>
-                                                    </Border.Visibility>
-                                                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
-                                                        <TextBlock Text="Нет аккаунтов в этом отряде"
-                                                                   Style="{StaticResource ModernTextBlock}"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                                   Margin="0,0,8,8"/>
-                                                        <Button Content="👤 Добавить аккаунт"
-                                                                Style="{StaticResource ModernButton}"
-                                                                Padding="12,6"
-                                                                Command="{Binding DataContext.AddAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                CommandParameter="{Binding}"/>
-                                                    </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                        </Border>
-                                    </HierarchicalDataTemplate>
-                                    <DataTemplate DataType="{x:Type models:Account}">
-                                        <Border Padding="8,6" Margin="0,1" CornerRadius="3"
-                                                Background="Transparent">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <!-- Subtle ordinal index -->
-                                                <TextBlock Grid.Column="0"
+                                            <!-- Header row (icon + name + subtle count) -->
+                                            <StackPanel Orientation="Horizontal" Grid.Row="0">
+                                                <TextBlock Text="📁"
                                                            VerticalAlignment="Center"
-                                                           Margin="0,0,6,0"
+                                                           FontSize="14"
+                                                           Margin="0,0,8,0" />
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Margin="6,0,0,0"
                                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                                           FontSize="11"
-                                                           Text="{Binding RelativeSource={RelativeSource AncestorType=TreeViewItem}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource OneBasedIndexConverter}}"/>
-                                                <Border Grid.Column="1" Width="32" Height="32"
-                                                       CornerRadius="16"
-                                                       Margin="0,0,10,0"
-                                                       BorderBrush="{StaticResource BorderBrush}"
-                                                       BorderThickness="1">
-                                                    <Ellipse Width="30" Height="30">
-                                                        <Ellipse.Fill>
-                                                            <ImageBrush ImageSource="{Binding ImageUri}" />
-                                                        </Ellipse.Fill>
-                                                    </Ellipse>
-                                                </Border>
-                                                <TextBlock Grid.Column="2"
-                                                          VerticalAlignment="Center"
-                                                          Text="{Binding Name}"
-                                                          Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </TreeView.Resources>
+                                                           FontSize="11">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Text" Value="(0)" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Accounts.Count}"
+                                                                             Value="0">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Accounts.Count}"
+                                                                             Value="1">
+                                                                    <Setter Property="Text" Value="(1)" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Accounts.Count}"
+                                                                             Value="2">
+                                                                    <Setter Property="Text" Value="(2)" />
+                                                                </DataTrigger>
+                                                                <!-- Default: bind directly for other values -->
+                                                                <DataTrigger Binding="{Binding Accounts.Count}"
+                                                                             Value="3">
+                                                                    <Setter Property="Text" Value="(3)" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                    <TextBlock.Text>
+                                                        <Binding Path="Accounts.Count" StringFormat="({0})" />
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <!-- Inline empty-state with Add Account button (visible when there are no accounts and squad is selected) -->
+                                            <Border x:Name="EmptyInlinePanel"
+                                                    Grid.Row="1"
+                                                    Background="{StaticResource AccentBlueBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="8"
+                                                    Margin="24,6,0,0">
+                                                <Border.Visibility>
+                                                    <MultiBinding
+                                                        Converter="{StaticResource SelectedSquadEmptyConverter}"
+                                                        Mode="OneWay">
+                                                        <!-- 0: current squad (DataContext of template) -->
+                                                        <Binding />
+                                                        <!-- 1: selected item in the TreeView -->
+                                                        <Binding ElementName="NavigationTree" Path="SelectedItem" />
+                                                        <!-- 2: number of accounts in squad -->
+                                                        <Binding Path="Accounts.Count" />
+                                                    </MultiBinding>
+                                                </Border.Visibility>
+                                                <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                                                    <TextBlock Text="Нет аккаунтов в этом отряде"
+                                                               Style="{StaticResource ModernTextBlock}"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               Margin="0,0,8,8" />
+                                                    <Button Content="👤 Добавить аккаунт"
+                                                            Style="{StaticResource ModernButton}"
+                                                            Padding="12,6"
+                                                            Command="{Binding DataContext.AddAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </HierarchicalDataTemplate>
+                                <DataTemplate DataType="{x:Type models:Account}">
+                                    <Border Padding="8,6" Margin="0,1" CornerRadius="3"
+                                            Background="Transparent">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Subtle ordinal index -->
+                                            <TextBlock Grid.Column="0"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,6,0"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontSize="11"
+                                                       Text="{Binding RelativeSource={RelativeSource AncestorType=TreeViewItem}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource OneBasedIndexConverter}}" />
+                                            <Border Grid.Column="1" Width="32" Height="32"
+                                                    CornerRadius="16"
+                                                    Margin="0,0,10,0"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1">
+                                                <Ellipse Width="30" Height="30">
+                                                    <Ellipse.Fill>
+                                                        <ImageBrush ImageSource="{Binding ImageUri}" />
+                                                    </Ellipse.Fill>
+                                                </Ellipse>
+                                            </Border>
+                                            <TextBlock Grid.Column="2"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding Name}"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </TreeView.Resources>
                         </TreeView>
 
                         <!-- Empty state overlay when tree has no items -->
@@ -317,10 +330,11 @@
                                 Padding="16">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasItems, ElementName=NavigationTree}" Value="False">
-                                            <Setter Property="Visibility" Value="Visible"/>
+                                        <DataTrigger Binding="{Binding HasItems, ElementName=NavigationTree}"
+                                                     Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -331,20 +345,20 @@
                                            FontWeight="SemiBold"
                                            FontSize="14"
                                            HorizontalAlignment="Center"
-                                           Margin="0,0,0,6"/>
+                                           Margin="0,0,0,6" />
                                 <TextBlock Text="Создайте отряд, затем добавьте аккаунты"
                                            TextWrapping="WrapWithOverflow"
                                            TextAlignment="Center"
                                            Style="{StaticResource ModernTextBlock}"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            HorizontalAlignment="Center"
-                                           Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12" />
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <Button Content="➕ Добавить отряд"
                                             Style="{StaticResource PrimaryButton}"
                                             Padding="16,8"
                                             Margin="0,0,8,0"
-                                            Command="{Binding AddSquadCommand}"/>
+                                            Command="{Binding AddSquadCommand}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -360,11 +374,10 @@
             <Grid>
                 <!-- Историческая страница аккаунта (v1) -->
                 <pages:AccountPage x:Name="AccountPage" />
-                
+
                 <!-- Рабочее пространство динамических браузеров v2.
                      Находится поверх AccountPage и отображается, когда есть созданные браузеры. -->
                 <UniformGrid x:Name="BrowserWorkspace"
-                             Rows="1" Columns="1"
                              Visibility="Collapsed"
                              Margin="0"
                              Background="#1E1E1E">
@@ -379,26 +392,26 @@
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="●"
-                              Foreground="{StaticResource SuccessBrush}"
-                              FontSize="12"
-                              Margin="0,0,6,0"
-                              VerticalAlignment="Center"/>
+                               Foreground="{StaticResource SuccessBrush}"
+                               FontSize="12"
+                               Margin="0,0,6,0"
+                               VerticalAlignment="Center" />
                     <TextBlock Text="Готово"
-                              Style="{StaticResource ModernTextBlock}"
-                              FontSize="12"
-                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                               Style="{StaticResource ModernTextBlock}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
                 </StackPanel>
             </StatusBarItem>
-            <Separator Style="{StaticResource ModernSeparator}"/>
+            <Separator Style="{StaticResource ModernSeparator}" />
             <StatusBarItem>
                 <TextBlock x:Name="StatusBarText"
-                          Text=""
-                          Style="{StaticResource ModernTextBlock}"
-                          FontSize="12"
-                          Foreground="{StaticResource TextSecondaryBrush}"/>
+                           Text=""
+                           Style="{StaticResource ModernTextBlock}"
+                           FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
             </StatusBarItem>
         </StatusBar>
-        
+
 
         <!-- Updates popup overlay (Popup to appear above WebView2) -->
         <Popup x:Name="UpdatesPopup"
@@ -416,8 +429,8 @@
                 <StackPanel Orientation="Vertical" Margin="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
                                    VerticalAlignment="Center"
@@ -430,17 +443,17 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Style="{StaticResource PopupCloseButtonStyle}"
-                                Command="{Binding CloseUpdatesPopupCommand}"/>
+                                Command="{Binding CloseUpdatesPopupCommand}" />
                     </Grid>
                     <TextBlock x:Name="UpdatesPopupText"
                                Margin="0,16,0,10"
                                TextWrapping="Wrap"
                                Text="{Binding UpdatesText}"
-                               Style="{StaticResource ModernTextBlock}"/>
+                               Style="{StaticResource ModernTextBlock}" />
                     <Button Content="Обновить"
                             Style="{StaticResource PrimaryButton}"
                             HorizontalAlignment="Right"
-                            Command="{Binding OpenModulesLibraryCommand}"/>
+                            Command="{Binding OpenModulesLibraryCommand}" />
                 </StackPanel>
             </Border>
         </Popup>

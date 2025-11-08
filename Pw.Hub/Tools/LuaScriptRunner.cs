@@ -16,6 +16,14 @@ public class LuaScriptRunner
     private TaskCompletionSource<string> _currentTcs;
     private readonly LuaIntegration _integration;
 
+    private Guid? _runId;
+    public void SetRunId(Guid runId)
+    {
+        _runId = runId;
+        try { _integration.SetRunId(runId); } catch { }
+        try { Pw.Hub.Infrastructure.RunLifetimeTracker.SetActive(runId); } catch { }
+    }
+
     // Debug support types
     public delegate bool DebugBreakHandler(int line, IDictionary<string, object> locals,
         IDictionary<string, object> globals);
@@ -112,6 +120,46 @@ public class LuaScriptRunner
             try
             {
                 _currentLua!.DoString(code);
+                // Не завершаем выполнение автоматически: скрипт может быть асинхронным и завершится через Complete()
+                // Запускаем сторожевой монитор: как только все async-операции данного запуска завершатся и
+                // некоторое время сохранится тишина — завершаем ран.
+                var runId = _runId;
+                if (runId.HasValue && _currentTcs != null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // Ждём опустошения счётчика + короткий grace период на всплески
+                            var graceMs = 400;
+                            var quietSince = DateTime.UtcNow;
+                            var lastCount = -1;
+                            while (true)
+                            {
+                                int count = Pw.Hub.Infrastructure.RunLifetimeTracker.GetCount(runId.Value);
+                                if (count == 0)
+                                {
+                                    if ((DateTime.UtcNow - quietSince).TotalMilliseconds >= graceMs)
+                                        break;
+                                }
+                                else
+                                {
+                                    quietSince = DateTime.UtcNow; // сбросить таймер тишины
+                                }
+                                // Если счётчик менялся — обнулим отсчёт тишины
+                                if (count != lastCount)
+                                {
+                                    lastCount = count;
+                                    if (count != 0) quietSince = DateTime.UtcNow;
+                                }
+                                await Task.Delay(50).ConfigureAwait(false);
+                                if (_currentTcs == null) return; // уже завершено через Complete/Stop
+                            }
+                            _currentTcs?.TrySetResult(null);
+                        }
+                        catch { }
+                    });
+                }
             }
             catch (ObjectDisposedException)
             {
@@ -577,6 +625,7 @@ debug.sethook(__pw_hook, 'l')
         try
         {
             _currentTcs?.TrySetResult(null);
+            try { if (_runId.HasValue) Pw.Hub.Infrastructure.RunLifetimeTracker.Reset(_runId.Value); } catch { }
             _currentLua?.Dispose();
         }
         catch

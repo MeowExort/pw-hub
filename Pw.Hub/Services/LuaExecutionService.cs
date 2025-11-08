@@ -41,10 +41,16 @@ public class LuaExecutionService : ILuaExecutionService
 
         logWindow.SetRunning(true);
 
+        // Запуск контекста для авто-очистки BrowserV2 по окончании
+        var runId = Pw.Hub.Infrastructure.RunContextTracker.BeginRun();
+        var main = owner as MainWindow ?? Application.Current?.MainWindow as MainWindow;
+        var logger = Pw.Hub.Infrastructure.Logging.Log.For<LuaExecutionService>();
+        try { runner.SetRunId(runId); } catch { }
+
         string result = null;
         try
         {
-            // Запускаем выполнение (асинхронно) и по завершению закрываем окно
+            // Запускаем выполнение (асинхронно) и по завершению закрываем окно + чистим оставшиеся браузеры
             var task = runner.RunModuleAsync(module, args).ContinueWith(t =>
             {
                 try
@@ -61,6 +67,10 @@ public class LuaExecutionService : ILuaExecutionService
                     }
                 }
                 catch { }
+                finally
+                {
+                    try { _ = Pw.Hub.Infrastructure.RunContextTracker.EndRunCloseAll(main?.BrowserManager, logger, runId); } catch { }
+                }
             }, TaskScheduler.FromCurrentSynchronizationContext());
 
             // Показываем окно логов как модальное до завершения
@@ -72,6 +82,12 @@ public class LuaExecutionService : ILuaExecutionService
         catch
         {
             // Ошибки отображаются в окне логов/уведомлениях, здесь подавляем
+        }
+        finally
+        {
+            // На случай, если завершение не попало в ContinueWith (например, смена контекста) — дублируем попытку очистки
+            try { await Pw.Hub.Infrastructure.RunContextTracker.EndRunCloseAll(main?.BrowserManager, logger, runId); } catch { }
+            try { Pw.Hub.Infrastructure.RunContextTracker.ClearActive(); } catch { }
         }
     }
 }

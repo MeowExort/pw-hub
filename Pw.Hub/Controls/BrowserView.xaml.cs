@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Pw.Hub.Abstractions;
+using System.ComponentModel;
 
 namespace Pw.Hub.Controls;
 
@@ -13,8 +14,21 @@ namespace Pw.Hub.Controls;
 /// Реализует IWebViewHost, чтобы браузерный сервис (WebCoreBrowser) мог безопасно
 /// пересоздавать контрол для новой InPrivate-сессии без деталей UI.
 /// </summary>
-public partial class BrowserView : UserControl, IWebViewHost
+public partial class BrowserView : UserControl, IWebViewHost, INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged(string name)
+    {
+        try { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)); } catch { }
+    }
+
+    private bool _isLoading;
+    public bool IsLoading
+    {
+        get => _isLoading;
+        set { if (value != _isLoading) { _isLoading = value; OnPropertyChanged(nameof(IsLoading)); } }
+    }
+
     public BrowserView()
     {
         InitializeComponent();
@@ -56,6 +70,8 @@ public partial class BrowserView : UserControl, IWebViewHost
         // Удаляем старый контрол
         parent.Children.Clear();
         parent.Children.Add(newControl);
+        try { Grid.SetRow(newControl, 1); } catch { }
+        try { Grid.SetColumn(newControl, 0); } catch { }
 
         Wv = newControl;
         AttachHandlers();
@@ -76,7 +92,8 @@ public partial class BrowserView : UserControl, IWebViewHost
 
         // Добавляем до старого, чтобы порядок наложения сохранился
         parent.Children.Add(newControl);
-        Grid.SetRow(newControl, 0);
+        // WebView2 должен находиться во второй строке (Grid.Row=1), первая строка — это панель навигации высотой 32px
+        Grid.SetRow(newControl, 1);
         Grid.SetColumn(newControl, 0);
 
         // Раннее подключение базовых обработчиков (фильтр домена и т.д.)
@@ -159,9 +176,16 @@ public partial class BrowserView : UserControl, IWebViewHost
     {
         try
         {
-            if (!e.Uri.StartsWith("https://pwonline.ru") && !e.Uri.StartsWith("http://pwonline.ru") &&
-                !e.Uri.StartsWith("https://pw.mail.ru") && !e.Uri.StartsWith("http://pw.mail.ru"))
+            var allowed = e.Uri.StartsWith("https://pwonline.ru") || e.Uri.StartsWith("http://pwonline.ru") ||
+                          e.Uri.StartsWith("https://pw.mail.ru") || e.Uri.StartsWith("http://pw.mail.ru");
+            if (!allowed)
+            {
                 e.Cancel = true;
+                IsLoading = false;
+                return;
+            }
+            // Allowed navigation — show loading indicator
+            IsLoading = true;
         }
         catch { }
     }
@@ -169,6 +193,7 @@ public partial class BrowserView : UserControl, IWebViewHost
     // Обновление адресной строки/кнопок по завершению навигации
     private void Wv_OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        try { IsLoading = false; } catch { }
         try { AddressBox.Text = Wv?.Source?.ToString() ?? string.Empty; } catch { }
         UpdateNavUi();
         // Здесь можно добавлять общий JS/инъекции для v2-браузеров при необходимости.

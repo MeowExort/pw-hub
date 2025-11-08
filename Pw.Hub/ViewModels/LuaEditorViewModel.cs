@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
 using Pw.Hub.Infrastructure;
+using Pw.Hub.Infrastructure.Logging;
 using Pw.Hub.Services;
 using Pw.Hub.Tools;
 
@@ -181,8 +182,14 @@ public class LuaEditorViewModel : BaseViewModel
         catch { }
 
         IsRunning = true;
+        Guid runId = Guid.Empty;
+        var logger = Pw.Hub.Infrastructure.Logging.Log.For<LuaEditorViewModel>();
         try
         {
+            // Инициируем контекст авто‑закрытия для редактора (как в LuaExecutionService)
+            runId = Pw.Hub.Infrastructure.RunContextTracker.BeginRun();
+            try { _runner.SetRunId(runId); } catch { }
+
             // Подключаем обработчики вывода
             _runner.SetPrintSink(AppendLog);
             _runner.SetProgressSink((p, m) => { /* editor run: можно игнорировать */ });
@@ -195,6 +202,15 @@ public class LuaEditorViewModel : BaseViewModel
         }
         finally
         {
+            // Попытка авто‑закрытия браузеров, созданных в этом запуске редактора
+            try
+            {
+                var mw = System.Windows.Application.Current?.MainWindow as Pw.Hub.MainWindow;
+                await Pw.Hub.Infrastructure.RunContextTracker.EndRunCloseAll(mw?.BrowserManager, logger, runId);
+                Pw.Hub.Infrastructure.RunContextTracker.ClearActive();
+            }
+            catch { }
+
             IsRunning = false;
         }
     }
@@ -220,8 +236,14 @@ public class LuaEditorViewModel : BaseViewModel
         catch { }
 
         IsRunning = true;
+        Guid runId = Guid.Empty;
+        var logger = Pw.Hub.Infrastructure.Logging.Log.For<LuaEditorViewModel>();
         try
         {
+            // Инициируем контекст авто‑закрытия и прокинем runId в раннер
+            runId = Pw.Hub.Infrastructure.RunContextTracker.BeginRun();
+            try { _runner.SetRunId(runId); } catch { }
+
             LuaScriptRunner.DebugBreakHandler onBreak = (line, locals, globals) =>
             {
                 try { RequestOpenDebugVariables?.Invoke(line, locals, globals); }
@@ -237,6 +259,15 @@ public class LuaEditorViewModel : BaseViewModel
         }
         finally
         {
+            // Авто‑закрытие браузеров для отладочного запуска
+            try
+            {
+                var mw = System.Windows.Application.Current?.MainWindow as Pw.Hub.MainWindow;
+                await Pw.Hub.Infrastructure.RunContextTracker.EndRunCloseAll(mw?.BrowserManager, logger, runId);
+                Pw.Hub.Infrastructure.RunContextTracker.ClearActive();
+            }
+            catch { }
+
             IsRunning = false;
         }
     }

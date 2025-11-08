@@ -7,6 +7,7 @@ using Microsoft.Web.WebView2.Wpf;
 using Pw.Hub.Abstractions;
 using Pw.Hub.Controls;
 using Pw.Hub;
+using Pw.Hub.Infrastructure.Logging;
 
 namespace Pw.Hub.Services;
 
@@ -20,6 +21,7 @@ namespace Pw.Hub.Services;
 /// </summary>
 public class BrowserManager
 {
+    private static readonly ILogger _log = Log.For<BrowserManager>();
     private readonly MainWindow _mainWindow;
 
     private int _nextId = 1;
@@ -57,6 +59,9 @@ public class BrowserManager
     /// </summary>
     public async Task<int> CreateAsync(CreateOptions options = null)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        _log.Info("CreateAsync: start creating browser v2", new Dictionary<string, object?> { { "startUrl", options?.StartUrl } });
+
         // 1) Создаём визуальный контейнер (BrowserView) на UI-потоке
         BrowserView view = null;
         await _mainWindow.Dispatcher.InvokeAsync(() =>
@@ -73,7 +78,7 @@ public class BrowserManager
         // Новая сессия на смену аккаунта разрешена только для legacy Lua API v1.
 
         // Первый профиль для этого браузера создаём сразу, чтобы не шарить состояние с host.Current
-        try { await browser.CreateNewSessionAsync(); } catch { }
+        try { await browser.CreateNewSessionAsync(); } catch (Exception ex) { try { _log.Warn("CreateAsync: initial session failed", new Dictionary<string, object?>{ {"ex", ex.Message} }); } catch { } }
 
         // 3) Регистрируем запись
         var id = _nextId++;
@@ -88,9 +93,11 @@ public class BrowserManager
         // 4) Необязательная стартовая навигация
         if (!string.IsNullOrWhiteSpace(options?.StartUrl))
         {
-            try { await browser.NavigateAsync(options.StartUrl); } catch { }
+            try { await browser.NavigateAsync(options.StartUrl); } catch (Exception ex) { try { _log.Warn("CreateAsync: start navigation failed", new Dictionary<string, object?>{ {"ex", ex.Message} }); } catch { } }
         }
 
+        sw.Stop();
+        _log.Info("CreateAsync: created", new Dictionary<string, object?> { { "handle", id }, { "elapsedMs", sw.ElapsedMilliseconds } });
         return id;
     }
 
@@ -99,7 +106,8 @@ public class BrowserManager
     /// </summary>
     public bool Close(int handle)
     {
-        if (!_entries.TryGetValue(handle, out var e)) return false;
+        _log.Info("Close: requested", new Dictionary<string, object?> { { "handle", handle } });
+        if (!_entries.TryGetValue(handle, out var e)) { _log.Warn("Close: not found", new Dictionary<string, object?> { { "handle", handle } }); return false; }
 
         string profileDir = null;
         try
@@ -128,12 +136,13 @@ public class BrowserManager
             {
                 _ = Task.Run(async () =>
                 {
-                    try { await WebCoreBrowser.TryDeleteDirForExternal(profileDir); } catch { }
+                    try { await WebCoreBrowser.TryDeleteDirForExternal(profileDir); _log.Debug("Close: profile cleanup scheduled", new Dictionary<string, object?> { { "dir", profileDir } }); } catch { }
                 });
             }
         }
         catch { }
 
+        _log.Info("Close: completed", new Dictionary<string, object?> { { "handle", handle } });
         return true;
     }
 

@@ -22,6 +22,14 @@ public class LuaIntegration
     private Action<string> _printSink; // optional sink for Print routing
     private Action<int, string> _progressSink; // optional sink for progress reporting
 
+    private Guid? _runId; // explicit run context for BrowserV2 handle tracking
+
+    public void SetRunId(Guid runId)
+    {
+        _runId = runId;
+        try { Pw.Hub.Infrastructure.RunContextTracker.SetActive(runId); } catch { }
+    }
+
     public LuaIntegration(IAccountManager accountManager)
     {
         _accountManager = accountManager;
@@ -235,19 +243,22 @@ public class LuaIntegration
     {
         try
         {
+            Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
             Task.Delay(ms).ContinueWith(_ =>
             {
                 try
                 {
-                    CallLuaVoid(callback);
+                    try { CallLuaVoid(callback); } finally { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); }
                 }
                 catch
                 {
+                    try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { }
                 }
             });
         }
         catch
         {
+            try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { }
         }
     }
 
@@ -483,6 +494,7 @@ public class LuaIntegration
     [LuaApiFunction(Name="Account_GetAccountCb", Version="v1", Category="Account", Signature="Account_GetAccountCb(function(acc) ... end)", Description="Получить текущий аккаунт в callback(acc)", Snippet="Account_GetAccountCb(function(acc)\n    __CURSOR__\nend)")]
     public void Account_GetAccountCb(LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _accountManager.GetAccountAsync().ContinueWith(t =>
         {
             try
@@ -494,12 +506,14 @@ public class LuaIntegration
             {
                 // ignored
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
     [LuaApiFunction(Name="Account_IsAuthorizedCb", Version="v1", Category="Account", Signature="Account_IsAuthorizedCb(function(isAuth) ... end)", Description="Проверить авторизацию аккаунта", Snippet="Account_IsAuthorizedCb(function(isAuth)\n    __CURSOR__\nend)")]
     public void Account_IsAuthorizedCb(LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _accountManager.IsAuthorizedAsync().ContinueWith(t =>
         {
             try
@@ -510,12 +524,14 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
     [LuaApiFunction(Name="Account_GetAccountsCb", Version="v1", Category="Account", Signature="Account_GetAccountsCb(function(accounts) ... end)", Description="Список аккаунтов (таблица)", Snippet="Account_GetAccountsCb(function(accounts)\n    __CURSOR__\nend)")]
     public void Account_GetAccountsCb(LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _accountManager.GetAccountsAsync().ContinueWith((Task<Account[]> t) =>
         {
             try
@@ -543,6 +559,7 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
@@ -720,6 +737,7 @@ public class LuaIntegration
     {
         // Политика V1: создаём НОВУЮ сессию через перегрузку AccountManager.ChangeAccountAsync с опциями
         // (атомарно внутри менеджера: новая сессия -> куки -> навигация -> проверка авторизации).
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         Task.Run(async () =>
         {
             try
@@ -750,6 +768,7 @@ public class LuaIntegration
                 try { System.Diagnostics.Debug.WriteLine($"[LuaV1] Switch FAILED: {ex.Message}"); } catch { }
                 try { CallLuaVoid(callback, false); } catch { }
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
@@ -757,6 +776,7 @@ public class LuaIntegration
     [LuaApiFunction(Name="Browser_NavigateCb", Version="v1", Category="Browser", Signature="Browser_NavigateCb(url, function() ... end)", Description="Открыть URL", Snippet="Browser_NavigateCb(url, function()\n    __CURSOR__\nend)")]
     public void Browser_NavigateCb(string url, LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _browser.NavigateAsync(url).ContinueWith(t =>
         {
             try
@@ -766,12 +786,14 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
     [LuaApiFunction(Name="Browser_ReloadCb", Version="v1", Category="Browser", Signature="Browser_ReloadCb(function() ... end)", Description="Перезагрузить страницу", Snippet="Browser_ReloadCb(function()\n    __CURSOR__\nend)")]
     public void Browser_ReloadCb(LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _browser.ReloadAsync().ContinueWith(t =>
         {
             try
@@ -781,12 +803,14 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
     [LuaApiFunction(Name="Browser_ExecuteScriptCb", Version="v1", Category="Browser", Signature="Browser_ExecuteScriptCb(jsCode, function(result) ... end)", Description="Выполнить JS и вернуть результат", Snippet="Browser_ExecuteScriptCb(jsCode, function(result)\n    __CURSOR__\nend)")]
     public void Browser_ExecuteScriptCb(string script, LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _browser.ExecuteScriptAsync(script).ContinueWith(t =>
         {
             try
@@ -797,12 +821,14 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
     [LuaApiFunction(Name="Browser_ElementExistsCb", Version="v1", Category="Browser", Signature="Browser_ElementExistsCb(selector, function(exists) ... end)", Description="Проверить наличие элемента", Snippet="Browser_ElementExistsCb(selector, function(exists)\n    __CURSOR__\nend)")]
     public void Browser_ElementExistsCb(string selector, LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _browser.ElementExistsAsync(selector).ContinueWith(t =>
         {
             try
@@ -812,12 +838,14 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
     [LuaApiFunction(Name="Browser_WaitForElementCb", Version="v1", Category="Browser", Signature="Browser_WaitForElementCb(selector, timeoutMs, function(found) ... end)", Description="Ждать появления элемента", Snippet="Browser_WaitForElementCb(selector, timeoutMs, function(found)\n    __CURSOR__\nend)")]
     public void Browser_WaitForElementCb(string selector, int timeoutMs, LuaFunction callback)
     {
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         _browser.WaitForElementExistsAsync(selector, timeoutMs).ContinueWith(t =>
         {
             try
@@ -827,6 +855,7 @@ public class LuaIntegration
             catch
             {
             }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
@@ -849,6 +878,7 @@ public class LuaIntegration
                 return;
             }
             var api = new Pw.Hub.Services.ModulesApiClient();
+            Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
             api.SendTelegramMessageAsync(msg).ContinueWith(t =>
             {
                 try
@@ -857,6 +887,7 @@ public class LuaIntegration
                     CallLuaVoid(callback, ok);
                 }
                 catch { }
+                finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
             });
         }
         catch
@@ -872,6 +903,7 @@ public class LuaIntegration
         var request = new HttpRequestMessage(HttpMethod.Post, url);
         var content = new StringContent(jsonBody, Encoding.UTF8, contentType);
         request.Content = content;
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
 
         void DisposeAll()
         {
@@ -916,12 +948,19 @@ public class LuaIntegration
             {
                 t.Result.Content.ReadAsStringAsync().ContinueWith(r =>
                 {
-                    var res = CreateResponseContainer();
-                    SetField(res, "Success", t.IsCompletedSuccessfully && t.Result.IsSuccessStatusCode);
-                    SetField(res, "ResponseBody", r.IsCompletedSuccessfully ? r.Result : "");
-                    SetField(res, "Error", null);
-                    CallLuaVoid(callback, res);
-                    DisposeAll();
+                    try
+                    {
+                        var res = CreateResponseContainer();
+                        SetField(res, "Success", t.IsCompletedSuccessfully && t.Result.IsSuccessStatusCode);
+                        SetField(res, "ResponseBody", r.IsCompletedSuccessfully ? r.Result : "");
+                        SetField(res, "Error", null);
+                        CallLuaVoid(callback, res);
+                    }
+                    finally
+                    {
+                        DisposeAll();
+                        try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { }
+                    }
                 });
             }
             else
@@ -1008,14 +1047,27 @@ public class LuaIntegration
         }
         catch { }
 
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         mgr.CreateAsync(opts).ContinueWith((Task<int> t) =>
         {
             try
             {
                 var handle = t.IsCompletedSuccessfully ? t.Result : 0;
+                if (handle > 0)
+                {
+                    try
+                    {
+                        if (_runId.HasValue)
+                            Pw.Hub.Infrastructure.RunContextTracker.RegisterHandle(handle, _runId.Value);
+                        else
+                            Pw.Hub.Infrastructure.RunContextTracker.RegisterHandle(handle);
+                    }
+                    catch { }
+                }
                 CallLuaVoid(callback, handle);
             }
             catch { }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
@@ -1031,7 +1083,20 @@ public class LuaIntegration
             CallLuaVoid(callback, false);
             return;
         }
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         var ok = mgr.Close(handle);
+        try
+        {
+            if (ok)
+            {
+                if (_runId.HasValue)
+                    Pw.Hub.Infrastructure.RunContextTracker.UnregisterHandle(handle, _runId.Value);
+                else
+                    Pw.Hub.Infrastructure.RunContextTracker.UnregisterHandle(handle);
+            }
+        }
+        catch { }
+        finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         CallLuaVoid(callback, ok);
     }
 
@@ -1047,7 +1112,8 @@ public class LuaIntegration
             CallLuaVoid(callback, false);
             return;
         }
-        browser.NavigateAsync(url).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { } });
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
+        browser.NavigateAsync(url).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { } finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } } });
     }
 
     /// <summary>
@@ -1062,7 +1128,8 @@ public class LuaIntegration
             CallLuaVoid(callback, false);
             return;
         }
-        browser.ReloadAsync().ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { } });
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
+        browser.ReloadAsync().ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully); } catch { } finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } } });
     }
 
     /// <summary>
@@ -1077,6 +1144,7 @@ public class LuaIntegration
             CallLuaVoid(callback, string.Empty);
             return;
         }
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
         browser.ExecuteScriptAsync(script).ContinueWith(t =>
         {
             try
@@ -1085,6 +1153,7 @@ public class LuaIntegration
                 CallLuaVoid(callback, res);
             }
             catch { }
+            finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } }
         });
     }
 
@@ -1100,7 +1169,8 @@ public class LuaIntegration
             CallLuaVoid(callback, false);
             return;
         }
-        browser.ElementExistsAsync(selector).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { } });
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
+        browser.ElementExistsAsync(selector).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { } finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } } });
     }
 
     /// <summary>
@@ -1115,7 +1185,8 @@ public class LuaIntegration
             CallLuaVoid(callback, false);
             return;
         }
-        browser.WaitForElementExistsAsync(selector, timeoutMs).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { } });
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
+        browser.WaitForElementExistsAsync(selector, timeoutMs).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && t.Result); } catch { } finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } } });
     }
 
     /// <summary>
@@ -1131,7 +1202,8 @@ public class LuaIntegration
             CallLuaVoid(callback, false);
             return;
         }
-        am.ChangeAccountAsync(accountId).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && (t.Exception == null)); } catch { } });
+        Pw.Hub.Infrastructure.RunLifetimeTracker.BeginOp(_runId);
+        am.ChangeAccountAsync(accountId).ContinueWith(t => { try { CallLuaVoid(callback, t.IsCompletedSuccessfully && (t.Exception == null)); } catch { } finally { try { Pw.Hub.Infrastructure.RunLifetimeTracker.EndOp(_runId); } catch { } } });
     }
 
     /// <summary>

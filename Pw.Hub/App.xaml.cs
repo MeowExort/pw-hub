@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using Pw.Hub.Services;
 using Pw.Hub.ViewModels;
+using Pw.Hub.Infrastructure.Logging;
 
 namespace Pw.Hub;
 
@@ -53,6 +54,27 @@ public partial class App
 
         base.OnStartup(e);
         try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); } catch { }
+
+        // Parse command line debug flag and initialize logging
+        try
+        {
+            var args = e?.Args ?? Array.Empty<string>(); 
+            var debug = args.Any(a => string.Equals(a, "--debug", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "-d", StringComparison.OrdinalIgnoreCase));
+            RuntimeOptions.DebugMode = debug;
+            Log.Initialize(new LoggerConfig
+            {
+                LogsDirectory = Path.Combine(AppContext.BaseDirectory, "logs"),
+                MinimumLevel = debug ? LogLevel.Debug : LogLevel.Information,
+                MaxQueueSize = 10000
+            });
+            Log.For<App>().Info($"App starting. DebugMode={debug}");
+
+            // Subscribe to global exception sources
+            DispatcherUnhandledException += App_OnDispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += (s, ev) => { try { Log.For<App>().Critical("Unhandled domain exception", ev.ExceptionObject as Exception); } catch { } };
+            TaskScheduler.UnobservedTaskException += (s, ev) => { try { Log.For<App>().Error("Unobserved task exception", ev.Exception); } catch { } };
+        }
+        catch { }
 
         // Configure DI container
         try
@@ -115,6 +137,7 @@ public partial class App
         var main = new MainWindow();
         Current.MainWindow = main;
         main.Show();
+        try { Pw.Hub.Windows.LogsWindow.ShowOnDebug(main); } catch { }
 
         // Restore default shutdown behavior after main window is shown
         Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -146,11 +169,20 @@ public partial class App
     /// </summary>
     private void App_OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        var sbError = new StringBuilder();
-        sbError.AppendLine("Exception: " + e.Exception.Message);
-        sbError.AppendLine();
-        sbError.AppendLine("Stack trace: " + (e.Exception.StackTrace ?? "empty"));
-        File.WriteAllText("error.log", sbError.ToString());
+        try
+        {
+            Log.For<App>().Error("Unhandled UI exception", e.Exception);
+        }
+        catch { }
+        try
+        {
+            var sbError = new StringBuilder();
+            sbError.AppendLine("Exception: " + e.Exception.Message);
+            sbError.AppendLine();
+            sbError.AppendLine("Stack trace: " + (e.Exception.StackTrace ?? "empty"));
+            File.WriteAllText("error.log", sbError.ToString());
+        }
+        catch { }
 
         MessageBox.Show(e.Exception.ToString());
     }

@@ -968,4 +968,19 @@ public partial class MainWindow
         {
         }
     }
+
+    // Global command handler (e.g., hotkeys declared in XAML)
+    private void OnGlobalCommandExecuted(object sender, ExecutedRoutedEventArgs e)
+    {
+        try
+        {
+            var param = (e?.Parameter as string)?.Trim();
+            if (string.Equals(param, "ToggleLogs", StringComparison.OrdinalIgnoreCase))
+            {
+                try { Pw.Hub.Windows.LogsWindow.Toggle(this); } catch { }
+                return;
+            }
+        }
+        catch { }
+    }
 }
