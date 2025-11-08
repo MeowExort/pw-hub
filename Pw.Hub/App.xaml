@@ -373,7 +373,7 @@
                     <!-- Thin variant for loaders under toolbars -->
                     <Style x:Key="ModernProgressBar.Thin.Dark" TargetType="ProgressBar" BasedOn="{StaticResource ModernProgressBar.Dark}">
                         <Setter Property="Height" Value="3"/>
-                        <Setter Property="Margin" Value="2,6,2,0"/>
+                        <Setter Property="Margin" Value="0"/>
                         <Setter Property="BorderThickness" Value="0"/>
                     </Style>
 

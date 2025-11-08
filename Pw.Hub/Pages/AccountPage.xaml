@@ -75,11 +75,9 @@
             <ProgressBar Grid.Row="1"
                          IsIndeterminate="True"
                          Height="3"
-                         IsHitTestVisible="False"
-                         Background="{StaticResource BackgroundSecondaryBrush}"
-                         Foreground="{StaticResource AccentHighlightBrush}">
+                         IsHitTestVisible="False">
                 <ProgressBar.Style>
-                    <Style TargetType="ProgressBar">
+                    <Style TargetType="ProgressBar" BasedOn="{StaticResource ModernProgressBar.Thin.Dark}">
                         <!-- Always keep in layout; fade in/out -->
                         <Setter Property="Visibility" Value="Visible" />
                         <Setter Property="Opacity" Value="0" />
