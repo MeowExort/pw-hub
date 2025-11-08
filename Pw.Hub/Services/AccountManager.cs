@@ -54,6 +54,13 @@ public class AccountManager(IBrowser browser) : IAccountManager
             if (opts.CreateFreshSession)
             {
                 try { await browser.CreateNewSessionAsync(opts.SessionMode); } catch { }
+                // Lua API v1: применяем анти‑детект автоматически и закрепляем отпечаток за аккаунтом
+                try
+                {
+                    var fp = await LoadOrCreateFingerprintAsync(CurrentAccount.Id);
+                    await browser.ApplyAntiDetectAsync(fp);
+                }
+                catch { }
             }
             else if (EnsureNewSessionBeforeSwitchAsync != null)
             {
@@ -297,6 +304,51 @@ public class AccountManager(IBrowser browser) : IAccountManager
         if (!Directory.Exists(CookieFolder))
             Directory.CreateDirectory(CookieFolder);
         return path;
+    }
+
+    // Fingerprint persistence (per account) for Lua API v1
+    private const string FingerprintFolder = "Fingerprints";
+    private const string FingerprintFileExtension = ".fp.json";
+
+    private string GetFingerprintFilePath(string accountId)
+    {
+        var safeId = string.IsNullOrWhiteSpace(accountId) ? "unknown" : accountId.Replace(":", "_").Replace("/", "_");
+        var path = Path.Combine(FingerprintFolder, $"{safeId}{FingerprintFileExtension}");
+        if (!Directory.Exists(FingerprintFolder))
+            Directory.CreateDirectory(FingerprintFolder);
+        return path;
+    }
+
+    private async Task<FingerprintProfile> LoadOrCreateFingerprintAsync(string accountId)
+    {
+        try
+        {
+            var file = GetFingerprintFilePath(accountId);
+            if (File.Exists(file))
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(file);
+                    var fp = JsonSerializer.Deserialize<FingerprintProfile>(json, JsonSerializerOptions.Web);
+                    if (fp != null) return fp;
+                }
+                catch { }
+            }
+
+            var created = FingerprintGenerator.Generate();
+            try
+            {
+                var json = JsonSerializer.Serialize(created, JsonSerializerOptions.Web);
+                await File.WriteAllTextAsync(GetFingerprintFilePath(accountId), json);
+            }
+            catch { }
+            return created;
+        }
+        catch
+        {
+            // Fallback: generate but do not persist on fatal error
+            return FingerprintGenerator.Generate();
+        }
     }
 
     private async Task SaveCookies()

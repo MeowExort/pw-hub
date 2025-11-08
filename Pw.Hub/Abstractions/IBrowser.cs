@@ -24,5 +24,11 @@ public interface IBrowser
     /// заданный в конструкторе реализации (например, InPrivate или SeparateProfile).
     /// </summary>
     Task CreateNewSessionAsync(BrowserSessionIsolationMode? overrideMode = null);
+    /// <summary>
+    /// Применяет анти‑детект отпечаток к текущей сессии: подменяет UserAgent и внедряет JS‑спуфинг
+    /// на DocumentStart (navigator/Intl/canvas/WebGL/media и т.п.). Вызывать сразу после создания новой сессии
+    /// и до первой навигации.
+    /// </summary>
+    Task ApplyAntiDetectAsync(Models.FingerprintProfile profile);
     Uri Source { get; }
 }

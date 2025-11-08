@@ -7,6 +7,7 @@ using System.Windows;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Pw.Hub.Services;
 
@@ -226,6 +227,126 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
                     _ = TryDeleteDirWithRetries(oldDir);
                 }
             });
+    }
+
+    public async Task ApplyAntiDetectAsync(FingerprintProfile profile)
+    {
+        if (profile == null) return;
+        await OnUiAsync(async () =>
+        {
+            await EnsureCoreAndSetBackgroundAsync();
+            try { _webView.CoreWebView2.Settings.UserAgent = profile.UserAgent; } catch { }
+
+            // Build spoofing script
+            var langArray = string.Join(",", profile.Languages.Select(l => $"\"{l}\""));
+            var tzOffset = profile.TimezoneOffsetMinutes;
+            var hw = profile.HardwareConcurrency;
+            var dm = profile.DeviceMemory;
+            var sw = profile.ScreenWidth;
+            var sh = profile.ScreenHeight;
+            var cd = profile.ColorDepth;
+            var platform = profile.Platform ?? "Win32";
+            var vendor = profile.Vendor ?? "Google Inc.";
+            var vendorSub = profile.VendorSub ?? string.Empty;
+            var product = profile.Product ?? "Gecko";
+            var productSub = profile.ProductSub ?? "20030107";
+            var webglVendor = profile.WebglVendor ?? "ANGLE (Intel)";
+            var webglRenderer = profile.WebglRenderer ?? "ANGLE (Intel, Intel(R) UHD Graphics)";
+            var canvasNoise = profile.CanvasNoise;
+
+            var script = $@"
+(function() {{
+  try {{
+    const define = (obj, prop, val) => {{
+      try {{ Object.defineProperty(obj, prop, {{ get: () => val, configurable: true }}); }} catch {{}}
+    }};
+
+    // navigator spoof
+    const nav = navigator;
+    define(nav, 'platform', '{platform}');
+    define(nav, 'vendor', '{vendor}');
+    define(nav, 'vendorSub', '{vendorSub}');
+    define(nav, 'product', '{product}');
+    define(nav, 'productSub', '{productSub}');
+    define(nav, 'hardwareConcurrency', {hw});
+    define(nav, 'deviceMemory', {dm});
+    define(nav, 'language', {(profile.Languages?.Count > 0 ? $"'{profile.Languages[0]}'" : "'en-US'")});
+    Object.defineProperty(nav, 'languages', {{ get: () => [{langArray}], configurable: true }});
+    define(nav, 'userAgent', '{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(profile.UserAgent ?? "Mozilla/5.0")}');
+
+    // screen spoof
+    const scr = screen;
+    define(scr, 'width', {sw});
+    define(scr, 'height', {sh});
+    define(scr, 'availWidth', {sw});
+    define(scr, 'availHeight', {sh - 40});
+    define(scr, 'colorDepth', {cd});
+
+    // timezone spoof
+    const _Date = Date;
+    const RealDate = _Date;
+    function ZonedDate(...args) {{ return new RealDate(...args); }}
+    ZonedDate.prototype = RealDate.prototype;
+    ZonedDate.UTC = RealDate.UTC;
+    ZonedDate.parse = RealDate.parse;
+    ZonedDate.now = RealDate.now;
+    RealDate.prototype.getTimezoneOffset = function() {{ return {tzOffset}; }};
+    window.Date = ZonedDate;
+
+    // Intl spoof
+    const _rdto = Intl.DateTimeFormat.prototype.resolvedOptions;
+    Intl.DateTimeFormat.prototype.resolvedOptions = function(...args) {{
+      const o = _rdto.apply(this, args);
+      try {{ o.timeZone = undefined; }} catch {{}}
+      return o;
+    }};
+
+    // Canvas noise
+    const addNoise = (canvas, ctx) => {{
+      try {{
+        const w = canvas.width, h = canvas.height;
+        const imgData = ctx.getImageData(0,0,w,h);
+        const d = imgData.data;
+        const n = {canvasNoise.ToString(System.Globalization.CultureInfo.InvariantCulture)};
+        for (let i=0;i<d.length;i+=4) {{
+          d[i]   = Math.min(255, Math.max(0, d[i]   + (Math.random()-0.5)*n*10));
+          d[i+1] = Math.min(255, Math.max(0, d[i+1] + (Math.random()-0.5)*n*10));
+          d[i+2] = Math.min(255, Math.max(0, d[i+2] + (Math.random()-0.5)*n*10));
+        }}
+        ctx.putImageData(imgData,0,0);
+      }} catch {{}}
+    }};
+    ['toDataURL','toBlob'].forEach(fn => {{
+      try {{
+        const orig = HTMLCanvasElement.prototype[fn];
+        HTMLCanvasElement.prototype[fn] = function(...args) {{
+          const ctx = this.getContext('2d');
+          if (ctx) addNoise(this, ctx);
+          return orig.apply(this, args);
+        }};
+      }} catch {{}}
+    }});
+
+    // WebGL spoof
+    const spoofGL = (proto) => {{
+      if (!proto) return;
+      try {{
+        const origParam = proto.getParameter;
+        proto.getParameter = function(param) {{
+          if (param === 37445) return '{webglVendor}'; // UNMASKED_VENDOR_WEBGL
+          if (param === 37446) return '{webglRenderer}'; // UNMASKED_RENDERER_WEBGL
+          return origParam.apply(this, arguments);
+        }};
+      }} catch {{}}
+    }};
+    spoofGL(WebGLRenderingContext?.prototype);
+    spoofGL(WebGL2RenderingContext?.prototype);
+
+  }} catch {{}}
+}})();
+";
+            try { await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script); } catch { }
+        });
     }
 
     public Uri Source

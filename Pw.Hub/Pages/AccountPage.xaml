@@ -18,7 +18,7 @@
         <Grid Grid.Row="0" Margin="6">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="3" />
             </Grid.RowDefinitions>
 
             <DockPanel Grid.Row="0" LastChildFill="True" VerticalAlignment="Center">
@@ -71,19 +71,26 @@
                 </Border>
             </DockPanel>
 
-            <!-- Subtle loading indicator -->
+            <!-- Subtle loading indicator (reserved height, no layout shift) -->
             <ProgressBar Grid.Row="1"
-                         IsIndeterminate="True">
+                         IsIndeterminate="True"
+                         Height="3"
+                         IsHitTestVisible="False"
+                         Background="{StaticResource BackgroundSecondaryBrush}"
+                         Foreground="{StaticResource AccentHighlightBrush}">
                 <ProgressBar.Style>
                     <Style TargetType="ProgressBar" BasedOn="{StaticResource ModernProgressBar.Thin.Dark}">
-                        <Setter Property="Visibility" Value="Collapsed" />
+                        <!-- Always keep in layout; fade in/out -->
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Setter Property="Opacity" Value="0" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsNoAccountOverlayVisible}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=IsLoading, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"/>
+                                    <Condition Binding="{Binding Path=IsNoAccountOverlayVisible, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Opacity" Value="1" />
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </ProgressBar.Style>

@@ -63,6 +63,20 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         // Внимание: начиная с этой версии новая сессия создаётся ТОЛЬКО в legacy Lua API (в1).
         // Переключения из панели навигации (UI) больше не пересоздают сессию автоматически.
         AccountManager = new AccountManager(Browser);
+        // Anti-detect: before every account switch, recreate a fresh InPrivate session and apply a new fingerprint
+        if (AccountManager is Pw.Hub.Services.AccountManager am)
+        {
+            am.EnsureNewSessionBeforeSwitchAsync = async () =>
+            {
+                try
+                {
+                    await Browser.CreateNewSessionAsync(BrowserSessionIsolationMode.InPrivate);
+                    var fp = FingerprintGenerator.Generate();
+                    await Browser.ApplyAntiDetectAsync(fp);
+                }
+                catch { }
+            };
+        }
 
         // Инициализация UI панели навигации
         try { UpdateNavUi(); } catch { }
