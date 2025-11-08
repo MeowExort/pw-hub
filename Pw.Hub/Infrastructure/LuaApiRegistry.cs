@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace Pw.Hub.Infrastructure;
 
 /// <summary>
 /// Единый реестр описаний Lua API, используемый автодополнением и AI‑панелью.
-/// Пополняется при регистрации функций в Lua (см. LuaIntegration.Register).
+/// Источники данных:
+/// 1) Атрибутная разметка методов <see cref="LuaApiFunctionAttribute"/> (сканируется лениво при первом обращении);
+/// 2) Явная замена через <see cref="ReplaceAll"/> (для совместимости со старой регистрацией в NLua).
 /// </summary>
 public static class LuaApiRegistry
 {
@@ -32,6 +35,7 @@ public static class LuaApiRegistry
 
     private static readonly object _lock = new();
     private static List<Entry> _entries = new();
+    private static bool _initializedFromAttributes;
 
     /// <summary>
     /// Полностью заменяет реестр новым списком, собираемым при регистрации API.
@@ -49,6 +53,67 @@ public static class LuaApiRegistry
                 .OrderBy(e => e.Category)
                 .ThenBy(e => e.Name)
                 .ToList();
+            // Считаем, что данные предоставлены явно и готовы
+            _initializedFromAttributes = true;
+        }
+    }
+
+    private static void EnsureInitialized()
+    {
+        lock (_lock)
+        {
+            if (_initializedFromAttributes && _entries.Count > 0)
+                return;
+
+            // Сканируем атрибуты только если текущий список пуст
+            if (_entries.Count == 0)
+            {
+                try
+                {
+                    var list = new List<Entry>();
+                    var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+                        .Where(a => !a.IsDynamic)
+                        .Where(a => a.GetName().Name?.StartsWith("Pw.") == true)
+                        .ToArray();
+
+                    foreach (var asm in assemblies)
+                    {
+                        Type? attrType = typeof(LuaApiFunctionAttribute);
+                        foreach (var type in asm.GetTypes())
+                        {
+                            foreach (var m in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+                            {
+                                var attr = m.GetCustomAttribute<LuaApiFunctionAttribute>(inherit: false);
+                                if (attr == null) continue;
+                                var name = string.IsNullOrWhiteSpace(attr.Name) ? m.Name : attr.Name!;
+                                list.Add(new Entry
+                                {
+                                    Name = name,
+                                    Version = attr.Version ?? "v1",
+                                    Category = attr.Category ?? string.Empty,
+                                    Signature = attr.Signature ?? string.Empty,
+                                    Description = attr.Description ?? string.Empty,
+                                    Snippet = attr.Snippet ?? string.Empty,
+                                });
+                            }
+                        }
+                    }
+
+                    _entries = list
+                        .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+                        .GroupBy(e => e.Name)
+                        .Select(g => g.First())
+                        .OrderBy(e => e.Category)
+                        .ThenBy(e => e.Name)
+                        .ToList();
+                }
+                catch
+                {
+                    // ignore scanning errors — оставим список пустым, будет сообщение ниже
+                }
+            }
+
+            _initializedFromAttributes = true;
         }
     }
 
@@ -57,6 +122,7 @@ public static class LuaApiRegistry
     /// </summary>
     public static IReadOnlyList<Entry> GetAll()
     {
+        EnsureInitialized();
         lock (_lock)
         {
             return _entries.ToList();
@@ -68,6 +134,7 @@ public static class LuaApiRegistry
     /// </summary>
     public static string ToCheatSheetText(int examplesLimitPerCategory = 3)
     {
+        EnsureInitialized();
         List<Entry> list;
         lock (_lock)
         {

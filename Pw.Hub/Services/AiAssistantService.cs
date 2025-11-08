@@ -262,12 +262,14 @@ namespace Pw.Hub.Services
             sb.AppendLine("Если у модуля заданы входные параметры, в среде Lua доступна глобальная таблица args с введёнными значениями.");
             sb.AppendLine("Пример:");
             sb.AppendLine("```lua");
-            sb.AppendLine("local username = (args and args.username) or 'guest'\nPrint('Пользователь: ' .. username)");
+            sb.AppendLine("local accounts = (args and args['accounts']) or ''\nPrint('Количество аккаунтов: ' .. tostring(#args['accounts'])");
             sb.AppendLine("```");
             sb.AppendLine();
 
             sb.AppendLine("ВАЖНЫЕ ПРАВИЛА:");
             sb.AppendLine("1. Используй асинхронные функции (…Cb) и колбэки");
+            sb.AppendLine("2. Каждый колбэк - должен быть отдельной фукнцией");
+            sb.AppendLine("3. Все фукнции скрипта должны быть объявлены сверху, а значения им присвоены ниже, для взаимных вызовов");
             sb.AppendLine("2. Добавляй комментарии на русском");
             sb.AppendLine("3. Обрабатывай ошибки и пограничные случаи");
             sb.AppendLine("4. Понятные имена переменных, логируй этапы через Print()");
