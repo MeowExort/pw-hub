@@ -277,27 +277,100 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
             await Browser.ExecuteScriptAsync(
                 """
                 try {
+                    // helpers to persist/restore state
+                    function savePopupState(el, state){
+                        try{ localStorage.setItem('promo_popup_state', JSON.stringify(state)); }catch(e){}
+                    }
+                    function loadPopupState(){
+                        try{ var s = localStorage.getItem('promo_popup_state'); return s ? JSON.parse(s) : null; }catch(e){ return null; }
+                    }
+
                     // Create floating popup if not exists
-                    if (!document.getElementById('promo_popup')) {
-                        var popup = document.createElement('div');
+                    var popup = document.getElementById('promo_popup');
+                    var header, contentWrap, compact;
+                    var collapsed = false;
+
+                    function getToggleBtn(){
+                        try{ return (header ? header.querySelector('button') : null) || document.querySelector('#promo_popup > div button'); }catch(e){ return null; }
+                    }
+
+                    function recalcContentHeight(){
+                        try{
+                            if (!popup || !contentWrap) return;
+                            var h = header && header.style.display !== 'none' ? header.offsetHeight : 0;
+                            var total = popup.getBoundingClientRect().height;
+                            var contentH = Math.max(0, total - h);
+                            contentWrap.style.maxHeight = contentH + 'px';
+                            contentWrap.style.height = contentH + 'px';
+                        }catch(e){}
+                    }
+
+                    function setCollapsed(c){
+                        try{
+                            collapsed = !!c;
+                            var st = loadPopupState() || {};
+                            st.collapsed = collapsed;
+                            var res = document.getElementById('promo_popup_resizer');
+                            if (collapsed){
+                                // save current size before collapsing
+                                try{
+                                    var rect = popup.getBoundingClientRect();
+                                    st.width = rect.width; st.height = rect.height;
+                                }catch(ex){}
+                                // hide full UI
+                                if (contentWrap) contentWrap.style.display = 'none';
+                                if (header) header.style.display = 'none';
+                                if (res) res.style.display = 'none';
+                                // shrink container to compact pill
+                                popup.style.width = 'auto';
+                                popup.style.height = 'auto';
+                                popup.style.minWidth = '0px';
+                                popup.style.minHeight = '0px';
+                                if (compact) compact.style.display = 'inline-block';
+                            } else {
+                                if (compact) compact.style.display = 'none';
+                                if (header) header.style.display = 'flex';
+                                if (contentWrap) contentWrap.style.display = 'block';
+                                if (res) res.style.display = 'block';
+                                // restore size if known
+                                var s2 = loadPopupState() || {};
+                                if (s2.width) popup.style.width = s2.width + 'px';
+                                if (s2.height) popup.style.height = s2.height + 'px';
+                                // restore mins to defaults
+                                popup.style.minWidth = '260px';
+                                popup.style.minHeight = '140px';
+                                // recalc content height
+                                recalcContentHeight();
+                            }
+                            var toggleBtn = getToggleBtn();
+                            if (toggleBtn){ toggleBtn.innerText = collapsed ? '+' : '−'; }
+                            savePopupState(popup, st);
+                        }catch(e){}
+                    }
+                    if (!popup) {
+                        popup = document.createElement('div');
                         popup.id = 'promo_popup';
                         popup.style = [
                             'position: fixed',
-                            'right: 16px',
+                            'right: 16px', // default placement
                             'bottom: 16px',
                             'z-index: 2147483647',
                             'background: #F6F1E7',
                             'border: 1px solid #E2D8C9',
                             'border-radius: 12px',
                             'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
-                            'max-height: 60vh',
                             'overflow: hidden',
                             'color: #333',
-                            'font-family: Arial, sans-serif'
+                            'font-family: Arial, sans-serif',
+                            'width: 380px',
+                            'min-width: 260px',
+                            'max-width: 50vw',
+                            'min-height: 140px',
+                            'max-height: 80vh'
                         ].join(';');
 
-                        var header = document.createElement('div');
-                        header.style = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;';
+                        header = document.createElement('div');
+                        header.style = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;cursor:move;user-select:none;';
                         var hTitle = document.createElement('div');
                         hTitle.innerHTML = 'У<span class="lower">правление</span>';
                         hTitle.style = 'font-weight:700;color:#2c4a8d;';
@@ -306,28 +379,317 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         toggleBtn.title = 'Свернуть';
                         toggleBtn.style = 'border:none;background:#D2C0BE;color:#333;border-radius:16px;padding:2px 8px;cursor:pointer;';
 
-                        var contentWrap = document.createElement('div');
+                        contentWrap = document.createElement('div');
                         contentWrap.id = 'promo_popup_content';
-                        contentWrap.style = 'padding:10px;overflow:auto;max-height:calc(60vh - 42px)';
+                        contentWrap.style = 'padding:10px;overflow:auto;';
 
                         var container = document.createElement('div');
                         container.className = 'promo_container_content_body';
                         container.id = 'promo_container';
+
+                        // resize handle
+                        var resizer = document.createElement('div');
+                        resizer.id = 'promo_popup_resizer';
+                        resizer.style = 'position:absolute;width:14px;height:14px;right:2px;bottom:2px;cursor:nwse-resize;background:transparent;';
+                        // small visual triangle
+                        resizer.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" style="display:block"><path d="M2 12 L12 2 L12 12 Z" fill="#00000022"/></svg>';
+
+                        // compact view (as a tiny movable button)
+                        compact = document.createElement('div');
+                        compact.id = 'promo_popup_compact';
+                        compact.style = 'display:none; margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;';
+                        compact.title = 'Развернуть панель управления';
+                        compact.innerText = 'Управление';
 
                         contentWrap.appendChild(container);
                         header.appendChild(hTitle);
                         header.appendChild(toggleBtn);
                         popup.appendChild(header);
                         popup.appendChild(contentWrap);
+                        popup.appendChild(resizer);
+                        popup.appendChild(compact);
                         document.body.appendChild(popup);
 
-                        // Toggle handler with local state
-                        var collapsed = false;
-                        toggleBtn.onclick = function(){
-                            collapsed = !collapsed;
-                            contentWrap.style.display = collapsed ? 'none' : 'block';
-                            toggleBtn.innerText = collapsed ? '+' : '−';
-                        };
+                        // Toggle/compact handlers with local state
+                        toggleBtn.onclick = function(){ setCollapsed(!collapsed); };
+                        // Click on compact should expand only if это именно клик, а не завершение перетаскивания
+                        compact.addEventListener('click', function(e){
+                            try{
+                                if (compact && (compact.dataset.dragMoved === '1' || compact.dataset.dragJustDragged === '1')){
+                                    e.preventDefault(); e.stopPropagation();
+                                    return false;
+                                }
+                                setCollapsed(false);
+                            }catch(ex){}
+                        });
+                    } else {
+                        // if popup already exists, fetch sub-elements
+                        header = popup.firstElementChild; // expected header
+                        contentWrap = document.getElementById('promo_popup_content');
+                        compact = document.getElementById('promo_popup_compact');
+                        if (!compact){
+                            compact = document.createElement('div');
+                            compact.id = 'promo_popup_compact';
+                            compact.style = 'display:none; margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;';
+                            compact.title = 'Развернуть панель управления';
+                            compact.innerText = 'Управление';
+                            popup.appendChild(compact);
+                        }
+                        var tbtn = getToggleBtn();
+                        if (tbtn){ tbtn.onclick = function(){ setCollapsed(!(loadPopupState()||{}).collapsed); }; }
+                        if (compact){
+                            // Повторная инициализация обработчика клика с защитой от drag→click
+                            compact.addEventListener('click', function(e){
+                                try{
+                                    if (compact && (compact.dataset.dragMoved === '1' || compact.dataset.dragJustDragged === '1')){
+                                        e.preventDefault(); e.stopPropagation();
+                                        return false;
+                                    }
+                                    setCollapsed(false);
+                                }catch(ex){}
+                            });
+                        }
+                    }
+
+                    // initialize drag/resize once
+                    if (popup && !popup.getAttribute('data-draggable-inited')){
+                        popup.setAttribute('data-draggable-inited','1');
+
+                        function applyContentHeight(){
+                            try{
+                                if (!popup || !contentWrap) return;
+                                var headH = header ? header.offsetHeight : 0;
+                                var total = popup.clientHeight; // точнее, чем getBoundingClientRect для высоты контейнера
+                                // учитываем внутренние отступы контента, чтобы реальная область прокрутки была равна (total - headH)
+                                var cs = window.getComputedStyle(contentWrap);
+                                var padV = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
+                                var contentH = Math.max(0, total - headH);
+                                // высота самого блока = желаемая область, минус внутренние отступы
+                                var blockH = Math.max(0, contentH - padV);
+                                contentWrap.style.maxHeight = contentH + 'px';
+                                contentWrap.style.height = blockH + 'px';
+                            }catch(e){}
+                        }
+
+                        // Дебаунсер для автосайза
+                        var __autosizeTimer = null;
+                        function scheduleAutosize(delay){
+                            try{
+                                if (__autosizeTimer) { clearTimeout(__autosizeTimer); __autosizeTimer = null; }
+                                __autosizeTimer = setTimeout(function(){
+                                    try{ requestAnimationFrame(function(){ requestAnimationFrame(function(){ autosizePopupIfNoState(true); }); }); }catch(e){ try{ autosizePopupIfNoState(true); }catch(_){} }
+                                }, typeof delay==='number'? delay : 50);
+                            }catch(e){}
+                        }
+
+                        // Авторазмер при первом запуске: подгоняем так, чтобы контент помещался без скролла
+                        function autosizePopupIfNoState(force){
+                            try{
+                                if (!popup || !contentWrap) return;
+                                var st0 = loadPopupState();
+                                // Если уже есть сохранённые размеры — не трогаем
+                                if (!force && st0 && (st0.width || st0.height)) return;
+                                // Если свёрнуто — не трогаем (развернётся — пересчитаем)
+                                if (st0 && st0.collapsed) return;
+
+                                // Временно убираем ограничения у контента для измерения естественного размера
+                                var prevOverflow = contentWrap.style.overflow;
+                                var prevH = contentWrap.style.height;
+                                var prevMaxH = contentWrap.style.maxHeight;
+                                var prevW = popup.style.width;
+                                var prevMinW = popup.style.minWidth;
+                                var prevMinH = popup.style.minHeight;
+                                contentWrap.style.overflow = 'visible';
+                                contentWrap.style.height = 'auto';
+                                contentWrap.style.maxHeight = 'none';
+
+                                // Элемент контента, который реально содержит наши кнопки
+                                var inner = contentWrap.firstElementChild || contentWrap;
+                                // Учитываем паддинги контента
+                                var cs = window.getComputedStyle(contentWrap);
+                                var padV = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
+                                var padH = (parseFloat(cs.paddingLeft)||0) + (parseFloat(cs.paddingRight)||0);
+
+                                // Высота = шапка + внутренняя прокрутка контента + вертикальные паддинги
+                                var headH = header ? header.offsetHeight : 0;
+                                var cScrollH = inner.scrollHeight + padV;
+                                var desiredH = headH + cScrollH;
+                                var maxH = Math.floor(window.innerHeight * 0.8); // синхронно c CSS max-height:80vh
+                                var minH = 140; // как по стилям
+                                var newH = Math.max(minH, Math.min(maxH, desiredH));
+
+                                // Ширина: берём максимальную из шапки и контента + горизонтальные паддинги
+                                var headW = header ? header.scrollWidth : 0;
+                                var cScrollW = inner.scrollWidth + padH;
+                                var desiredW = Math.max(260, Math.max(headW, cScrollW));
+                                var maxW = Math.floor(window.innerWidth * 0.5); // синхронно c CSS max-width:50vw
+                                var newW = Math.max(260, Math.min(maxW, desiredW));
+
+                                popup.style.width = newW + 'px';
+                                popup.style.height = newH + 'px';
+
+                                // Вернуть стили и пересчитать контентную область
+                                contentWrap.style.overflow = prevOverflow;
+                                contentWrap.style.height = prevH;
+                                contentWrap.style.maxHeight = prevMaxH;
+                                // гарантированно после установки размеров пересчитаем
+                                requestAnimationFrame(function(){ applyContentHeight(); });
+
+                                // Отметим, что автосайз выполнен, но позволим повтор через scheduleAutosize, если force=true (после мутаций)
+                                popup.setAttribute('data-autosized','1');
+                            }catch(e){}
+                        }
+
+                        // restore state
+                        (function(){
+                            var st = loadPopupState();
+                            if (!st) {
+                                try{ autosizePopupIfNoState(); }catch(e){}
+                                try{ applyContentHeight(); }catch(e){}
+                                return;
+                            }
+                            // size
+                            if (st.width) popup.style.width = st.width + 'px';
+                            if (st.height) popup.style.height = st.height + 'px';
+                            // position
+                            if (st.useLeftTop){
+                                popup.style.left = (st.left||16) + 'px';
+                                popup.style.top = (st.top||16) + 'px';
+                                popup.style.right = '';
+                                popup.style.bottom = '';
+                            } else {
+                                popup.style.right = (st.right||16) + 'px';
+                                popup.style.bottom = (st.bottom||16) + 'px';
+                                popup.style.left = '';
+                                popup.style.top = '';
+                            }
+                            // apply collapsed or expanded view via helper if available
+                            try{ setCollapsed(!!st.collapsed); }catch(e){}
+                            // если размеры не сохранены (старые пользователи), попробуем один раз авторазмер
+                            if (!st.width && !st.height && !st.collapsed) { try{ autosizePopupIfNoState(); }catch(e){} }
+                            try{ applyContentHeight(); }catch(e){}
+                        })();
+
+                        // drag logic (by header or compact pill)
+                        (function(){
+                            if (!header && !compact) return;
+                            var dragging = false, startX=0, startY=0, startLeft=0, startTop=0;
+                            var moved = false; var moveThreshold = 4; // px
+                            function onMouseDown(e){
+                                // allow clicking controls in header (like toggle btn) without drag
+                                if (e.target && (e.target.tagName==='BUTTON' || e.target.closest('button'))) return;
+                                dragging = true;
+                                moved = false;
+                                if (compact){ delete compact.dataset.dragMoved; delete compact.dataset.dragJustDragged; }
+                                var rect = popup.getBoundingClientRect();
+                                // switch to left/top coordinates once dragging starts
+                                var st = loadPopupState() || {};
+                                if (!st.useLeftTop){
+                                    // compute left/top from current right/bottom
+                                    var left = window.innerWidth - rect.right;
+                                    var top = rect.top;
+                                    popup.style.left = (rect.left) + 'px';
+                                    popup.style.top = (rect.top) + 'px';
+                                    popup.style.right = '';
+                                    popup.style.bottom = '';
+                                    st.useLeftTop = true;
+                                    st.left = rect.left;
+                                    st.top = rect.top;
+                                    savePopupState(popup, st);
+                                }
+                                startX = e.clientX; startY = e.clientY;
+                                startLeft = parseFloat(popup.style.left || rect.left + '');
+                                startTop = parseFloat(popup.style.top || rect.top + '');
+                                document.addEventListener('mousemove', onMouseMove);
+                                document.addEventListener('mouseup', onMouseUp);
+                                e.preventDefault();
+                            }
+                            function onMouseMove(e){
+                                if (!dragging) return;
+                                var dx = e.clientX - startX;
+                                var dy = e.clientY - startY;
+                                if (!moved && (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold)){
+                                    moved = true;
+                                    if (compact){ compact.dataset.dragMoved = '1'; }
+                                }
+                                var newLeft = startLeft + dx;
+                                var newTop = startTop + dy;
+                                // constrain
+                                var r = popup.getBoundingClientRect();
+                                var maxLeft = window.innerWidth - r.width;
+                                var maxTop = window.innerHeight - r.height;
+                                newLeft = Math.min(Math.max(0, newLeft), Math.max(0, maxLeft));
+                                newTop = Math.min(Math.max(0, newTop), Math.max(0, maxTop));
+                                popup.style.left = newLeft + 'px';
+                                popup.style.top = newTop + 'px';
+                            }
+                            function onMouseUp(){
+                                if (!dragging) return;
+                                dragging = false;
+                                document.removeEventListener('mousemove', onMouseMove);
+                                document.removeEventListener('mouseup', onMouseUp);
+                                var st = loadPopupState() || { useLeftTop: true };
+                                var rect = popup.getBoundingClientRect();
+                                st.left = rect.left; st.top = rect.top;
+                                savePopupState(popup, st);
+                                // помечаем, что только что было перетаскивание, чтобы подавить click после mouseup
+                                if (moved && compact){
+                                    compact.dataset.dragJustDragged = '1';
+                                    setTimeout(function(){ delete compact.dataset.dragJustDragged; delete compact.dataset.dragMoved; }, 120);
+                                }
+                            }
+                            if (header) header.addEventListener('mousedown', onMouseDown);
+                            if (compact) compact.addEventListener('mousedown', onMouseDown);
+                        })();
+
+                        // resize logic (by handle)
+                        (function(){
+                            var handle = document.getElementById('promo_popup_resizer');
+                            if (!handle) return;
+                            var resizing=false, startX=0, startY=0, startW=0, startH=0;
+                            function onDown(e){
+                                resizing = true;
+                                var rect = popup.getBoundingClientRect();
+                                startX = e.clientX; startY = e.clientY;
+                                startW = rect.width; startH = rect.height;
+                                document.addEventListener('mousemove', onMove);
+                                document.addEventListener('mouseup', onUp);
+                                e.preventDefault();
+                            }
+                            function onMove(e){
+                                if (!resizing) return;
+                                var dx = e.clientX - startX;
+                                var dy = e.clientY - startY;
+                                var newW = Math.min(Math.max(260, startW + dx), Math.floor(window.innerWidth * 0.9));
+                                var newH = Math.min(Math.max(140, startH + dy), Math.floor(window.innerHeight * 0.9));
+                                popup.style.width = newW + 'px';
+                                popup.style.height = newH + 'px';
+                                applyContentHeight();
+                            }
+                            function onUp(){
+                                if (!resizing) return;
+                                resizing = false;
+                                document.removeEventListener('mousemove', onMove);
+                                document.removeEventListener('mouseup', onUp);
+                                var rect = popup.getBoundingClientRect();
+                                var st = loadPopupState() || {};
+                                st.width = rect.width; st.height = rect.height;
+                                savePopupState(popup, st);
+                            }
+                            handle.addEventListener('mousedown', onDown);
+                            // ensure initial content sizing
+                            scheduleAutosize(0);
+                            requestAnimationFrame(function(){ applyContentHeight(); });
+                            window.addEventListener('resize', function(){
+                                // При ресайзе окна убедимся, что контент влезает максимально корректно
+                                applyContentHeight();
+                                // если пользователь ещё не сохранял размеры — подстрахуемся автосайзом
+                                var st0 = loadPopupState();
+                                if (!(st0 && (st0.width || st0.height)) && !(st0 && st0.collapsed)){
+                                    scheduleAutosize(50);
+                                }
+                            });
+                        })();
                     }
 
                     // Build controls only once inside promo_container
@@ -441,6 +803,21 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             innerTitle.style = 'margin-top:4px;margin-bottom:4px;color:#2c4a8d;';
                             root.append(innerTitle);
                             root.append(buttonContainer);
+                            // После того как элементы добавлены — автосайз через rAF, чтобы учесть рендер
+                            setTimeout(function(){ try{ scheduleAutosize(0); requestAnimationFrame(function(){ applyContentHeight(); }); }catch(e){} }, 0);
+                            // Наблюдатель за изменениями контента внутри попапа — на случай динамических мутаций
+                            try{
+                                if (!popup.getAttribute('data-mo-inited')){
+                                    var mo = new MutationObserver(function(){
+                                        var st0 = loadPopupState();
+                                        if (!(st0 && (st0.width || st0.height)) && !(st0 && st0.collapsed)){
+                                            scheduleAutosize(60);
+                                        }
+                                    });
+                                    mo.observe(root, { childList: true, subtree: true, attributes: false });
+                                    popup.setAttribute('data-mo-inited','1');
+                                }
+                            }catch(e){}
                         }
                     }
                 } catch(e) { /* ignore */ }
