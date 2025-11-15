@@ -276,141 +276,174 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
             
             await Browser.ExecuteScriptAsync(
                 """
-                var hasElement = !!document.getElementById('promo_container')
-                if (!hasElement)
-                {
-                    var container = document.createElement('div');
-                    container.className = 'promo_container_content_body';
-                    container.id = 'promo_container'
-    
-                    var buttonContainer = document.createElement('div');
-                    buttonContainer.style = 'display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;';
-    
-                    var title = document.createElement('h4');
-                    title.innerHTML = 'У<span class="lower">правление</span>';
-    
-                    var selectAll = document.createElement('button');
-                    selectAll.innerText = 'Выбрать все';
-                    selectAll.id = 'selectAllBtn';
-                    selectAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                    selectAll.onclick = function() {
-                        var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
-                        checkboxes.forEach(function(checkbox) {
-                            checkbox.checked = true;
-                        });
-                        return false;
-                    };
-    
-                    var clearAll = document.createElement('button');
-                    clearAll.innerText = 'Снять все';
-                    clearAll.id = 'clearAllBtn';
-                    clearAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                    clearAll.onclick = function() {
-                        var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
-                        checkboxes.forEach(function(checkbox) {
-                            checkbox.checked = false;
-                        });
-                        return false;
-                    };
-    
-                    var selectByLabelTextRegex = function(pattern) {
-                        var labels = document.querySelectorAll('.items_container label');
-                        labels.forEach(function(label) {
-                            if (pattern.test(label.innerText.toLowerCase())) {
-                                var checkboxId = label.getAttribute('for');
-                                var checkbox = document.getElementById(checkboxId);
-                                if (checkbox && checkbox.type === 'checkbox') {
-                                    checkbox.checked = true;
-                                }
-                            }
-                        });
-                    };
-    
-                    var selectByLabelTextRegexes = function(patterns) {
-                        patterns.forEach(function(pattern) {
-                            selectByLabelTextRegex(pattern);
-                        });
-                    };
-    
-                    var selectByLabelText = function(text) {
-                        var labels = document.querySelectorAll('.items_container label');
-                        labels.forEach(function(label) {
-                            if (label.innerText.toLowerCase().includes(text.toLowerCase())) {
-                                var checkboxId = label.getAttribute('for');
-                                var checkbox = document.getElementById(checkboxId);
-                                if (checkbox && checkbox.type === 'checkbox') {
-                                    checkbox.checked = true;
-                                }
-                            }
-                        });
-                    };
-    
-                    var selectByLabelTexts = function(texts) {
-                        texts.forEach(function(text) {
-                            selectByLabelText(text);
-                        });
-                    };
-    
-                    var selectAmulets = document.createElement('button');
-                    selectAmulets.innerText = 'Хирки';
-                    selectAmulets.id = 'selectAmuletsBtn';
-                    selectAmulets.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                    selectAmulets.onclick = function() {
-                        selectByLabelTextRegexes([/платино.* амул.*/, /золот.* амул.*/, /серебр.* амул.*/, /бронзов.* амул.*/]);
-                        selectByLabelTextRegexes([/платино.* идол.*/, /золот.* идол.*/, /серебр.* идол.*/, /бронзов.* идол.*/]);
-                        return false;
-                    };
-    
-                    var selectPass = document.createElement('button');
-                    selectPass.innerText = 'Проходки';
-                    selectPass.id = 'selectPassBtn';
-                    selectPass.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                    selectPass.onclick = function() {
-                        selectByLabelTexts(['Самоцвет грез']);
-                        return false;
+                try {
+                    // Create floating popup if not exists
+                    if (!document.getElementById('promo_popup')) {
+                        var popup = document.createElement('div');
+                        popup.id = 'promo_popup';
+                        popup.style = [
+                            'position: fixed',
+                            'right: 16px',
+                            'bottom: 16px',
+                            'z-index: 2147483647',
+                            'background: #F6F1E7',
+                            'border: 1px solid #E2D8C9',
+                            'border-radius: 12px',
+                            'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
+                            'max-height: 60vh',
+                            'overflow: hidden',
+                            'color: #333',
+                            'font-family: Arial, sans-serif'
+                        ].join(';');
+
+                        var header = document.createElement('div');
+                        header.style = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;';
+                        var hTitle = document.createElement('div');
+                        hTitle.innerHTML = 'У<span class="lower">правление</span>';
+                        hTitle.style = 'font-weight:700;color:#2c4a8d;';
+                        var toggleBtn = document.createElement('button');
+                        toggleBtn.innerText = '−';
+                        toggleBtn.title = 'Свернуть';
+                        toggleBtn.style = 'border:none;background:#D2C0BE;color:#333;border-radius:16px;padding:2px 8px;cursor:pointer;';
+
+                        var contentWrap = document.createElement('div');
+                        contentWrap.id = 'promo_popup_content';
+                        contentWrap.style = 'padding:10px;overflow:auto;max-height:calc(60vh - 42px)';
+
+                        var container = document.createElement('div');
+                        container.className = 'promo_container_content_body';
+                        container.id = 'promo_container';
+
+                        contentWrap.appendChild(container);
+                        header.appendChild(hTitle);
+                        header.appendChild(toggleBtn);
+                        popup.appendChild(header);
+                        popup.appendChild(contentWrap);
+                        document.body.appendChild(popup);
+
+                        // Toggle handler with local state
+                        var collapsed = false;
+                        toggleBtn.onclick = function(){
+                            collapsed = !collapsed;
+                            contentWrap.style.display = collapsed ? 'none' : 'block';
+                            toggleBtn.innerText = collapsed ? '+' : '−';
+                        };
                     }
-    
-                    var inputCustomSearch = document.createElement('input');
-                    inputCustomSearch.type = 'text';
-                    inputCustomSearch.id = 'customSearchInput';
-                    inputCustomSearch.placeholder = 'Поиск...';
-                    inputCustomSearch.style = 'padding: 8px 16px; border-radius: 24px; border: 1px solid #ccc; font-size: 14px; line-height: 24px; outline: none; flex-grow: 1;';
-    
-                    var selectByCustomSearch = function() {
-                        var query = inputCustomSearch.value.trim();
-                        if (query.length > 0) {
-                            selectByLabelText(query);
+
+                    // Build controls only once inside promo_container
+                    if (!document.getElementById('selectAllBtn')) {
+                        var buttonContainer = document.createElement('div');
+                        buttonContainer.style = 'display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;';
+
+                        var selectAll = document.createElement('button');
+                        selectAll.innerText = 'Выбрать все';
+                        selectAll.id = 'selectAllBtn';
+                        selectAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        selectAll.onclick = function() {
+                            var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
+                            checkboxes.forEach(function(checkbox) { checkbox.checked = true; });
+                            return false;
+                        };
+
+                        var clearAll = document.createElement('button');
+                        clearAll.innerText = 'Снять все';
+                        clearAll.id = 'clearAllBtn';
+                        clearAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        clearAll.onclick = function() {
+                            var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
+                            checkboxes.forEach(function(checkbox) { checkbox.checked = false; });
+                            return false;
+                        };
+
+                        var selectByLabelTextRegex = function(pattern) {
+                            var labels = document.querySelectorAll('.items_container label');
+                            labels.forEach(function(label) {
+                                if (pattern.test((label.innerText||'').toLowerCase())) {
+                                    var checkboxId = label.getAttribute('for');
+                                    var checkbox = document.getElementById(checkboxId);
+                                    if (checkbox && checkbox.type === 'checkbox') {
+                                        checkbox.checked = true;
+                                    }
+                                }
+                            });
+                        };
+
+                        var selectByLabelTextRegexes = function(patterns) {
+                            patterns.forEach(function(pattern) { selectByLabelTextRegex(pattern); });
+                        };
+
+                        var selectByLabelText = function(text) {
+                            var labels = document.querySelectorAll('.items_container label');
+                            labels.forEach(function(label) {
+                                if ((label.innerText||'').toLowerCase().includes(text.toLowerCase())) {
+                                    var checkboxId = label.getAttribute('for');
+                                    var checkbox = document.getElementById(checkboxId);
+                                    if (checkbox && checkbox.type === 'checkbox') {
+                                        checkbox.checked = true;
+                                    }
+                                }
+                            });
+                        };
+
+                        var selectByLabelTexts = function(texts) { texts.forEach(function(text){ selectByLabelText(text); }); };
+
+                        var selectAmulets = document.createElement('button');
+                        selectAmulets.innerText = 'Хирки';
+                        selectAmulets.id = 'selectAmuletsBtn';
+                        selectAmulets.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        selectAmulets.onclick = function() {
+                            selectByLabelTextRegexes([/платино.* амул.*/, /золот.* амул.*/, /серебр.* амул.*/, /бронзов.* амул.*/]);
+                            selectByLabelTextRegexes([/платино.* идол.*/, /золот.* идол.*/, /серебр.* идол.*/, /бронзов.* идол.*/]);
+                            return false;
+                        };
+
+                        var selectPass = document.createElement('button');
+                        selectPass.innerText = 'Проходки';
+                        selectPass.id = 'selectPassBtn';
+                        selectPass.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        selectPass.onclick = function() { selectByLabelTexts(['Самоцвет грез']); return false; };
+
+                        var inputCustomSearch = document.createElement('input');
+                        inputCustomSearch.type = 'text';
+                        inputCustomSearch.id = 'customSearchInput';
+                        inputCustomSearch.placeholder = 'Поиск...';
+                        inputCustomSearch.style = 'padding: 8px 16px; border-radius: 24px; border: 1px solid #ccc; font-size: 14px; line-height: 24px; outline: none; flex-grow: 1;';
+
+                        var selectByCustomSearch = function() {
+                            var query = (inputCustomSearch.value||'').trim();
+                            if (query.length > 0) { selectByLabelText(query); }
+                        };
+
+                        var selectCustom = document.createElement('button');
+                        selectCustom.innerText = 'Выбрать';
+                        selectCustom.id = 'selectCustomBtn';
+                        selectCustom.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        selectCustom.onclick = function() { selectByCustomSearch(); return false; };
+
+                        var customContainer = document.createElement('div');
+                        customContainer.style = 'display: flex; gap: 8px; flex-grow: 1;';
+                        customContainer.append(inputCustomSearch);
+                        customContainer.append(selectCustom);
+
+                        // Attach buttons
+                        buttonContainer.append(selectAll);
+                        buttonContainer.append(clearAll);
+                        buttonContainer.append(selectAmulets);
+                        buttonContainer.append(selectPass);
+                        buttonContainer.append(customContainer);
+
+                        // Mount into popup content container
+                        var root = document.getElementById('promo_container');
+                        if (root) {
+                            // Optional title inside content for context
+                            var innerTitle = document.createElement('div');
+                            innerTitle.innerHTML = '<b>Быстрые действия</b>';
+                            innerTitle.style = 'margin-top:4px;margin-bottom:4px;color:#2c4a8d;';
+                            root.append(innerTitle);
+                            root.append(buttonContainer);
                         }
-                    };
-    
-                    var selectCustom = document.createElement('button');
-                    selectCustom.innerText = 'Выбрать';
-                    selectCustom.id = 'selectCustomBtn';
-                    selectCustom.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; -webkit-writing-mode: horizontal-tb !important; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                    selectCustom.onclick = function() {
-                        selectByCustomSearch();
-                        return false;
-                    };
-                    
-                    var 
-    
-                    var customContainer = document.createElement('div');
-                    customContainer.style = 'display: flex; gap: 8px; flex-grow: 1;';
-                    customContainer.append(inputCustomSearch);
-                    customContainer.append(selectCustom);
-    
-    
-                    buttonContainer.append(selectAll);
-                    buttonContainer.append(clearAll);
-                    buttonContainer.append(selectAmulets);
-                    buttonContainer.append(selectPass);
-                    buttonContainer.append(customContainer);
-    
-                    container.append(title);
-                    container.append(buttonContainer);
-    
-                    $('#promo_separator')[0].after(container);
-                }
+                    }
+                } catch(e) { /* ignore */ }
                 """);
 
             var result = await Browser.ExecuteScriptAsync(
@@ -568,18 +601,19 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                 
                 // Инициализация при загрузке документа
                 $(document).ready(function() {
+                    var root = document.getElementById('promo_container');
+                    if (!root) return;
                     var characterContainer = document.createElement('div');
-                    characterContainer.id = 'characterContainer'; 
-                    container.append(characterContainer);
-                    createCharacterSelect(shards);
-                    
+                    characterContainer.id = 'characterContainer';
+                    root.append(characterContainer);
+                    try { createCharacterSelect(shards); } catch(e) {}
                     var submitButton = document.createElement('div');
                     submitButton.className = 'go_items js-transfer-go';
-                    container.append(submitButton);
+                    root.append(submitButton);
                 });
                 """);
 
-            await Browser.ExecuteScriptAsync("$('.description-items').remove();");
+            // await Browser.ExecuteScriptAsync("$('.description-items').remove();");
         }
     }
 
