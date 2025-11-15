@@ -14,6 +14,60 @@ namespace Pw.Hub.Tools;
 
 public class LuaIntegration
 {
+    // Dedicated single-thread dispatcher for all NLua callbacks for this integration instance
+    private sealed class LuaCallbackDispatcher : IDisposable
+    {
+        private readonly System.Collections.Concurrent.BlockingCollection<Action> _queue = new(new System.Collections.Concurrent.ConcurrentQueue<Action>());
+        private readonly Thread _thread;
+        private volatile bool _stopping;
+
+        public LuaCallbackDispatcher(string name = "LuaWorker")
+        {
+            _thread = new Thread(ThreadProc)
+            {
+                IsBackground = true,
+                Name = name
+            };
+            _thread.Start();
+        }
+
+        private void ThreadProc()
+        {
+            try
+            {
+                foreach (var act in _queue.GetConsumingEnumerable())
+                {
+                    try { act(); } catch { }
+                    if (_stopping && _queue.Count == 0) break;
+                }
+            }
+            catch { }
+        }
+
+        public void Post(Action act)
+        {
+            if (!_queue.IsAddingCompleted)
+            {
+                try { _queue.Add(act); } catch { }
+            }
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _stopping = true;
+                _queue.CompleteAdding();
+                if (!_thread.Join(500))
+                {
+                    try { _thread.Interrupt(); } catch { }
+                }
+            }
+            catch { }
+        }
+    }
+
+    private LuaCallbackDispatcher _luaWorker;
     private readonly IAccountManager _accountManager;
     private readonly IBrowser _browser;
     private readonly HttpClient _client = new();
@@ -28,6 +82,15 @@ public class LuaIntegration
     {
         _runId = runId;
         try { Pw.Hub.Infrastructure.RunContextTracker.SetActive(runId); } catch { }
+        // Ensure single-threaded Lua worker exists for this run (isolation per integration instance)
+        try { _luaWorker ??= new LuaCallbackDispatcher($"LuaWorker-{runId.ToString().Substring(0,8)}"); } catch { }
+    }
+
+    // Allow explicit disposal from runner
+    public void DisposeWorker()
+    {
+        try { _luaWorker?.Dispose(); } catch { }
+        _luaWorker = null;
     }
 
     public LuaIntegration(IAccountManager accountManager)
@@ -376,36 +439,21 @@ public class LuaIntegration
         catch { return default; }
     }
 
-    // Internal helper: ensure Lua callback is executed on UI thread (no return expected)
-    private static void CallLuaVoid(LuaFunction callback, params object[] args)
+    // Internal helper: execute Lua callback on a dedicated Lua worker thread (no return expected)
+    private void CallLuaVoid(LuaFunction callback, params object[] args)
     {
         if (callback == null) return;
         try
         {
-            var app = Application.Current;
-            if (app?.Dispatcher != null)
+            var worker = _luaWorker;
+            if (worker != null)
             {
-                app.Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    try
-                    {
-                        callback.Call(args);
-                    }
-                    catch
-                    {
-                    }
-                }));
+                worker.Post(() => { try { callback.Call(args); } catch { } });
             }
             else
             {
-                // Fallback: call directly
-                try
-                {
-                    callback.Call(args);
-                }
-                catch
-                {
-                }
+                // Fallback: call synchronously (still single thread from caller)
+                try { callback.Call(args); } catch { }
             }
         }
         catch
@@ -413,44 +461,44 @@ public class LuaIntegration
         }
     }
 
-    // Internal helper: execute Lua callback on UI thread and capture first return value
-    private static object CallLuaWithReturn(LuaFunction callback, params object[] args)
+    // Internal helper: execute Lua callback on the dedicated Lua worker and capture first return value
+    private object CallLuaWithReturn(LuaFunction callback, params object[] args)
     {
         if (callback == null) return null;
+        object result = null;
+        var ev = new System.Threading.ManualResetEventSlim(false);
         try
         {
-            var app = Application.Current;
-            if (app?.Dispatcher != null)
+            var worker = _luaWorker;
+            if (worker != null)
             {
-                return app.Dispatcher.Invoke(() =>
+                worker.Post(() =>
                 {
                     try
                     {
                         var ret = callback.Call(args);
-                        return (ret != null && ret.Length > 0) ? ret[0] : null;
+                        result = (ret != null && ret.Length > 0) ? ret[0] : null;
                     }
-                    catch
-                    {
-                        return null;
-                    }
+                    catch { }
+                    finally { try { ev.Set(); } catch { } }
                 });
+                // Wait with a sane timeout to avoid hangs
+                ev.Wait(5000);
+                return result;
             }
-
-            // Fallback if no dispatcher
-            try
+            else
             {
-                var ret = callback.Call(args);
-                return (ret != null && ret.Length > 0) ? ret[0] : null;
-            }
-            catch
-            {
-                return null;
+                // Fallback: call synchronously on current thread
+                try
+                {
+                    var ret = callback.Call(args);
+                    return (ret != null && ret.Length > 0) ? ret[0] : null;
+                }
+                catch { return null; }
             }
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
+        finally { try { ev.Dispose(); } catch { } }
     }
 
     // Public converter for passing .NET values into Lua args table

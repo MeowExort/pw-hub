@@ -7,20 +7,22 @@ namespace Pw.Hub.Models;
 public class Squad : INotifyPropertyChanged
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
+    private string _name = string.Empty;
     public string Name
     {
-        get;
-        set => SetField(ref field, value);
-    } = string.Empty;
+        get => _name;
+        set => SetField(ref _name, value);
+    }
 
     // New: order among squads (0-based)
+    private int _orderIndex = 0;
     public int OrderIndex
     {
-        get;
-        set => SetField(ref field, value);
-    } = 0;
+        get => _orderIndex;
+        set => SetField(ref _orderIndex, value);
+    }
 
-    public ObservableCollection<Account> Accounts { get; set; } = [];
+    public ObservableCollection<Account> Accounts { get; set; } = new ObservableCollection<Account>();
 
     public override string ToString() => Name;
     public event PropertyChangedEventHandler PropertyChanged;

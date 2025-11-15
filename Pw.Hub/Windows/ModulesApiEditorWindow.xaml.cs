@@ -503,34 +503,39 @@ namespace Pw.Hub.Windows
 
         private class InputItem : INotifyPropertyChanged
         {
+            private string _name = string.Empty;
             public string Name
             {
-                get;
-                set => SetField(ref field, value);
-            } = string.Empty;
-
-            public string Label
-            {
-                get;
-                set => SetField(ref field, value);
-            } = string.Empty;
-
-            public string Type
-            {
-                get;
-                set => SetField(ref field, value);
-            } = "string"; // string|number|bool|password
-
-            public string Default
-            {
-                get;
-                set => SetField(ref field, value);
+                get => _name;
+                set => SetField(ref _name, value);
             }
 
+            private string _label = string.Empty;
+            public string Label
+            {
+                get => _label;
+                set => SetField(ref _label, value);
+            }
+
+            private string _type = "string"; // string|number|bool|password
+            public string Type
+            {
+                get => _type;
+                set => SetField(ref _type, value);
+            }
+
+            private string _default;
+            public string Default
+            {
+                get => _default;
+                set => SetField(ref _default, value);
+            }
+
+            private bool _required;
             public bool Required
             {
-                get;
-                set => SetField(ref field, value);
+                get => _required;
+                set => SetField(ref _required, value);
             }
 
             public event PropertyChangedEventHandler PropertyChanged;

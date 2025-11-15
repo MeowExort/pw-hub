@@ -626,6 +626,7 @@ debug.sethook(__pw_hook, 'l')
         {
             _currentTcs?.TrySetResult(null);
             try { if (_runId.HasValue) Pw.Hub.Infrastructure.RunLifetimeTracker.Reset(_runId.Value); } catch { }
+            try { _integration?.DisposeWorker(); } catch { }
             _currentLua?.Dispose();
         }
         catch

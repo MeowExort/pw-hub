@@ -242,7 +242,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         try { IsLoading = true; } catch { }
     }
 
-    private void WvOnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
+    private async void WvOnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         try { IsLoading = false; } catch { }
         try { AddressBox.Text = Wv?.Source?.ToString() ?? string.Empty; } catch { }
@@ -251,13 +251,13 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         {
             if (!Browser.Source.AbsoluteUri.Contains("do=activate"))
             {
-                Browser.ExecuteScriptAsync(
+                await Browser.ExecuteScriptAsync(
                     """
                     $('.items_container input[type=checkbox]').unbind('click');
                     """);
             }
 
-            Browser.ExecuteScriptAsync(
+            await Browser.ExecuteScriptAsync(
                 """
                 var hasElement = !!document.getElementById('promo_separator')
                 if (!hasElement) 
@@ -273,7 +273,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                     $('.promo_container_content_body')[0].after(breakLine);
                 }
                 """);
-            Browser.ExecuteScriptAsync(
+            
+            await Browser.ExecuteScriptAsync(
                 """
                 var hasElement = !!document.getElementById('promo_container')
                 if (!hasElement)
@@ -390,6 +391,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         selectByCustomSearch();
                         return false;
                     };
+                    
+                    var 
     
                     var customContainer = document.createElement('div');
                     customContainer.style = 'display: flex; gap: 8px; flex-grow: 1;';
@@ -409,6 +412,174 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                     $('#promo_separator')[0].after(container);
                 }
                 """);
+
+            var result = await Browser.ExecuteScriptAsync(
+                """
+                function createCharacterSelect(data) {
+                    // Создаем стили через JavaScript
+                    const style = $('<style></style>')
+                        .html(`
+                            .character-select-container {
+                                font-family: Arial, sans-serif;
+                                margin: 10px 0px;
+                            }
+                            .character-select {
+                                width: 100%;
+                                padding: 10px;
+                                font-size: 14px;
+                                border-radius: 5px;
+                                background: #F0E8DC;
+                                color: #333;
+                                overflow: hidden;
+                                overflow-y: visible;
+                                max-height: none !important;
+                                height: auto !important;
+                            }
+                            .character-select:focus {
+                                outline: none;
+                                border-color: #2c4a8d;
+                                box-shadow: 0 0 5px rgba(74, 107, 175, 0.5);
+                            }
+                            .server-group {
+                                font-weight: bold;
+                                color: #2c4a8d;
+                                background: #F6F1E7;
+                                padding: 5px;
+                            }
+                            .character-option {
+                                padding: 8px 15px;
+                                border-bottom: 1px solid #f0f0f0;
+                            }
+                            .character-name {
+                                font-weight: bold;
+                                color: #333;
+                            }
+                            .character-info {
+                                font-size: 12px;
+                                color: #666;
+                                margin-left: 10px;
+                            }
+                            .character-level {
+                                float: right;
+                                color: #4a6baf;
+                                font-weight: bold;
+                            }
+                            option {
+                                padding: 8px;
+                                border-bottom: 1px solid #f0f0f0;
+                            }
+                            option:checked {
+                                background: #C6B9A3;
+                                color: white;
+                            }
+                        `);
+                    
+                    // Добавляем стили в head
+                    $('head').append(style);
+                
+                    // Создаем контейнер и select
+                    const container = $('<div class="character-select-container"></div>');
+                    
+                    // Подсчитываем общее количество опций для определения размера
+                    let totalOptions = 0;
+                    
+                    for (const serverId in data) {
+                        const server = data[serverId];
+                        totalOptions += 1; // заголовок сервера
+                        
+                        for (const accountId in server.accounts) {
+                            const account = server.accounts[accountId];
+                            totalOptions += account.chars.length;
+                        }
+                    }
+                    
+                    // Создаем select с размером, равным количеству всех опций
+                    const select = $('<select id="characterSelect" class="character-select"></select>')
+                        .attr('size', totalOptions);
+                    
+                    // Проходим по всем серверам
+                    for (const serverId in data) {
+                        const server = data[serverId];
+                        
+                        // Добавляем заголовок сервера
+                        select.append(`<option disabled class="server-group">─── ${server.name} ───</option>`);
+                        
+                        // Проходим по всем аккаунтам на сервере
+                        for (const accountId in server.accounts) {
+                            const account = server.accounts[accountId];
+                            
+                            // Добавляем всех персонажей аккаунта
+                            for (const char of account.chars) {
+                                const option = $('<option></option>')
+                                    .val(char.id)
+                                    .html(`${char.name} - ${char.occupation} (${char.level} ур.)`);
+                                select.append(option);
+                            }
+                        }
+                        
+                    }
+                    
+                    // Обработчик выбора персонажа
+                    select.change(function() {
+                        const selectedId = $(this).val();
+                        if (selectedId) {
+                            // Находим выбранного персонажа
+                            let selectedAccountId = '';
+                            let selectedCharacterId = '';
+                            let selectedServerId = '';
+                            
+                            for (const serverId in data) {
+                                const server = data[serverId];
+                                for (const accountId in server.accounts) {
+                                    const account = server.accounts[accountId];
+                                    for (const char of account.chars) {
+                                        if (char.id == selectedId) {
+                                            selectedAccountId = accountId;
+                                            selectedCharacterId = selectedId;
+                                            selectedServerId = server.id;
+                                            break;
+                                        }
+                                    }
+                                    if (selectedCharacterId) break;
+                                }
+                                if (selectedCharacterId) break;
+                            }
+                            
+                            if (selectedCharacterId) {
+                                var sel=document.querySelector('.js-shard');
+                                sel.value=selectedServerId;
+                                var e=document.createEvent('HTMLEvents');
+                                e.initEvent('change',true,false);
+                                sel.dispatchEvent(e);
+                                
+                                var sel2=document.querySelector('.js-char');
+                                sel2.value=selectedAccountId + '_' + selectedServerId + '_' + selectedCharacterId;
+                                var e2=document.createEvent('HTMLEvents');
+                                e2.initEvent('change',true,false);
+                                sel2.dispatchEvent(e);
+                            }
+                        }
+                    });
+                    
+                    // Собираем всё вместе
+                    container.append(select);
+                    $('#characterContainer').append(container);
+                }
+                
+                // Инициализация при загрузке документа
+                $(document).ready(function() {
+                    var characterContainer = document.createElement('div');
+                    characterContainer.id = 'characterContainer'; 
+                    container.append(characterContainer);
+                    createCharacterSelect(shards);
+                    
+                    var submitButton = document.createElement('div');
+                    submitButton.className = 'go_items js-transfer-go';
+                    container.append(submitButton);
+                });
+                """);
+
+            await Browser.ExecuteScriptAsync("$('.description-items').remove();");
         }
     }
 
