@@ -17,10 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Set global request size limits to 200 MB
 const long MaxRequestSizeBytes = 200L * 1024 * 1024;
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.Limits.MaxRequestBodySize = MaxRequestSizeBytes;
-});
+builder.WebHost.ConfigureKestrel(options => { options.Limits.MaxRequestBodySize = MaxRequestSizeBytes; });
 
 // Add services
 builder.Services.AddEndpointsApiExplorer();
@@ -33,7 +30,8 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpLogging(logging =>
 {
-    logging.LoggingFields = HttpLoggingFields.RequestPropertiesAndHeaders | HttpLoggingFields.ResponsePropertiesAndHeaders;
+    logging.LoggingFields =
+        HttpLoggingFields.RequestPropertiesAndHeaders | HttpLoggingFields.ResponsePropertiesAndHeaders;
     logging.RequestHeaders.Add("User-Agent");
 });
 
@@ -56,22 +54,21 @@ builder.Services.AddCors(options =>
                 "https://www.pw-helper.ru",
                 "http://www.pw-helper.ru"
             )
-         .AllowAnyHeader()
-         .AllowAnyMethod()
-         .AllowCredentials()
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
     );
 });
 
 // Increase multipart/form-data body length limit (for file uploads)
-builder.Services.Configure<FormOptions>(o =>
-{
-    o.MultipartBodyLengthLimit = MaxRequestSizeBytes;
-});
+builder.Services.Configure<FormOptions>(o => { o.MultipartBodyLengthLimit = MaxRequestSizeBytes; });
 
 // Telegram bot hosted service (starts only if TELEGRAM_BOT_TOKEN is set)
 builder.Services.AddHostedService<TelegramBotHostedService>();
 // Telegram sender for API initiated messages
-builder.Services.AddSingleton<Pw.Modules.Api.Infrastructure.Telegram.ITelegramSender, Pw.Modules.Api.Infrastructure.Telegram.TelegramSender>();
+builder.Services
+    .AddSingleton<Pw.Modules.Api.Infrastructure.Telegram.ITelegramSender,
+        Pw.Modules.Api.Infrastructure.Telegram.TelegramSender>();
 
 // Custom ActivitySource for the application
 var moduleActivitySource = new ActivitySource("Modules");
