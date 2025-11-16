@@ -728,7 +728,10 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         selectAll.style = pillBtnCss;
                         selectAll.onclick = function() {
                             var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
-                            checkboxes.forEach(function(checkbox) { checkbox.checked = true; });
+                            checkboxes.forEach(function(checkbox) { 
+                                if (!checkbox.checked){ checkbox.checked = true; try{ checkbox.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} }
+                            });
+                            try{ if (window.__promoSelected_schedule) window.__promoSelected_schedule(0); }catch(e){}
                             return false;
                         };
 
@@ -738,7 +741,10 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         clearAll.style = pillBtnCss;
                         clearAll.onclick = function() {
                             var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
-                            checkboxes.forEach(function(checkbox) { checkbox.checked = false; });
+                            checkboxes.forEach(function(checkbox) { 
+                                if (checkbox.checked){ checkbox.checked = false; try{ checkbox.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} }
+                            });
+                            try{ if (window.__promoSelected_schedule) window.__promoSelected_schedule(0); }catch(e){}
                             return false;
                         };
 
@@ -749,7 +755,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                     var checkboxId = label.getAttribute('for');
                                     var checkbox = document.getElementById(checkboxId);
                                     if (checkbox && checkbox.type === 'checkbox') {
-                                        checkbox.checked = true;
+                                        var should = true;
+                                        if (!checkbox.checked){ checkbox.checked = true; try{ checkbox.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} }
                                     }
                                 }
                             });
@@ -766,7 +773,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                     var checkboxId = label.getAttribute('for');
                                     var checkbox = document.getElementById(checkboxId);
                                     if (checkbox && checkbox.type === 'checkbox') {
-                                        checkbox.checked = true;
+                                        if (!checkbox.checked){ checkbox.checked = true; try{ checkbox.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} }
                                     }
                                 }
                             });
@@ -781,7 +788,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 var text = (label.innerText||'').toLowerCase();
                                 if (pattern.test(text)){
                                     var checkbox = document.getElementById(label.getAttribute('for'));
-                                    if (checkbox && checkbox.type==='checkbox') checkbox.checked = false;
+                                    if (checkbox && checkbox.type==='checkbox') { if (checkbox.checked){ checkbox.checked = false; try{ checkbox.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} } }
                                 }
                             });
                         };
@@ -792,13 +799,257 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 if ((label.innerText||'').toLowerCase().includes(text.toLowerCase())) {
                                     var checkboxId = label.getAttribute('for');
                                     var checkbox = document.getElementById(checkboxId);
-                                    if (checkbox && checkbox.type === 'checkbox') {
-                                        checkbox.checked = false;
-                                    }
+                                    if (checkbox && checkbox.type === 'checkbox') { if (checkbox.checked){ checkbox.checked = false; try{ checkbox.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} } }
                                 }
                             });
                         };
                         var unselectByLabelTexts = function(texts) { texts.forEach(function(text){ unselectByLabelText(text); }); };
+
+                        // ================= Selected Items Popup =================
+                        (function(){
+                            try{
+                                // State helpers for the selected popup
+                                function saveSelState(st){ try{ localStorage.setItem('promo_selected_popup_state', JSON.stringify(st)); }catch(e){} }
+                                function loadSelState(){ try{ var s = localStorage.getItem('promo_selected_popup_state'); return s? JSON.parse(s): {}; }catch(e){ return {}; } }
+
+                                // Create popup if missing
+                                var sp = document.getElementById('promo_selected_popup');
+                                var sHeader, sContent, sCompact, sTooltip;
+                                function recalcSelContentHeight(){ try{ if (!sp||!sContent||!sHeader) return; var h = sHeader.offsetHeight; var total = sp.getBoundingClientRect().height; var contentH = Math.max(0, total - h); sContent.style.maxHeight = contentH+'px'; sContent.style.height = contentH+'px'; }catch(e){} }
+                                function setSelCollapsed(c){ try{ var st=loadSelState(); st.collapsed=!!c; if (!!c){
+                                        // hide header/content, show compact with count
+                                        if (sHeader) sHeader.style.display='none'; if (sContent) sContent.style.display='none'; if (sCompact) { sCompact.style.display='inline-block'; }
+                                        // shrink container
+                                        sp.style.width='auto'; sp.style.height='auto'; sp.style.minWidth='0'; sp.style.minHeight='0';
+                                    } else {
+                                        if (sCompact) sCompact.style.display='none'; if (sHeader) sHeader.style.display='flex'; if (sContent) sContent.style.display='block';
+                                        sp.style.minWidth='220px'; sp.style.minHeight='120px';
+                                        // restore saved size
+                                        if (st.width) sp.style.width = st.width + 'px'; if (st.height) sp.style.height = st.height + 'px';
+                                        recalcSelContentHeight();
+                                    }
+                                    var t = (sHeader? sHeader.querySelector('button') : null); if (t) t.innerText = st.collapsed? '+':'−'; saveSelState(st); }catch(e){} }
+
+                                if (!sp){
+                                    sp = document.createElement('div'); sp.id='promo_selected_popup'; sp.style = [
+                                        'position: fixed',
+                                        'left: 16px',
+                                        'bottom: 16px',
+                                        'z-index: 2147483646',
+                                        'background: #F6F1E7',
+                                        'border: 1px solid #E2D8C9',
+                                        'border-radius: 12px',
+                                        'box-shadow: 0 8px 24px rgba(0,0,0,0.2)',
+                                        'overflow: hidden',
+                                        'color: #333',
+                                        'font-family: Arial, sans-serif',
+                                        'width: 320px',
+                                        'min-width: 220px',
+                                        'max-width: 40vw',
+                                        'min-height: 120px',
+                                        'max-height: 60vh'
+                                    ].join(';');
+
+                                    sHeader = document.createElement('div');
+                                    sHeader.style = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;cursor:move;user-select:none;';
+                                    var hTitle = document.createElement('div'); hTitle.textContent = 'Выбранные'; hTitle.style='font-weight:700;color:#2c4a8d;';
+                                    var tgl = document.createElement('button'); tgl.innerText='−'; tgl.title='Свернуть'; tgl.style='border:none;background:#D2C0BE;color:#333;border-radius:16px;padding:2px 8px;cursor:pointer;';
+
+                                    sContent = document.createElement('div'); sContent.id='promo_selected_list_wrap'; sContent.style='padding:8px;overflow:auto;';
+                                    var list = document.createElement('div'); list.id='promo_selected_list'; list.style='display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;'; sContent.appendChild(list);
+
+                                    // compact pill
+                                    sCompact = document.createElement('div'); sCompact.id='promo_selected_compact'; sCompact.style='display:none;margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;'; sCompact.title='Развернуть список';
+
+                                    // tooltip (single instance)
+                                    sTooltip = document.createElement('div');
+                                    sTooltip.id = 'promo_selected_tooltip';
+                                    sTooltip.style = [
+                                        'position: fixed',
+                                        'z-index: 2147483647',
+                                        'pointer-events: none',
+                                        'display: none',
+                                        'max-width: 360px',
+                                        'background: #ffffff',
+                                        'color: #222',
+                                        'border: 1px solid #E2D8C9',
+                                        'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
+                                        'border-radius: 8px',
+                                        'padding: 8px 10px',
+                                        'font-family: Arial, sans-serif',
+                                        'font-size: 13px',
+                                        'line-height: 1.35'
+                                    ].join(';');
+
+                                    sHeader.appendChild(hTitle); sHeader.appendChild(tgl);
+                                    sp.appendChild(sHeader); sp.appendChild(sContent); sp.appendChild(sCompact); sp.appendChild(sTooltip);
+                                    document.body.appendChild(sp);
+
+                                    tgl.onclick = function(){ var st=loadSelState(); setSelCollapsed(!(st&&st.collapsed)); };
+                                    sCompact.addEventListener('click', function(e){ try{ if (sCompact && (sCompact.dataset.dragMoved==='1' || sCompact.dataset.dragJustDragged==='1')){ e.preventDefault(); return false; } setSelCollapsed(false); }catch(ex){} });
+
+                                    // drag
+                                    (function(){
+                                        var dragging=false, startX=0, startY=0, startLeft=0, startTop=0, moved=false, thr=4;
+                                        function onDown(e){ if (e.target && (e.target.tagName==='BUTTON' || e.target.closest('button'))) return; dragging=true; moved=false; if (sHeader){ delete sHeader.dataset.dragMoved; delete sHeader.dataset.dragJustDragged; } if (sCompact){ delete sCompact.dataset.dragMoved; delete sCompact.dataset.dragJustDragged; }
+                                            var rect = sp.getBoundingClientRect();
+                                            // ensure left/top coordinates
+                                            if (!sp.style.left && sp.style.right){ sp.style.left = rect.left + 'px'; sp.style.top = rect.top + 'px'; sp.style.right=''; sp.style.bottom = sp.style.bottom || '16px'; }
+                                            startX = e.clientX; startY = e.clientY; startLeft = parseFloat(sp.style.left || rect.left); startTop = parseFloat(sp.style.top || rect.top);
+                                            document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); e.preventDefault(); }
+                                        function onMove(e){ if (!dragging) return; var dx=e.clientX-startX, dy=e.clientY-startY; if (!moved && (Math.abs(dx)>thr || Math.abs(dy)>thr)){ moved=true; if (sHeader) sHeader.dataset.dragMoved='1'; if (sCompact) sCompact.dataset.dragMoved='1'; }
+                                            var newL=startLeft+dx, newT=startTop+dy; var r=sp.getBoundingClientRect(); var maxL = window.innerWidth - r.width; var maxT = window.innerHeight - r.height; newL = Math.min(Math.max(0,newL), Math.max(0,maxL)); newT = Math.min(Math.max(0,newT), Math.max(0,maxT)); sp.style.left=newL+'px'; sp.style.top=newT+'px'; }
+                                        function onUp(){ if (!dragging) return; dragging=false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); var st=loadSelState(); var rect=sp.getBoundingClientRect(); st.left=rect.left; st.top=rect.top; saveSelState(st); if (moved){ if (sHeader){ sHeader.dataset.dragJustDragged='1'; setTimeout(function(){ delete sHeader.dataset.dragJustDragged; delete sHeader.dataset.dragMoved; }, 120);} if (sCompact){ sCompact.dataset.dragJustDragged='1'; setTimeout(function(){ delete sCompact.dataset.dragJustDragged; delete sCompact.dataset.dragMoved; }, 120);} } }
+                                        if (sHeader) sHeader.addEventListener('mousedown', onDown);
+                                        if (sCompact) sCompact.addEventListener('mousedown', onDown);
+                                        if (sHeader){ sHeader.addEventListener('click', function(e){ try{ if (e.target && (e.target.tagName==='BUTTON' || e.target.closest('button'))) return; if (sHeader.dataset.dragMoved==='1' || sHeader.dataset.dragJustDragged==='1'){ e.preventDefault(); return false; } var st=loadSelState(); setSelCollapsed(!(st&&st.collapsed)); }catch(ex){} }); }
+                                    })();
+
+                                    // restore state
+                                    (function(){ var st=loadSelState(); if (st && (st.left!=null && st.top!=null)){ sp.style.left = st.left + 'px'; sp.style.top = st.top + 'px'; sp.style.right=''; sp.style.bottom= (sp.style.bottom || '16px'); }
+                                        if (st && (st.width||st.height)){ if (st.width) sp.style.width = st.width + 'px'; if (st.height) sp.style.height = st.height + 'px'; }
+                                        setSelCollapsed(!!(st&&st.collapsed)); requestAnimationFrame(function(){ recalcSelContentHeight(); }); })();
+                                } else {
+                                    sHeader = sp.firstElementChild; sContent = document.getElementById('promo_selected_list_wrap'); sCompact = document.getElementById('promo_selected_compact'); sTooltip = document.getElementById('promo_selected_tooltip');
+                                }
+
+                                // Build mapping (id -> meta)
+                                var __promoSelMap = {};
+                                function rebuildMap(){ try{
+                                    __promoSelMap = {};
+                                    var rows = document.querySelectorAll('.items_container tr');
+                                    rows.forEach(function(tr){
+                                        try{
+                                            var label = tr.querySelector('.item_input_block label');
+                                            var input = tr.querySelector('.item_input_block input[type=checkbox]');
+                                            if (!label || !input) return;
+                                            var nameRaw = (label.innerText||'').trim();
+                                            // remove date span content
+                                            nameRaw = nameRaw.replace(/\(до [^)]+\)/g, '').replace(/\s+/g,' ').trim();
+                                            var img = tr.querySelector('.img_item_cell img');
+                                            var src = img ? img.getAttribute('src') : '';
+                                            if (src && src.startsWith('//')) src = window.location.protocol + src;
+                                            var descSpan = tr.querySelector('.img_item_cont span');
+                                            var desc = '';
+                                            if (descSpan){
+                                                try { desc = (descSpan.innerText||'').replace(/\s+/g,' ').trim(); } catch(_){ desc=''; }
+                                            }
+                                            __promoSelMap[input.id] = { id: input.id, cb: input, name: nameRaw, img: src, desc: desc };
+                                        }catch(ex){}
+                                    });
+                                }catch(e){} }
+
+                                // Render list (now: ALL items, highlight selected)
+                                var renderTimer = null;
+                                function scheduleRender(delay){ try{ if (renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderTimer = setTimeout(renderSelectedList, typeof delay==='number'? delay: 30); }catch(e){} }
+                                function renderSelectedList(){ try{
+                                    var list = document.getElementById('promo_selected_list'); if (!list) return; list.innerHTML = '';
+                                    // collect ALL items
+                                    var items = []; Object.keys(__promoSelMap).forEach(function(id){ var m=__promoSelMap[id]; if (m && m.cb) items.push(m); });
+                                    // sort by name
+                                    items.sort(function(a,b){ return a.name.localeCompare(b.name, 'ru'); });
+                                    // counts
+                                    var selectedCount = 0; items.forEach(function(m){ if (m.cb && m.cb.checked) selectedCount++; });
+                                    if (items.length===0){ var empty=document.createElement('div'); empty.style='opacity:0.7;padding:6px 4px;'; empty.textContent='Пусто'; list.appendChild(empty); }
+                                    // icon block size
+                                    var itemSize = 56; // tile size (outer)
+                                    var cropSize = 30; // inner crop box 30x30
+                                    var cropX = 45, cropY = 25; // top-left source point
+                                    items.forEach(function(m){
+                                        var block = document.createElement('div');
+                                        block.className = 'sel_item_block';
+                                        block.style = [
+                                            'width:'+itemSize+'px',
+                                            'height:'+itemSize+'px',
+                                            'border-radius:10px',
+                                            'box-shadow: inset 0 0 0 1px #E2D8C9',
+                                            'background:#ffffffCC',
+                                            'display:flex',
+                                            'align-items:center',
+                                            'justify-content:center',
+                                            'cursor:pointer',
+                                            'position:relative',
+                                            (m.cb && m.cb.checked ? 'outline:2px solid #2c4a8d; outline-offset:-2px;' : 'outline:2px solid transparent; outline-offset:-2px;')
+                                        ].join(';');
+
+                                        // crop box 30x30 showing region X=45,Y=25 of the original 120x80 image
+                                        var crop = document.createElement('div');
+                                        crop.style = [
+                                            'width:'+cropSize+'px',
+                                            'height:'+cropSize+'px',
+                                            'overflow:hidden',
+                                            'border-radius:6px',
+                                            'box-shadow: inset 0 0 0 1px #E2D8C9',
+                                            'background:#fff',
+                                            'position:relative'
+                                        ].join(';');
+
+                                        var im = document.createElement('img');
+                                        im.src = m.img || '';
+                                        im.alt = '';
+                                        im.draggable = false;
+                                        im.style = [
+                                            'position:absolute',
+                                            'left:-'+cropX+'px',
+                                            'top:-'+cropY+'px',
+                                            'image-rendering:auto',
+                                            'pointer-events:none'
+                                        ].join(';');
+                                        crop.appendChild(im);
+                                        block.appendChild(crop);
+
+                                        // hover tooltip
+                                        block.addEventListener('mouseenter', function(){
+                                            try{
+                                                if (!sTooltip) return;
+                                                var nameHtml = '<div style="font-weight:700;color:#2c4a8d;margin-bottom:4px;">'+ (m.name||'') +'</div>';
+                                                var descHtml = '';
+                                                if (m.desc){ descHtml = '<div style="white-space:normal;color:#333;">'+ m.desc.replace(/\n/g,'<br>') +'</div>'; }
+                                                sTooltip.innerHTML = nameHtml + descHtml;
+                                                sTooltip.style.display = 'block';
+                                            }catch(e){}
+                                        });
+                                        block.addEventListener('mousemove', function(ev){
+                                            try{
+                                                if (!sTooltip || sTooltip.style.display==='none') return;
+                                                var pad = 12; var ttW = sTooltip.offsetWidth||320; var ttH = sTooltip.offsetHeight||80;
+                                                var x = ev.clientX + pad; var y = ev.clientY + pad;
+                                                if (x + ttW > window.innerWidth - 8) x = Math.max(8, ev.clientX - ttW - pad);
+                                                if (y + ttH > window.innerHeight - 8) y = Math.max(8, ev.clientY - ttH - pad);
+                                                sTooltip.style.left = x + 'px'; sTooltip.style.top = y + 'px';
+                                            }catch(e){}
+                                        });
+                                        block.addEventListener('mouseleave', function(){ try{ if (sTooltip){ sTooltip.style.display='none'; sTooltip.innerHTML=''; } }catch(e){} });
+
+                                        // click toggles selection
+                                        block.onclick = function(){ try{ if (m.cb){ m.cb.checked = !m.cb.checked; try{ m.cb.dispatchEvent(new Event('change', { bubbles:true })); }catch(ex){} scheduleRender(0); } }catch(ex){} };
+
+                                        list.appendChild(block);
+                                    });
+                                    // update compact title with count
+                                    try{ if (sCompact){ sCompact.textContent = 'Выбранные (' + selectedCount + ')'; } }catch(e){}
+                                    requestAnimationFrame(function(){ recalcSelContentHeight(); });
+                                }catch(e){}
+                                }
+
+                                // Public helpers for other scripts/buttons
+                                window.__promoSelected_rebuildMap = rebuildMap;
+                                window.__promoSelected_refresh = function(){ try{ rebuildMap(); scheduleRender(0); }catch(e){} };
+                                window.__promoSelected_schedule = scheduleRender;
+
+                                // Wire change listener (delegated)
+                                try{
+                                    var itemsCont = document.querySelector('.items_container');
+                                    if (itemsCont && !itemsCont.getAttribute('data-selected-change-inited')){
+                                        itemsCont.setAttribute('data-selected-change-inited','1');
+                                        itemsCont.addEventListener('change', function(ev){ try{ if (ev && ev.target && ev.target.matches && ev.target.matches('input[type=checkbox]')){ scheduleRender(10); } }catch(e){} });
+                                    }
+                                }catch(e){}
+
+                                // Initial build
+                                rebuildMap(); renderSelectedList();
+                            }catch(e){}
+                        })();
 
                         // Section builders
                         function mkRow(title){
