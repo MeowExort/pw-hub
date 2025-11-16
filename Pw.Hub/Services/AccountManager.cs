@@ -292,13 +292,9 @@ public class AccountManager(IBrowser browser) : IAccountManager
         {
             _accountPropertyChangedHandler ??= (sender, args) =>
             {
-                if (string.IsNullOrEmpty(args.PropertyName) ||
-                    args.PropertyName == nameof(Account.ImageSource) ||
-                    args.PropertyName == nameof(Account.SiteId) ||
-                    args.PropertyName == nameof(Account.Name))
-                {
-                    try { CurrentAccountDataChanged?.Invoke(CurrentAccount); } catch { }
-                }
+                // По контракту IAccountManager.CurrentAccountDataChanged — «при любом изменении свойства аккаунта»
+                // Поэтому не фильтруем по именам свойств, а уведомляем всегда.
+                try { CurrentAccountDataChanged?.Invoke(CurrentAccount); } catch { }
             };
             try { inpc.PropertyChanged += _accountPropertyChangedHandler; } catch { }
         }

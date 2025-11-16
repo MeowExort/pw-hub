@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
@@ -65,6 +66,41 @@ public class Account : INotifyPropertyChanged
 
     public override string ToString() => Name;
     public event PropertyChangedEventHandler PropertyChanged;
+
+    // --- Runtime-only promo form snapshot (not persisted to DB) ---
+    // Значения последней отправленной формы на странице promo_items.php
+    private string _promoDo;
+    private List<string> _promoCartItems;
+    private string _promoAccInfo;
+    private DateTime? _promoLastSubmittedAt;
+
+    [NotMapped]
+    public string PromoDo
+    {
+        get => _promoDo;
+        set => SetField(ref _promoDo, value);
+    }
+
+    [NotMapped]
+    public List<string> PromoCartItems
+    {
+        get => _promoCartItems;
+        set => SetField(ref _promoCartItems, value);
+    }
+
+    [NotMapped]
+    public string PromoAccInfo
+    {
+        get => _promoAccInfo;
+        set => SetField(ref _promoAccInfo, value);
+    }
+
+    [NotMapped]
+    public DateTime? PromoLastSubmittedAt
+    {
+        get => _promoLastSubmittedAt;
+        set => SetField(ref _promoLastSubmittedAt, value);
+    }
 
     protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
     {

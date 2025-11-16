@@ -94,6 +94,8 @@ public partial class App
             sc.AddSingleton<IUiDialogService, UiDialogService>();
             sc.AddSingleton<IOrderingService, OrderingService>();
             sc.AddSingleton<IAccountsService, AccountsService>();
+            // App config (persistent JSON storage in %AppData%)
+            sc.AddSingleton<IAppConfigService, JsonAppConfigService>();
             // AI config and diff preview services
             sc.AddSingleton<IAiConfigService, AiConfigService>();
             sc.AddSingleton<IDiffPreviewService, DiffPreviewService>();

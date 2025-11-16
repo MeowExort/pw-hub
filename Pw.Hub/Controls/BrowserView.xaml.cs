@@ -6,6 +6,9 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Pw.Hub.Abstractions;
 using System.ComponentModel;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Pw.Hub.Services;
 
 namespace Pw.Hub.Controls;
 
@@ -204,7 +207,86 @@ public partial class BrowserView : UserControl, IWebViewHost, INotifyPropertyCha
         // Установка тёмного фона about:blank
         try { Wv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
         try { Wv.CoreWebView2.HistoryChanged += CoreWebView2OnHistoryChanged; } catch { }
+        try
+        {
+            var core = Wv.CoreWebView2;
+            // JS-хелпер appConfig.get/set с фолбэком на localStorage и таймаутом
+            var helper = @"(function(){
+  try{
+    if (!window.appConfig){
+      var pending = new Map();
+      var nextId = 1;
+      function tryLocalGet(key, def){ try{ var raw = localStorage.getItem(key); return raw!=null ? JSON.parse(raw) : def; }catch(_){ return def; } }
+      function tryLocalSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_){ } }
+      window.appConfig = {
+        get: function(key, def){ return new Promise(function(resolve){ var id = nextId++; pending.set(id, resolve); try{ window.chrome && window.chrome.webview && window.chrome.webview.postMessage({ type: 'appConfig:get', id: id, key: key }); } catch(_){ resolve(tryLocalGet(key, def)); return; } setTimeout(function(){ if (pending.has(id)){ pending.delete(id); resolve(tryLocalGet(key, def)); } }, 800); }); },
+        set: function(key, val){ return new Promise(function(resolve){ var id = nextId++; pending.set(id, resolve); try{ window.chrome && window.chrome.webview && window.chrome.webview.postMessage({ type: 'appConfig:set', id: id, key: key, value: val }); } catch(_){ tryLocalSet(key, val); resolve(true); return; } setTimeout(function(){ if (pending.has(id)){ pending.delete(id); tryLocalSet(key, val); resolve(true); } }, 800); }); }
+      };
+      if (window.chrome && window.chrome.webview){
+        window.chrome.webview.addEventListener('message', function(ev){ try{ var msg = ev && ev.data; if (!msg || msg.type !== 'appConfig:resp') return; var res = pending.get(msg.id); if (!res) return; pending.delete(msg.id); if ('value' in msg) res(msg.value); else res(true); } catch(__){} });
+      }
+    }
+  }catch(__){}
+})();";
+            try { core.AddScriptToExecuteOnDocumentCreatedAsync(helper); } catch { }
+
+            // Обработчик сообщений из JS: appConfig:get/set
+            try { core.WebMessageReceived += CoreOnWebMessageReceived; } catch { }
+        }
+        catch { }
         UpdateNavUi();
+    }
+
+    private void CoreOnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            var appConfig = App.Services.GetService<IAppConfigService>();
+            if (appConfig == null) return;
+
+            var json = e.WebMessageAsJson;
+            if (string.IsNullOrWhiteSpace(json)) return;
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("type", out var typeEl)) return;
+            var type = typeEl.GetString();
+            if (type == "appConfig:get")
+            {
+                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetInt32() : 0;
+                var key = root.TryGetProperty("key", out var kEl) ? kEl.GetString() : null;
+                string? value = null;
+                if (!string.IsNullOrEmpty(key))
+                {
+                    appConfig.TryGetString(key!, out value);
+                }
+                // Сформируем JSON вручную, чтобы вернуть value как raw JSON (а не строку)
+                var valuePart = value ?? "null";
+                var resp = $"{{\"type\":\"appConfig:resp\",\"id\":{id},\"value\":{valuePart}}}";
+                Wv.CoreWebView2.PostWebMessageAsJson(resp);
+            }
+            else if (type == "appConfig:set")
+            {
+                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetInt32() : 0;
+                var key = root.TryGetProperty("key", out var kEl) ? kEl.GetString() : null;
+                if (!string.IsNullOrEmpty(key))
+                {
+                    if (root.TryGetProperty("value", out var vEl))
+                    {
+                        // Сохраняем как строку JSON
+                        var raw = vEl.GetRawText();
+                        appConfig.SetString(key!, raw);
+                    }
+                    else
+                    {
+                        appConfig.SetString(key!, "null");
+                    }
+                }
+                var resp = JsonSerializer.Serialize(new { type = "appConfig:resp", id = id, ok = true });
+                Wv.CoreWebView2.PostWebMessageAsJson(resp);
+                _ = appConfig.SaveAsync();
+            }
+        }
+        catch { }
     }
 
     // === Обработчики UI навигации ===

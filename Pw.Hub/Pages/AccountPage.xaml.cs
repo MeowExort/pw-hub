@@ -11,6 +11,7 @@ using System.Windows.Input;
 using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Windows;
 using System.ComponentModel;
+using System.Text.Json;
 
 namespace Pw.Hub.Pages;
 
@@ -219,6 +220,21 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
         // Ensure core again just in case
         try { await Wv.EnsureCoreWebView2Async(); } catch { }
+
+        // After swap, Core might already be initialized and InitializationCompleted won't fire.
+        // Ensure WebMessage pipeline is configured for the active Core instance.
+        try
+        {
+            if (Wv?.CoreWebView2 != null)
+            {
+                try { Wv.CoreWebView2.Settings.IsWebMessageEnabled = true; } catch { }
+                try { Wv.CoreWebView2.WebMessageReceived -= CoreWebView2OnWebMessageReceived; } catch { }
+                try { Wv.CoreWebView2.WebMessageReceived += CoreWebView2OnWebMessageReceived; } catch { }
+                try { Wv.CoreWebView2.HistoryChanged -= CoreWebView2OnHistoryChanged; } catch { }
+                try { Wv.CoreWebView2.HistoryChanged += CoreWebView2OnHistoryChanged; } catch { }
+            }
+        }
+        catch { }
     }
 
     private void WvOnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
@@ -257,6 +273,15 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                     """);
             }
 
+            // Передаём в страницу последнее значение acc_info из текущего аккаунта для предвыбора персонажа
+            try
+            {
+                var lastAccInfo = AccountManager?.CurrentAccount?.PromoAccInfo ?? string.Empty;
+                var jsValue = JsonSerializer.Serialize(lastAccInfo, JsonSerializerOptions.Web);
+                await Browser.ExecuteScriptAsync($"window.__pwLastAccInfo = {jsValue};");
+            }
+            catch { }
+
             await Browser.ExecuteScriptAsync(
                 """
                 var hasElement = !!document.getElementById('promo_separator')
@@ -268,98 +293,103 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                 }
                 """);
             
-            await Browser.ExecuteScriptAsync(
-                """
-                try {
-                    // helpers to persist/restore state
-                    function savePopupState(el, state){
-                        try{ localStorage.setItem('promo_popup_state', JSON.stringify(state)); }catch(e){}
-                    }
-                    function loadPopupState(){
-                        try{ var s = localStorage.getItem('promo_popup_state'); return s ? JSON.parse(s) : null; }catch(e){ return null; }
-                    }
+            if (!Browser.Source.AbsoluteUri.Contains("do=activate"))
+            {
+                await Browser.ExecuteScriptAsync(
+                    """
+                    try {
+                        // Send a lightweight ping to verify WebMessage channel early
+                        try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage('{"type":"promo_ping","ts":"'+Date.now()+'"}'); } }catch(_){}
 
-                    // Create floating popup if not exists
-                    var popup = document.getElementById('promo_popup');
-                    var header, contentWrap, compact;
-                    var collapsed = false;
+                        // helpers to persist/restore state
+                        function savePopupState(el, state){
+                            try{ localStorage.setItem('promo_popup_state', JSON.stringify(state)); }catch(e){}
+                        }
+                        function loadPopupState(){
+                            try{ var s = localStorage.getItem('promo_popup_state'); return s ? JSON.parse(s) : null; }catch(e){ return null; }
+                        }
 
-                    function getToggleBtn(){
-                        try{ return (header ? header.querySelector('button') : null) || document.querySelector('#promo_popup > div button'); }catch(e){ return null; }
-                    }
+                        // Create floating popup if not exists
+                        var popup = document.getElementById('promo_popup');
+                        var header, contentWrap, compact;
+                        var collapsed = false;
 
-                    function recalcContentHeight(){
-                        try{
-                            if (!popup || !contentWrap) return;
-                            var h = header && header.style.display !== 'none' ? header.offsetHeight : 0;
-                            var total = popup.getBoundingClientRect().height;
-                            var contentH = Math.max(0, total - h);
-                            contentWrap.style.maxHeight = contentH + 'px';
-                            contentWrap.style.height = contentH + 'px';
-                        }catch(e){}
-                    }
+                        function getToggleBtn(){
+                            try{ return (header ? header.querySelector('button') : null) || document.querySelector('#promo_popup > div button'); }catch(e){ return null; }
+                        }
 
-                    function setCollapsed(c){
-                        try{
-                            collapsed = !!c;
-                            var st = loadPopupState() || {};
-                            st.collapsed = collapsed;
-                            var res = document.getElementById('promo_popup_resizer');
-                            if (collapsed){
-                                // save current size before collapsing
-                                try{
-                                    var rect = popup.getBoundingClientRect();
-                                    st.width = rect.width; st.height = rect.height;
-                                }catch(ex){}
-                                // hide full UI
-                                if (contentWrap) contentWrap.style.display = 'none';
-                                if (header) header.style.display = 'none';
-                                if (res) res.style.display = 'none';
-                                // shrink container to compact pill
-                                popup.style.width = 'auto';
-                                popup.style.height = 'auto';
-                                popup.style.minWidth = '0px';
-                                popup.style.minHeight = '0px';
-                                // ВЕРНУЛИ как было ранее: рамку/фон/тень НЕ скрываем у «Управление» в компактном режиме
-                                if (compact) compact.style.display = 'inline-block';
-                            } else {
-                                if (compact) compact.style.display = 'none';
-                                if (header) header.style.display = 'flex';
-                                if (contentWrap) contentWrap.style.display = 'block';
-                                if (res) res.style.display = 'block';
-                                // restore size if known
-                                var s2 = loadPopupState() || {};
-                                if (s2.width) popup.style.width = s2.width + 'px';
-                                if (s2.height) popup.style.height = s2.height + 'px';
-                                // restore mins to defaults
-                                popup.style.minWidth = '260px';
-                                popup.style.minHeight = '140px';
-                                // рамка/фон/тень и так сохранены — никаких дополнительных правок не требуется
-                                // recalc content height
-                                recalcContentHeight();
-                            }
-                            var toggleBtn = getToggleBtn();
-                            if (toggleBtn){ toggleBtn.innerText = collapsed ? '+' : '−'; }
-                            savePopupState(popup, st);
-                        }catch(e){}
-                    }
-                    if (!popup) {
-                        popup = document.createElement('div');
-                        popup.id = 'promo_popup';
-                        popup.style = [
-                            'position: fixed',
-                            'right: 16px', // default placement
-                            'bottom: 16px',
-                            'z-index: 2147483647',
-                            'background: #F6F1E7',
-                            'border: 1px solid #E2D8C9',
-                            'border-radius: 12px',
-                            'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
-                            'overflow: hidden',
-                            'color: #333',
-                            'font-family: Arial, sans-serif',
-                            'width: 380px',
-                            'min-width: 260px',
+                        function recalcContentHeight(){
+                            try{
+                                if (!popup || !contentWrap) return;
+                                var h = header && header.style.display !== 'none' ? header.offsetHeight : 0;
+                                var total = popup.getBoundingClientRect().height;
+                                var contentH = Math.max(0, total - h);
+                                contentWrap.style.maxHeight = contentH + 'px';
+                                contentWrap.style.height = contentH + 'px';
+                            }catch(e){}
+                        }
+
+                        function setCollapsed(c){
+                            try{
+                                collapsed = !!c;
+                                var st = loadPopupState() || {};
+                                st.collapsed = collapsed;
+                                var res = document.getElementById('promo_popup_resizer');
+                                if (collapsed){
+                                    // save current size before collapsing
+                                    try{
+                                        var rect = popup.getBoundingClientRect();
+                                        st.width = rect.width; st.height = rect.height;
+                                    }catch(ex){}
+                                    // hide full UI
+                                    if (contentWrap) contentWrap.style.display = 'none';
+                                    if (header) header.style.display = 'none';
+                                    if (res) res.style.display = 'none';
+                                    // shrink container to compact pill
+                                    popup.style.width = 'auto';
+                                    popup.style.height = 'auto';
+                                    popup.style.minWidth = '0px';
+                                    popup.style.minHeight = '0px';
+                                    // ВЕРНУЛИ как было ранее: рамку/фон/тень НЕ скрываем у «Управление» в компактном режиме
+                                    if (compact) compact.style.display = 'inline-block';
+                                } else {
+                                    if (compact) compact.style.display = 'none';
+                                    if (header) header.style.display = 'flex';
+                                    if (contentWrap) contentWrap.style.display = 'block';
+                                    if (res) res.style.display = 'block';
+                                    // restore size if known
+                                    var s2 = loadPopupState() || {};
+                                    if (s2.width) popup.style.width = s2.width + 'px';
+                                    if (s2.height) popup.style.height = s2.height + 'px';
+                                    // restore mins to defaults
+                                    popup.style.minWidth = '260px';
+                                    popup.style.minHeight = '140px';
+                                    // рамка/фон/тень и так сохранены — никаких дополнительных правок не требуется
+                                    // recalc content height
+                                    recalcContentHeight();
+                                }
+                                var toggleBtn = getToggleBtn();
+                                if (toggleBtn){ toggleBtn.innerText = collapsed ? '+' : '−'; }
+                                savePopupState(popup, st);
+                            }catch(e){}
+                        }
+                        if (!popup) {
+                            popup = document.createElement('div');
+                            popup.id = 'promo_popup';
+                            popup.style = [
+                                'position: fixed',
+                                'right: 16px', // default placement
+                                'bottom: 16px',
+                                'z-index: 2147483647',
+                                'background: #F6F1E7',
+                                'border: 1px solid #E2D8C9',
+                                'border-radius: 12px',
+                                'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
+                                'overflow: hidden',
+                                'color: #333',
+                                'font-family: Arial, sans-serif',
+                                'width: 380px',
+                                'min-width: 260px',
                             'max-width: 50vw',
                             'min-height: 140px',
                             'max-height: 80vh'
@@ -812,8 +842,17 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             try{
                                 // State: list | grid
                                 var VIEW_KEY = 'promo_items_view_mode';
-                                function saveViewMode(mode){ try{ localStorage.setItem(VIEW_KEY, mode); }catch(e){} }
-                                function loadViewMode(){ try{ return localStorage.getItem(VIEW_KEY) || 'list'; }catch(e){ return 'list'; } }
+                                // Сохранение режима — в конфиг приложения через appConfig (фолбэк в localStorage внутри хелпера)
+                                function saveViewMode(mode){ try{ if (window.appConfig && window.appConfig.set){ window.appConfig.set(VIEW_KEY, mode); } else { try{ localStorage.setItem(VIEW_KEY, mode); }catch(_){} } }catch(e){} }
+                                // Загрузка режима — асинхронно из appConfig; синхронно возвращаем 'list' как дефолт
+                                function loadViewModeAsync(defaultMode){
+                                    try{
+                                        defaultMode = defaultMode || 'list';
+                                        if (window.appConfig && window.appConfig.get){ return window.appConfig.get(VIEW_KEY, defaultMode); }
+                                        // фолбэк: localStorage
+                                        try{ var v = localStorage.getItem(VIEW_KEY) || defaultMode; return Promise.resolve(v); }catch(_){ return Promise.resolve(defaultMode); }
+                                    }catch(_){ return Promise.resolve('list'); }
+                                }
 
                                 // Create composite host once
                                 var tableCont = document.querySelector('.items_container');
@@ -1086,13 +1125,15 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 var btnGrid = document.createElement('button'); btnGrid.id='viewModeGridBtn'; btnGrid.textContent='Плитка'; btnGrid.style=pillBtnCss;
 
                                 function setActive(mode){ try{ if (mode==='grid'){ btnGrid.style.backgroundColor='#C5B0AE'; btnList.style.backgroundColor='#D2C0BE'; } else { btnList.style.backgroundColor='#C5B0AE'; btnGrid.style.backgroundColor='#D2C0BE'; } }catch(_){ } }
-                                function save(mode){ try{ localStorage.setItem('promo_items_view_mode', mode); }catch(_){ } }
-                                function load(){ try{ return localStorage.getItem('promo_items_view_mode')||'list'; }catch(_){ return 'list'; } }
+                                async function save(mode){ try{ if (window.appConfig && window.appConfig.set) { await window.appConfig.set('promo_items_view_mode', mode); } else { try{ localStorage.setItem('promo_items_view_mode', mode); }catch(__){} } }catch(_){ } }
+                                async function load(){ try{ if (window.appConfig && window.appConfig.get){ var v = await window.appConfig.get('promo_items_view_mode', 'list'); return v||'list'; } try{ return localStorage.getItem('promo_items_view_mode')||'list'; }catch(__){ return 'list'; } }catch(_){ return 'list'; } }
 
                                 btnList.addEventListener('click', function(){ try{ save('list'); setActive('list'); if (window.__promoGrid_applyMode) window.__promoGrid_applyMode('list'); }catch(_){ } });
                                 btnGrid.addEventListener('click', function(){ try{ save('grid'); setActive('grid'); if (window.__promoGrid_applyMode) window.__promoGrid_applyMode('grid'); }catch(_){ } });
 
-                                setActive(load());
+                                // Инициализация: сначала дефолт, затем подгрузка из конфига
+                                setActive('list');
+                                try{ load().then(function(mode){ try{ setActive(mode); if (window.__promoGrid_applyMode) window.__promoGrid_applyMode(mode); }catch(__){} }); }catch(__){}
                                 row.appendChild(label); row.appendChild(btnList); row.appendChild(btnGrid);
                                 buttonContainer.appendChild(row);
                             }catch(e){}
@@ -1101,6 +1142,19 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         // ================= Selected Items Popup =================
                         (function(){
                             try{
+                                // Отключение всплывающего окна «Предметы» (Selected Items Popup)
+                                // Требование: удалить именно попап «Предметы». Оставляем логику остальной страницы нетронутой.
+                                // Для совместимости с потенциальными внешними обращениями объявляем no-op хелперы и выходим.
+                                // Дополнительно: сохраняем/читаем глобальный ключ 'promo_popup_compact' через appConfig, чтобы состояние
+                                // (размер/позиция/свернутость) при необходимости могло быть использовано другими частями.
+                                try {
+                                    window.__promoPopup_saveCompact = function(state){ try{ if (window.appConfig && window.appConfig.set){ window.appConfig.set('promo_popup_compact', state||{}); } }catch(__){} };
+                                    window.__promoPopup_loadCompact = function(def){ try{ def = def||{}; if (window.appConfig && window.appConfig.get){ return window.appConfig.get('promo_popup_compact', def); } return Promise.resolve(def); }catch(__){ return Promise.resolve(def||{}); } };
+                                } catch(__){}
+                                window.__promoSelected_rebuildMap = function(){};
+                                window.__promoSelected_refresh = function(){};
+                                window.__promoSelected_schedule = function(){};
+                                return; // прерываем выполнение блока, не создаём DOM попапа
                                 // State helpers for the selected popup
                                 function saveSelState(st){ try{ localStorage.setItem('promo_selected_popup_state', JSON.stringify(st)); }catch(e){} }
                                 function loadSelState(){ try{ var s = localStorage.getItem('promo_selected_popup_state'); return s? JSON.parse(s): {}; }catch(e){ return {}; } }
@@ -1705,8 +1759,185 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                     var submitButton = document.createElement('div');
                     submitButton.className = 'go_items js-transfer-go';
                     root.append(submitButton);
+
+                    // Предвыбор персонажа по последней отправке (CurrentAccount.PromoAccInfo)
+                    try {
+                        (function(){
+                            var last = window.__pwLastAccInfo;
+                            if (!last || typeof last !== 'string') return;
+                            var parts = last.split('_');
+                            if (parts.length < 3) return;
+                            var accountId = parts[0];
+                            var serverId = parts[1];
+                            var characterId = parts[2];
+
+                            function setNative(){
+                                try {
+                                    var shard = document.querySelector('.js-shard');
+                                    if (shard) {
+                                        shard.value = serverId;
+                                        var ev = document.createEvent('HTMLEvents'); ev.initEvent('change', true, false); shard.dispatchEvent(ev);
+                                    }
+                                } catch(e){}
+                                try {
+                                    var jchar = document.querySelector('.js-char');
+                                    if (jchar) {
+                                        jchar.value = accountId + '_' + serverId + '_' + characterId;
+                                        var ev2 = document.createEvent('HTMLEvents'); ev2.initEvent('change', true, false); jchar.dispatchEvent(ev2);
+                                    }
+                                } catch(e){}
+                            }
+
+                            function setCustom(){
+                                try {
+                                    var sel = document.getElementById('characterSelect');
+                                    if (sel && sel.querySelector("option[value='"+characterId+"']")) {
+                                        sel.value = characterId;
+                                        var ev3 = document.createEvent('HTMLEvents'); ev3.initEvent('change', true, false); sel.dispatchEvent(ev3);
+                                    }
+                                } catch(e){}
+                            }
+
+                            function tryAll(attempt){
+                                attempt = attempt || 0;
+                                setNative();
+                                setCustom();
+                                // Повторяем несколько раз, т.к. элементы могут дорисовываться инициализацией страницы
+                                if (attempt < 20) setTimeout(function(){ tryAll(attempt+1); }, 100);
+                            }
+                            tryAll(0);
+                        })();
+                    } catch(e){}
                 });
                 """);
+            }
+
+            // Hook submit to save data from form into host (CurrentAccount)
+            try
+            {
+                await Browser.ExecuteScriptAsync(
+                    """
+                    (function(){
+                        try{
+                            if (window.__pwPromoHookInstalled) return; // once per page load
+                            window.__pwPromoHookInstalled = true;
+
+                            // simple debounce to avoid double send from click+submit
+                            window.__pwPromoLastSentTs = 0;
+                            function safePost(obj){
+                                try{
+                                    var now = Date.now();
+                                    if (Math.abs(now - (window.__pwPromoLastSentTs||0)) < 900) return; // ~1s window
+                                    window.__pwPromoLastSentTs = now;
+                                    if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){
+                                        window.chrome.webview.postMessage(JSON.stringify(obj));
+                                    }
+                                }catch(e){}
+                            }
+
+                            function collectPromoData(form){
+                                var data = { type: 'promo_form_submit', do: '', cart_items: [], acc_info: '' };
+                                try{
+                                    var doEl = form.querySelector("[name='do']");
+                                    var doVal = doEl && typeof doEl.value !== 'undefined' ? (doEl.value||'') : '';
+                                    data.do = doVal || 'process';
+                                }catch(e){ data.do = 'process'; }
+                                try{
+                                    var accEl = form.querySelector("[name='acc_info']");
+                                    if (accEl) data.acc_info = (accEl.value||'');
+                                }catch(e){}
+                                try{
+                                    var items = form.querySelectorAll("input[name='cart_items[]']:checked");
+                                    if (items && items.length){
+                                        items.forEach(function(i){ if (i && i.value!=null) data.cart_items.push(String(i.value)); });
+                                    }
+                                }catch(e){}
+                                return data;
+                            }
+
+                            function attachToForm(form){
+                                if (!form || form.__pwPromoSubmitAttached) return;
+                                form.__pwPromoSubmitAttached = true;
+                                form.addEventListener('submit', function(ev){
+                                    try{ safePost(collectPromoData(form)); }catch(e){}
+                                }, true); // capture phase
+                            }
+
+                            function attachClickInitiators(root){
+                                try{
+                                    if (root && !root.__pwPromoClickAttached){
+                                        root.__pwPromoClickAttached = true;
+                                        document.addEventListener('click', function(e){
+                                            try{
+                                                var t = e.target;
+                                                if (!t) return;
+                                                // find closest element with .js-transfer-go
+                                                var go = t.closest ? t.closest('.js-transfer-go') : null;
+                                                if (!go) return;
+                                                var form = (go.closest && go.closest('form')) || document.querySelector('form.js-transfer-form') || document.querySelector('form');
+                                                if (!form) return;
+                                                safePost(collectPromoData(form));
+                                            }catch(_){}
+                                        }, true);
+                                    }
+                                }catch(e){}
+                            }
+
+                            // Prefer a specific promo form
+                            var promoForm = document.querySelector('form.js-transfer-form');
+                            if (promoForm) attachToForm(promoForm);
+
+                            // Fallback: attach to all forms on the page that are likely related
+                            var forms = document.getElementsByTagName('form');
+                            if (forms && forms.length){
+                                for (var i=0;i<forms.length;i++){
+                                    var f = forms[i];
+                                    try{
+                                        var ok = true;
+                                        var act = (f.getAttribute('action')||'').toLowerCase();
+                                        if (act && act.indexOf('promo_items.php') === -1){ ok = location.pathname.toLowerCase().indexOf('promo_items.php') !== -1; }
+                                        if (ok) attachToForm(f);
+                                    }catch(e){ attachToForm(f); }
+                                }
+                            }
+
+                            // Click initiators
+                            attachClickInitiators(document.documentElement || document.body);
+
+                            // Also observe dynamically added forms/buttons
+                            try{
+                                var mo = new MutationObserver(function(muts){
+                                    muts.forEach(function(m){
+                                        (m.addedNodes||[]).forEach(function(n){
+                                            try{
+                                                if (!n) return;
+                                                if (n.tagName && n.tagName.toLowerCase() === 'form') attachToForm(n);
+                                                var innerForms = n.querySelectorAll ? n.querySelectorAll('form') : [];
+                                                if (innerForms && innerForms.length){ innerForms.forEach(attachToForm); }
+                                            }catch(e){}
+                                        });
+                                    });
+                                });
+                                mo.observe(document.documentElement || document.body, { childList:true, subtree:true });
+                            }catch(e){}
+
+                        }catch(e){}
+                    })();
+                    """
+                );
+            }
+            catch { }
+
+            // Also send ping separately (fallback) in case the big block above fails early
+            try
+            {
+                await Browser.ExecuteScriptAsync(
+                    """
+                    try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage('{"type":"promo_ping2","ts":"'+Date.now()+'"}'); } }catch(_){}
+                    """
+                );
+            }
+            catch { }
 
             // await Browser.ExecuteScriptAsync("$('.description-items').remove();");
         }
@@ -1716,7 +1947,13 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         CoreWebView2InitializationCompletedEventArgs e)
     {
         try { Wv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
+        try {
+            // Enable web messages and subscribe to receive messages from injected scripts
+            Wv.CoreWebView2.Settings.IsWebMessageEnabled = true;
+        } catch { }
         try { Wv.CoreWebView2.HistoryChanged += CoreWebView2OnHistoryChanged; } catch { }
+        try { Wv.CoreWebView2.WebMessageReceived -= CoreWebView2OnWebMessageReceived; } catch { }
+        try { Wv.CoreWebView2.WebMessageReceived += CoreWebView2OnWebMessageReceived; } catch { }
         try { UpdateNavUi(); } catch { }
         try { AddressBox.Text = Wv?.Source?.ToString() ?? string.Empty; } catch { }
         Browser.SetCookieAsync([]);
@@ -1762,6 +1999,81 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         catch
         {
         }
+    }
+
+    private void CoreWebView2OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            // Try to get raw string payload
+            string payloadStr = null;
+            try { payloadStr = e.TryGetWebMessageAsString(); } catch { }
+            if (string.IsNullOrWhiteSpace(payloadStr))
+            {
+                try { payloadStr = e.WebMessageAsJson; } catch { }
+            }
+            if (string.IsNullOrWhiteSpace(payloadStr)) return;
+
+            try { System.Diagnostics.Debug.WriteLine("[WebMessage] raw=" + (payloadStr?.Length > 300 ? payloadStr.Substring(0,300)+"..." : payloadStr)); } catch { }
+
+            using var doc = JsonDocument.Parse(payloadStr);
+            var root = doc.RootElement;
+            // Some pages may double-encode; handle quoted JSON
+            if (root.ValueKind == JsonValueKind.String)
+            {
+                try
+                {
+                    using var inner = JsonDocument.Parse(root.GetString() ?? "{}");
+                    HandleWebPayload(inner.RootElement);
+                    return;
+                }
+                catch { }
+            }
+            HandleWebPayload(root);
+        }
+        catch { }
+    }
+
+    private void HandleWebPayload(JsonElement root)
+    {
+        try
+        {
+            if (root.ValueKind != JsonValueKind.Object) return;
+            if (!root.TryGetProperty("type", out var typeEl)) return;
+            var type = typeEl.GetString();
+            // Accept diagnostic pings silently
+            if (string.Equals(type, "promo_ping", StringComparison.Ordinal) ||
+                string.Equals(type, "promo_ping2", StringComparison.Ordinal))
+            {
+                return;
+            }
+            if (!string.Equals(type, "promo_form_submit", StringComparison.Ordinal)) return;
+
+            var doVal = root.TryGetProperty("do", out var doEl) ? doEl.GetString() ?? string.Empty : string.Empty;
+            var accInfo = root.TryGetProperty("acc_info", out var accEl) ? accEl.GetString() ?? string.Empty : string.Empty;
+
+            List<string> cartItems = new();
+            if (root.TryGetProperty("cart_items", out var cartEl) && cartEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var it in cartEl.EnumerateArray())
+                {
+                    try { cartItems.Add(it.ToString()); } catch { }
+                }
+            }
+
+            void apply()
+            {
+                var acc = AccountManager?.CurrentAccount;
+                if (acc == null) return;
+                try { acc.PromoDo = doVal; } catch { }
+                try { acc.PromoAccInfo = accInfo; } catch { }
+                try { acc.PromoCartItems = cartItems; } catch { }
+                try { acc.PromoLastSubmittedAt = DateTime.Now; } catch { }
+            }
+
+            if (!Dispatcher.CheckAccess()) Dispatcher.Invoke(apply); else apply();
+        }
+        catch { }
     }
 
     private void CoreWebView2OnHistoryChanged(object? sender, object e)
