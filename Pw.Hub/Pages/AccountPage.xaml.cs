@@ -304,6 +304,9 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                         // helpers to persist/restore state (позиция/размер/свернутость окна «Управление»)
                         var PROMO_POPUP_KEY = 'promo_popup_state';
+                        // Быстрый bootstrap-ключ в localStorage, чтобы при старте попап сразу оказывался на сохранённом месте,
+                        // а не «переезжал» после асинхронной загрузки конфигурации
+                        var PROMO_POPUP_BOOTSTRAP_KEY = 'promo_popup_state_bootstrap';
                         // Простая обёртка для логов из JS → .NET
                         function promoLog(eventName, payload){
                             try{
@@ -314,7 +317,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             }catch(_){ }
                         }
 
-                        // Кэш состояния внутри сессии (замена localStorage для синхронного чтения)
+                        // Кэш состояния внутри сессии (замена прямого appConfig.get для синхронного чтения)
                         var __promoPopup_state = null;
 
                         // Локальный shim на случай, если по какой‑то причине глобальный pwHubAppConfig ещё не создан.
@@ -420,12 +423,16 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             return null;
                         }
 
-                        // Сохранение состояния: только в appConfig + в in-memory кэш (__promoPopup_state)
+                        // Сохранение состояния: appConfig + in-memory кэш (__promoPopup_state) + локальный bootstrap в localStorage
                         function savePopupState(el, state){
                             try{
                                 state = state || {};
                                 __promoPopup_state = state;
                                 promoLog('savePopupState', state);
+                                // Локальный bootstrap для мгновенного восстановления при следующем старте
+                                try{
+                                    localStorage.setItem(PROMO_POPUP_BOOTSTRAP_KEY, JSON.stringify(state));
+                                }catch(__){}
                                 try{
                                     var appCfg = getPromoAppConfig();
                                     if (appCfg && appCfg.set){
@@ -443,12 +450,51 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             }
                         }
 
-                        // Загрузка состояния: синхронно возвращаем кэш, а при первом вызове асинхронно подтягиваем из appConfig
+                        // Загрузка состояния: сначала пытаемся синхронно восстановить из кэша/localStorage,
+                        // а затем при первом вызове асинхронно подтягиваем из appConfig
                         function loadPopupState(){
                             try{
                                 if (__promoPopup_state != null){
                                     return __promoPopup_state;
                                 }
+
+                                // 1) Быстрая инициализация из localStorage, чтобы попап сразу появился в нужной позиции/размере
+                                try{
+                                    var rawBootstrap = localStorage.getItem(PROMO_POPUP_BOOTSTRAP_KEY);
+                                    if (rawBootstrap){
+                                        try{
+                                            var cached = JSON.parse(rawBootstrap);
+                                            if (cached && typeof cached === 'object'){
+                                                __promoPopup_state = cached;
+                                                if (popup){
+                                                    try{
+                                                        if (cached.width) popup.style.width = cached.width + 'px';
+                                                        if (cached.height) popup.style.height = cached.height + 'px';
+                                                        if (cached.useLeftTop){
+                                                            popup.style.left = (cached.left||16) + 'px';
+                                                            popup.style.top = (cached.top||16) + 'px';
+                                                            popup.style.right = '';
+                                                            popup.style.bottom = '';
+                                                        } else {
+                                                            popup.style.right = (cached.right||16) + 'px';
+                                                            popup.style.bottom = (cached.bottom||16) + 'px';
+                                                            popup.style.left = '';
+                                                            popup.style.top = '';
+                                                        }
+                                                        // Свернутость восстанавливаем аккуратно через helper,
+                                                        // он перезапишет состояние и синхронно не мигает
+                                                        try{
+                                                            if (typeof cached.collapsed === 'boolean'){
+                                                                setCollapsed(!!cached.collapsed);
+                                                            }
+                                                        }catch(__){}
+                                                    }catch(__){}
+                                                }
+                                                return __promoPopup_state;
+                                            }
+                                        }catch(__){}
+                                    }
+                                }catch(__){}
 
                                 try{
                                     var appCfg = getPromoAppConfig();
@@ -602,11 +648,11 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         container.className = 'promo_container_content_body';
                         container.id = 'promo_container';
 
-                        // resize handle
+                        // legacy resize handle (теперь скрыт, чтобы убрать пользовательский ресайз)
                         var resizer = document.createElement('div');
                         resizer.id = 'promo_popup_resizer';
-                        resizer.style = 'position:absolute;width:14px;height:14px;right:2px;bottom:2px;cursor:nwse-resize;background:transparent;';
-                        // small visual triangle
+                        resizer.style = 'display:none;position:absolute;width:14px;height:14px;right:2px;bottom:2px;cursor:default;background:transparent;';
+                        // small visual triangle (не отображается из-за display:none)
                         resizer.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" style="display:block"><path d="M2 12 L12 2 L12 12 Z" fill="#00000022"/></svg>';
 
                         // compact view (as a tiny movable button)
@@ -697,14 +743,12 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             }catch(e){}
                         }
 
-                        // Авторазмер при первом запуске: подгоняем так, чтобы контент помещался без скролла
+                        // Авторазмер: подгоняем так, чтобы контент помещался без скролла
                         function autosizePopupIfNoState(force){
                             try{
                                 if (!popup || !contentWrap) return;
-                                var st0 = loadPopupState();
-                                // Если уже есть сохранённые размеры — не трогаем
-                                if (!force && st0 && (st0.width || st0.height)) return;
-                                // Если свёрнуто — не трогаем (развернётся — пересчитаем)
+                                var st0 = loadPopupState() || {};
+                                // Если попап свёрнут — не трогаем (развернётся — пересчитаем)
                                 if (st0 && st0.collapsed) return;
 
                                 // Временно убираем ограничения у контента для измерения естественного размера
@@ -725,10 +769,19 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 var padV = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
                                 var padH = (parseFloat(cs.paddingLeft)||0) + (parseFloat(cs.paddingRight)||0);
 
-                                // Высота = шапка + внутренняя прокрутка контента + вертикальные паддинги
+                                // Высота = шапка + внутренняя прокрутка контента + вертикальные паддинги (+ нижний margin последнего элемента)
                                 var headH = header ? header.offsetHeight : 0;
                                 var cScrollH = inner.scrollHeight + padV;
-                                var desiredH = headH + cScrollH;
+                                try{
+                                    var last = inner.lastElementChild;
+                                    if (last){
+                                        var lcs = window.getComputedStyle(last);
+                                        var mb = parseFloat(lcs.marginBottom)||0;
+                                        if (mb > 0) cScrollH += mb;
+                                    }
+                                }catch(__){}
+                                // небольшой запас на возможные округления шрифтов/масштабирования
+                                var desiredH = headH + cScrollH + 4;
                                 var maxH = Math.floor(window.innerHeight * 0.8); // синхронно c CSS max-height:80vh
                                 var minH = 140; // как по стилям
                                 var newH = Math.max(minH, Math.min(maxH, desiredH));
@@ -749,6 +802,14 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 contentWrap.style.maxHeight = prevMaxH;
                                 // гарантированно после установки размеров пересчитаем
                                 requestAnimationFrame(function(){ applyContentHeight(); });
+
+                                // Сохраняем автоподобранные размеры как базовые (но не помечаем их как ручной ресайз)
+                                try{
+                                    var stSave = loadPopupState() || {};
+                                    stSave.width = newW;
+                                    stSave.height = newH;
+                                    savePopupState(popup, stSave);
+                                }catch(__){}
 
                                 // Отметим, что автосайз выполнен, но позволим повтор через scheduleAutosize, если force=true (после мутаций)
                                 popup.setAttribute('data-autosized','1');
@@ -887,36 +948,11 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         (function(){
                             var handle = document.getElementById('promo_popup_resizer');
                             if (!handle) return;
-                            var resizing=false, startX=0, startY=0, startW=0, startH=0;
-                            function onDown(e){
-                                resizing = true;
-                                var rect = popup.getBoundingClientRect();
-                                startX = e.clientX; startY = e.clientY;
-                                startW = rect.width; startH = rect.height;
-                                document.addEventListener('mousemove', onMove);
-                                document.addEventListener('mouseup', onUp);
-                                e.preventDefault();
-                            }
-                            function onMove(e){
-                                if (!resizing) return;
-                                var dx = e.clientX - startX;
-                                var dy = e.clientY - startY;
-                                var newW = Math.min(Math.max(260, startW + dx), Math.floor(window.innerWidth * 0.9));
-                                var newH = Math.min(Math.max(140, startH + dy), Math.floor(window.innerHeight * 0.9));
-                                popup.style.width = newW + 'px';
-                                popup.style.height = newH + 'px';
-                                applyContentHeight();
-                            }
-                            function onUp(){
-                                if (!resizing) return;
-                                resizing = false;
-                                document.removeEventListener('mousemove', onMove);
-                                document.removeEventListener('mouseup', onUp);
-                                var rect = popup.getBoundingClientRect();
-                                var st = loadPopupState() || {};
-                                st.width = rect.width; st.height = rect.height;
-                                savePopupState(popup, st);
-                            }
+                            // Пользовательский ресайз отключён: хендлер оставляем только как технический элемент,
+                            // но не меняем размеры попапа по мыши.
+                            function onDown(e){ try{ e.preventDefault(); }catch(_){ } }
+                            function onMove(e){ /* no-op */ }
+                            function onUp(){ /* no-op */ }
                             handle.addEventListener('mousedown', onDown);
                             // ensure initial content sizing
                             scheduleAutosize(0);
@@ -924,11 +960,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             window.addEventListener('resize', function(){
                                 // При ресайзе окна убедимся, что контент влезает максимально корректно
                                 applyContentHeight();
-                                // если пользователь ещё не сохранял размеры — подстрахуемся автосайзом
-                                var st0 = loadPopupState();
-                                if (!(st0 && (st0.width || st0.height)) && !(st0 && st0.collapsed)){
-                                    scheduleAutosize(50);
-                                }
+                                // Всегда запускаем автосайз (кроме случая свёрнутого попапа, который фильтруется внутри функции)
+                                scheduleAutosize(50);
                             });
                         })();
                     }
@@ -1031,16 +1064,56 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             try{
                                 // State: list | grid
                                 var VIEW_KEY = 'promo_items_view_mode';
-                                // Сохранение режима — в конфиг приложения через appConfig (фолбэк в localStorage внутри хелпера)
-                                function saveViewMode(mode){ try{ if (window.appConfig && window.appConfig.set){ window.appConfig.set(VIEW_KEY, mode); } else { try{ localStorage.setItem(VIEW_KEY, mode); }catch(_){} } }catch(e){} }
-                                // Загрузка режима — асинхронно из appConfig; синхронно возвращаем 'list' как дефолт
-                                function loadViewModeAsync(defaultMode){
+                                // Локальный кэш режима для быстрых синхронных чтений,
+                                // чтобы при загрузке страницы не было мигания «Список» → «Плитка».
+                                var __promoViewMode_cache = null;
+
+                                // Сохранение режима — appConfig + локальный кэш/localStorage
+                                function saveViewMode(mode){
+                                    try{
+                                        if (mode !== 'grid' && mode !== 'list') return;
+                                        __promoViewMode_cache = mode;
+                                        try{ localStorage.setItem(VIEW_KEY, mode); }catch(_){ }
+                                        if (window.appConfig && window.appConfig.set){
+                                            window.appConfig.set(VIEW_KEY, mode);
+                                        }
+                                    }catch(e){}
+                                }
+
+                                // Синхронная загрузка режима: сначала in-memory/LocalStorage, затем дефолт
+                                function loadViewMode(defaultMode){
                                     try{
                                         defaultMode = defaultMode || 'list';
-                                        if (window.appConfig && window.appConfig.get){ return window.appConfig.get(VIEW_KEY, defaultMode); }
-                                        // фолбэк: localStorage
-                                        try{ var v = localStorage.getItem(VIEW_KEY) || defaultMode; return Promise.resolve(v); }catch(_){ return Promise.resolve(defaultMode); }
-                                    }catch(_){ return Promise.resolve('list'); }
+                                        if (__promoViewMode_cache === 'grid' || __promoViewMode_cache === 'list') return __promoViewMode_cache;
+                                        try{
+                                            var v = localStorage.getItem(VIEW_KEY);
+                                            if (v === 'grid' || v === 'list'){
+                                                __promoViewMode_cache = v;
+                                                return v;
+                                            }
+                                        }catch(_){ }
+                                        return defaultMode;
+                                    }catch(_){ return defaultMode || 'list'; }
+                                }
+
+                                // Асинхронная загрузка из appConfig; использует синхронное значение как базу
+                                function loadViewModeAsync(defaultMode){
+                                    try{
+                                        defaultMode = loadViewMode(defaultMode || 'list');
+                                        if (window.appConfig && window.appConfig.get){
+                                            return window.appConfig.get(VIEW_KEY, defaultMode).then(function(v){
+                                                try{
+                                                    if (v === 'grid' || v === 'list'){
+                                                        __promoViewMode_cache = v;
+                                                        try{ localStorage.setItem(VIEW_KEY, v); }catch(__){}
+                                                        return v;
+                                                    }
+                                                    return defaultMode;
+                                                }catch(__){ return defaultMode; }
+                                            }).catch(function(){ return defaultMode; });
+                                        }
+                                        return Promise.resolve(defaultMode);
+                                    }catch(_){ return Promise.resolve(loadViewMode(defaultMode)); }
                                 }
 
                                 // Create composite host once
@@ -1408,11 +1481,9 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 }
                                 window.__promoGrid_applyMode = applyViewMode;
 
-                                // Init now (respect stored mode)
-                                rebuildItemsMap();
-                                rebuildChestsMap();
-                                scheduleGridRender(0);
-                                applyViewMode(loadViewMode());
+                                // Init now (respect stored mode) без лишнего мигания
+                                var initialMode = loadViewMode('list');
+                                applyViewMode(initialMode);
 
                                 // Also re-map after small delay to ensure images/DOM ready
                                 setTimeout(function(){ try{ rebuildItemsMap(); rebuildChestsMap(); scheduleGridRender(0); }catch(_){ } }, 200);
@@ -1885,9 +1956,10 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 if (!popup.getAttribute('data-mo-inited')){
                                     var mo = new MutationObserver(function(){
                                         var st0 = loadPopupState();
-                                        if (!(st0 && (st0.width || st0.height)) && !(st0 && st0.collapsed)){
-                                            scheduleAutosize(60);
-                                        }
+                                        // Если попап свёрнут — ничего не делаем
+                                        if (st0 && st0.collapsed) return;
+                                        // Всегда даём автосайзу подстроить высоту под новый контент
+                                        scheduleAutosize(60);
                                     });
                                     mo.observe(root, { childList: true, subtree: true, attributes: false });
                                     popup.setAttribute('data-mo-inited','1');
