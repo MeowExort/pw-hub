@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Pw.Hub.Windows;
 using System.ComponentModel;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Pw.Hub.Pages;
 
@@ -301,12 +302,200 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         // Send a lightweight ping to verify WebMessage channel early
                         try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage('{"type":"promo_ping","ts":"'+Date.now()+'"}'); } }catch(_){}
 
-                        // helpers to persist/restore state
-                        function savePopupState(el, state){
-                            try{ localStorage.setItem('promo_popup_state', JSON.stringify(state)); }catch(e){}
+                        // helpers to persist/restore state (позиция/размер/свернутость окна «Управление»)
+                        var PROMO_POPUP_KEY = 'promo_popup_state';
+                        // Простая обёртка для логов из JS → .NET
+                        function promoLog(eventName, payload){
+                            try{
+                                var msg = { type:'promo_log', event:eventName, data:payload||null, ts:Date.now() };
+                                if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){
+                                    window.chrome.webview.postMessage(JSON.stringify(msg));
+                                }
+                            }catch(_){ }
                         }
+
+                        // Кэш состояния внутри сессии (замена localStorage для синхронного чтения)
+                        var __promoPopup_state = null;
+
+                        // Локальный shim на случай, если по какой‑то причине глобальный pwHubAppConfig ещё не создан.
+                        // Строим поверх window.chrome.webview.postMessage с теми же сообщениями appConfig:get/set.
+                        function ensurePwHubAppConfigShim(){
+                            try{
+                                if (window.pwHubAppConfig && (window.pwHubAppConfig.get || window.pwHubAppConfig.set)){
+                                    try{ promoLog('ensurePwHubAppConfig_exists', { hasPwHub:true }); }catch(__){}
+                                    return;
+                                }
+                                var hasChrome = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
+                                try{ promoLog('ensurePwHubAppConfig_create_attempt', { hasChrome: hasChrome }); }catch(__){}
+                                if (!hasChrome) return;
+
+                                var pending = new Map();
+                                var nextId = 1;
+                                function tryLocalGet(key, def){ try{ var raw = localStorage.getItem(key); return raw!=null ? JSON.parse(raw) : def; }catch(_){ return def; } }
+                                function tryLocalSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_){ } }
+
+                                var shim = {
+                                    get: function(key, def){
+                                        return new Promise(function(resolve){
+                                            var id = nextId++;
+                                            pending.set(id, resolve);
+                                            try{
+                                                window.chrome.webview.postMessage({ type: 'appConfig:get', id: id, key: key });
+                                            }catch(_){
+                                                pending.delete(id);
+                                                resolve(tryLocalGet(key, def));
+                                                return;
+                                            }
+                                            setTimeout(function(){
+                                                if (pending.has(id)){
+                                                    pending.delete(id);
+                                                    resolve(tryLocalGet(key, def));
+                                                }
+                                            }, 800);
+                                        });
+                                    },
+                                    set: function(key, val){
+                                        return new Promise(function(resolve){
+                                            var id = nextId++;
+                                            pending.set(id, resolve);
+                                            try{
+                                                window.chrome.webview.postMessage({ type: 'appConfig:set', id: id, key: key, value: val });
+                                            }catch(_){
+                                                pending.delete(id);
+                                                tryLocalSet(key, val);
+                                                resolve(true);
+                                                return;
+                                            }
+                                            setTimeout(function(){
+                                                if (pending.has(id)){
+                                                    pending.delete(id);
+                                                    tryLocalSet(key, val);
+                                                    resolve(true);
+                                                }
+                                            }, 800);
+                                        });
+                                    }
+                                };
+
+                                window.pwHubAppConfig = shim;
+                                try{
+                                    if (!window.appConfig){ window.appConfig = {}; }
+                                    if (!window.appConfig.get) window.appConfig.get = shim.get;
+                                    if (!window.appConfig.set) window.appConfig.set = shim.set;
+                                }catch(__){}
+
+                                if (window.chrome && window.chrome.webview){
+                                    window.chrome.webview.addEventListener('message', function(ev){
+                                        try{
+                                            var msg = ev && ev.data;
+                                            if (!msg || msg.type !== 'appConfig:resp') return;
+                                            var res = pending.get(msg.id);
+                                            if (!res) return;
+                                            pending.delete(msg.id);
+                                            if ('value' in msg) res(msg.value); else res(true);
+                                        }catch(__){}
+                                    });
+                                }
+
+                                try{ promoLog('ensurePwHubAppConfig_created', { hasPwHub: !!window.pwHubAppConfig }); }catch(__){}
+                            }catch(e){
+                                try{ promoLog('ensurePwHubAppConfig_exception', e && e.message ? e.message : String(e)); }catch(__){}
+                            }
+                        }
+
+                        // Попробуем гарантированно подготовить shim до первого запроса конфигурации.
+                        ensurePwHubAppConfigShim();
+
+                        // Получение актуального объекта конфигурации приложения.
+                        // Сначала используем наш shim window.pwHubAppConfig, затем fallback на window.appConfig.
+                        function getPromoAppConfig(){
+                            try{
+                                var hasPw = !!(window.pwHubAppConfig && (window.pwHubAppConfig.get || window.pwHubAppConfig.set));
+                                var hasApp = !!(window.appConfig && (window.appConfig.get || window.appConfig.set));
+                                try{ promoLog('getPromoAppConfig_probe', { hasPwHub: hasPw, hasAppConfig: hasApp }); }catch(__){}
+                                if (hasPw) return window.pwHubAppConfig;
+                                if (hasApp) return window.appConfig;
+                            }catch(_){ }
+                            try{ promoLog('getPromoAppConfig_null', null); }catch(__){}
+                            return null;
+                        }
+
+                        // Сохранение состояния: только в appConfig + в in-memory кэш (__promoPopup_state)
+                        function savePopupState(el, state){
+                            try{
+                                state = state || {};
+                                __promoPopup_state = state;
+                                promoLog('savePopupState', state);
+                                try{
+                                    var appCfg = getPromoAppConfig();
+                                    if (appCfg && appCfg.set){
+                                        appCfg.set(PROMO_POPUP_KEY, state)
+                                            .then(function(){ try{ promoLog('savePopupState_ok', null); }catch(__){} })
+                                            .catch(function(err){ try{ promoLog('savePopupState_err', (err && (err.message||err)) || 'unknown'); }catch(__){} });
+                                    } else {
+                                        promoLog('savePopupState_no_appConfig', null);
+                                    }
+                                }catch(e){
+                                    promoLog('savePopupState_exception', e && e.message ? e.message : String(e));
+                                }
+                            }catch(e){
+                                promoLog('savePopupState_outer_exception', e && e.message ? e.message : String(e));
+                            }
+                        }
+
+                        // Загрузка состояния: синхронно возвращаем кэш, а при первом вызове асинхронно подтягиваем из appConfig
                         function loadPopupState(){
-                            try{ var s = localStorage.getItem('promo_popup_state'); return s ? JSON.parse(s) : null; }catch(e){ return null; }
+                            try{
+                                if (__promoPopup_state != null){
+                                    return __promoPopup_state;
+                                }
+
+                                try{
+                                    var appCfg = getPromoAppConfig();
+                                    if (!window.__promoPopup_stateLoading && appCfg && appCfg.get){
+                                        window.__promoPopup_stateLoading = true;
+                                        promoLog('loadPopupState_fetch_start', null);
+                                        appCfg.get(PROMO_POPUP_KEY, null).then(function(st){
+                                            window.__promoPopup_stateLoading = false;
+                                            try{
+                                                __promoPopup_state = st || null;
+                                                promoLog('loadPopupState_fetch_ok', st);
+                                                if (!st || !popup) return;
+                                                // применим размеры и позицию
+                                                try{
+                                                    if (st.width) popup.style.width = st.width + 'px';
+                                                    if (st.height) popup.style.height = st.height + 'px';
+                                                    if (st.useLeftTop){
+                                                        popup.style.left = (st.left||16) + 'px';
+                                                        popup.style.top = (st.top||16) + 'px';
+                                                        popup.style.right = '';
+                                                        popup.style.bottom = '';
+                                                    } else {
+                                                        popup.style.right = (st.right||16) + 'px';
+                                                        popup.style.bottom = (st.bottom||16) + 'px';
+                                                        popup.style.left = '';
+                                                        popup.style.top = '';
+                                                    }
+                                                    // свернутость тоже восстанавливаем через существующий helper
+                                                    try{ setCollapsed(!!st.collapsed); }catch(__){}
+                                                }catch(__){}
+                                            }catch(ex){
+                                                promoLog('loadPopupState_apply_exception', ex && ex.message ? ex.message : String(ex));
+                                            }
+                                        }).catch(function(err){
+                                            window.__promoPopup_stateLoading = false;
+                                            promoLog('loadPopupState_fetch_err', (err && (err.message||err)) || 'unknown');
+                                        });
+                                    }
+                                }catch(e){
+                                    promoLog('loadPopupState_schedule_exception', e && e.message ? e.message : String(e));
+                                }
+
+                                return __promoPopup_state;
+                            }catch(e){
+                                promoLog('loadPopupState_outer_exception', e && e.message ? e.message : String(e));
+                                return __promoPopup_state;
+                            }
                         }
 
                         // Create floating popup if not exists
@@ -922,7 +1111,45 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 }
 
                                 // Build maps from table
+                                var __MS_PER_DAY = 24 * 60 * 60 * 1000;
                                 var __itemsMap = {};
+
+                                // Вспомогательная функция: вытащить из текста ровно фрагмент даты/времени
+                                function extractExpiryText(text){
+                                    try{
+                                        if (!text) return null;
+                                        text = (text || '').toString();
+                                        text = text.replace(/\s+/g, ' ').trim();
+                                        // Ищем фрагмент даты формата 31.12.2025 или 31.12.25 23:59
+                                        var m = text.match(/(\d{1,2}\.\d{1,2}\.\d{2,4}(?:\s+\d{1,2}:\d{2})?)/);
+                                        if (!m) return null;
+                                        return m[1];
+                                    } catch(_) { return null; }
+                                }
+
+                                function parseExpiryDate(text){
+                                    try{
+                                        var main = extractExpiryText(text);
+                                        if (!main) return null;
+                                        var parts = main.split(' ');
+                                        var d = parts[0].split('.');
+                                        var day = parseInt(d[0], 10) || 0;
+                                        var month = parseInt(d[1], 10) || 0;
+                                        var year = parseInt(d[2], 10) || 0;
+                                        if (year < 100) year += 2000;
+                                        var hh = 0, mm = 0;
+                                        if (parts.length > 1){
+                                            var t = parts[1].split(':');
+                                            hh = parseInt(t[0], 10) || 0;
+                                            mm = parseInt(t[1], 10) || 0;
+                                        }
+                                        if (!day || !month || !year) return null;
+                                        var dt = new Date(year, month - 1, day, hh, mm, 0, 0);
+                                        if (isNaN(dt.getTime())) return null;
+                                        return dt.getTime();
+                                    } catch(_) { return null; }
+                                }
+
                                 function rebuildItemsMap(){
                                     try{
                                         __itemsMap = {};
@@ -945,7 +1172,19 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                                         desc = (descSpan.innerHTML || descSpan.innerText || '').toString();
                                                     }catch(_){ desc=''; }
                                                 }
-                                                __itemsMap[input.id] = { id: input.id, cb: input, name: nameRaw, img: src, desc: desc };
+
+                                                var expiryMs = null;
+                                                var expiryText = null;
+                                                try{
+                                                    var dateNode = tr.querySelector('.item_input_block .date_end') || tr.querySelector('.date_end');
+                                                    if (dateNode){
+                                                        var dtText = (dateNode.textContent || dateNode.innerText || '').trim();
+                                                        expiryMs = parseExpiryDate(dtText);
+                                                        expiryText = extractExpiryText(dtText);
+                                                    }
+                                                }catch(_){ expiryMs = null; expiryText = null; }
+
+                                                __itemsMap[input.id] = { id: input.id, cb: input, name: nameRaw, img: src, desc: desc, expiryMs: expiryMs, expiryText: expiryText };
                                             }catch(ex){}
                                         });
                                     }catch(e){}
@@ -975,7 +1214,19 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                                 // make absolute relative URLs
                                                 try{ if (href && href.startsWith('/')) href = location.origin + href; }catch(_){ }
                                                 var id = label.getAttribute('for') || ('chest_'+idx);
-                                                __chestsMap[id] = { id: id, name: nameRaw, img: src, desc: desc, href: href };
+
+                                                var expiryMsChest = null;
+                                                var expiryTextChest = null;
+                                                try{
+                                                    var dateNodeChest = tr.querySelector('.chest_input_block .date_end') || tr.querySelector('.date_end');
+                                                    if (dateNodeChest){
+                                                        var dtTextChest = (dateNodeChest.textContent || dateNodeChest.innerText || '').trim();
+                                                        expiryMsChest = parseExpiryDate(dtTextChest);
+                                                        expiryTextChest = extractExpiryText(dtTextChest);
+                                                    }
+                                                }catch(_){ expiryMsChest = null; expiryTextChest = null; }
+
+                                                __chestsMap[id] = { id: id, name: nameRaw, img: src, desc: desc, href: href, expiryMs: expiryMsChest, expiryText: expiryTextChest };
                                             }catch(ex){}
                                         });
                                     }catch(e){}
@@ -998,6 +1249,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                         gridHost.appendChild(wrap);
 
                                         var itemSize = 56; var cropSize = 30; var cropX = 45, cropY = 25;
+                                        var nowTs = Date.now();
                                         items.forEach(function(m){
                                             var block = document.createElement('div');
                                             block.className = 'promo_grid_item';
@@ -1006,6 +1258,23 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                                 (m.cb && m.cb.checked ? 'outline:2px solid #2c4a8d; outline-offset:-2px;' : 'outline:2px solid transparent; outline-offset:-2px;')
                                             ].join(';');
 
+                                            // Подбор фона по дате сгорания
+                                            try {
+                                                var bg = '#ffffffCC';
+                                                if (typeof m.expiryMs === 'number'){
+                                                    var diffDays = (m.expiryMs - nowTs) / __MS_PER_DAY;
+                                                    if (diffDays < 0) diffDays = 0;
+                                                    if (diffDays < 2){
+                                                        // менее 2 суток — красный
+                                                        bg = '#ffcccc';
+                                                    } else if (diffDays < 5){
+                                                        // менее 5 суток — жёлтый
+                                                        bg = '#fff6cc';
+                                                    }
+                                                }
+                                                block.style.background = bg;
+                                            } catch(_){ }
+
                                             var crop = document.createElement('div');
                                             crop.style = [ 'width:'+cropSize+'px','height:'+cropSize+'px','overflow:hidden','border-radius:6px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#fff','position:relative' ].join(';');
                                             var img = document.createElement('img'); img.src = m.img || ''; img.alt = m.name; img.title = '';
@@ -1013,7 +1282,16 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                             crop.appendChild(img); block.appendChild(crop);
 
                                             // tooltip handlers
-                                            block.addEventListener('mouseenter', function(e){ try{ tip.innerHTML = '<div style="font-weight:700; margin-bottom:4px;">'+(m.name||'')+'</div>'+((m.desc||'').toString()); tip.style.display='block'; }catch(_){} });
+                                            block.addEventListener('mouseenter', function(e){
+                                                try{
+                                                    var html = '<div style="font-weight:700; margin-bottom:4px;">'+(m.name||'')+'</div>' + ((m.desc||'').toString());
+                                                    if (m.expiryText){
+                                                        html += '<div style="margin-top:4px; color:#8b0000;">Сгорит: '+m.expiryText+'</div>';
+                                                    }
+                                                    tip.innerHTML = html;
+                                                    tip.style.display='block';
+                                                }catch(_){ }
+                                            });
                                             block.addEventListener('mousemove', function(e){ try{ var x=e.clientX+14, y=e.clientY+14; var w=tip.offsetWidth||320, h=tip.offsetHeight||60; if (x+w>window.innerWidth-8) x = e.clientX - w - 10; if (y+h>window.innerHeight-8) y = e.clientY - h - 10; tip.style.left=x+'px'; tip.style.top=y+'px'; }catch(_){} });
                                             block.addEventListener('mouseleave', function(){ try{ tip.style.display='none'; }catch(_){} });
 
@@ -1047,6 +1325,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                         chestsHost.appendChild(wrap);
 
                                         var itemSize = 56; var cropSize = 30; var cropX = 45, cropY = 25;
+                                        var nowTsChests = Date.now();
                                         items.forEach(function(m){
                                             var block = document.createElement('a');
                                             block.className = 'promo_chest_item';
@@ -1055,6 +1334,21 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                                 'width:'+itemSize+'px','height:'+itemSize+'px','border-radius:10px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#ffffffCC','display:flex','align-items:center','justify-content:center','cursor:pointer','position:relative','text-decoration:none'
                                             ].join(';');
 
+                                            // Подбор фона по дате сгорания (для сундуков)
+                                            try {
+                                                var bgChest = '#ffffffCC';
+                                                if (typeof m.expiryMs === 'number'){
+                                                    var diffDaysChest = (m.expiryMs - nowTsChests) / __MS_PER_DAY;
+                                                    if (diffDaysChest < 0) diffDaysChest = 0;
+                                                    if (diffDaysChest < 2){
+                                                        bgChest = '#ffcccc';
+                                                    } else if (diffDaysChest < 5){
+                                                        bgChest = '#fff6cc';
+                                                    }
+                                                }
+                                                block.style.background = bgChest;
+                                            } catch(_) { }
+
                                             var crop = document.createElement('div');
                                             crop.style = [ 'width:'+cropSize+'px','height:'+cropSize+'px','overflow:hidden','border-radius:6px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#fff','position:relative' ].join(';');
                                             var img = document.createElement('img'); img.src = m.img || ''; img.alt = m.name; img.title = '';
@@ -1062,7 +1356,16 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                             crop.appendChild(img); block.appendChild(crop);
 
                                             // tooltip handlers (on anchor)
-                                            block.addEventListener('mouseenter', function(e){ try{ tip.innerHTML = '<div style="font-weight:700; margin-bottom:4px;">'+(m.name||'')+'</div>'+((m.desc||'').toString()); tip.style.display='block'; }catch(_){} });
+                                            block.addEventListener('mouseenter', function(e){
+                                                try{
+                                                    var html = '<div style="font-weight:700; margin-bottom:4px;">'+(m.name||'')+'</div>' + ((m.desc||'').toString());
+                                                    if (m.expiryText){
+                                                        html += '<div style="margin-top:4px; color:#8b0000;">Сгорит: '+m.expiryText+'</div>';
+                                                    }
+                                                    tip.innerHTML = html;
+                                                    tip.style.display='block';
+                                                }catch(_){ }
+                                            });
                                             block.addEventListener('mousemove', function(e){ try{ var x=e.clientX+14, y=e.clientY+14; var w=tip.offsetWidth||320, h=tip.offsetHeight||60; if (x+w>window.innerWidth-8) x = e.clientX - w - 10; if (y+h>window.innerHeight-8) y = e.clientY - h - 10; tip.style.left=x+'px'; tip.style.top=y+'px'; }catch(_){} });
                                             block.addEventListener('mouseleave', function(){ try{ tip.style.display='none'; }catch(_){} });
 
@@ -1951,6 +2254,102 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
             // Enable web messages and subscribe to receive messages from injected scripts
             Wv.CoreWebView2.Settings.IsWebMessageEnabled = true;
         } catch { }
+        try
+        {
+            var core = Wv.CoreWebView2;
+            // JS-хелпер конфигурации приложения для страницы аккаунта.
+            // В отличие от BrowserView, здесь возможен конфликт с window.appConfig самого сайта,
+            // поэтому мы всегда создаём отдельный shim window.pwHubAppConfig и при необходимости
+            // мягко «достраиваем» методы get/set на существующем window.appConfig (только если их нет).
+            var helper = @"(function(){
+  try{
+    if (!window.pwHubAppConfig){
+      var pending = new Map();
+      var nextId = 1;
+      function tryLocalGet(key, def){ try{ var raw = localStorage.getItem(key); return raw!=null ? JSON.parse(raw) : def; }catch(_){ return def; } }
+      function tryLocalSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_){ }
+      }
+
+      var shim = {
+        get: function(key, def){
+          return new Promise(function(resolve){
+            var id = nextId++;
+            pending.set(id, resolve);
+            try{
+              if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){
+                window.chrome.webview.postMessage({ type: 'appConfig:get', id: id, key: key });
+              } else {
+                resolve(tryLocalGet(key, def));
+                return;
+              }
+            } catch(_){
+              resolve(tryLocalGet(key, def));
+              return;
+            }
+            setTimeout(function(){
+              if (pending.has(id)){
+                pending.delete(id);
+                resolve(tryLocalGet(key, def));
+              }
+            }, 800);
+          });
+        },
+        set: function(key, val){
+          return new Promise(function(resolve){
+            var id = nextId++;
+            pending.set(id, resolve);
+            try{
+              if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){
+                window.chrome.webview.postMessage({ type: 'appConfig:set', id: id, key: key, value: val });
+              } else {
+                tryLocalSet(key, val);
+                resolve(true);
+                return;
+              }
+            } catch(_){
+              tryLocalSet(key, val);
+              resolve(true);
+              return;
+            }
+            setTimeout(function(){
+              if (pending.has(id)){
+                pending.delete(id);
+                tryLocalSet(key, val);
+                resolve(true);
+              }
+            }, 800);
+          });
+        }
+      };
+
+      // Наш «официальный» канал для скриптов Pw.Hub
+      window.pwHubAppConfig = shim;
+
+      // Аккуратно достраиваем window.appConfig, не ломая уже существующие поля/методы.
+      try{
+        if (!window.appConfig){ window.appConfig = {}; }
+        if (!window.appConfig.get){ window.appConfig.get = shim.get; }
+        if (!window.appConfig.set){ window.appConfig.set = shim.set; }
+      }catch(_){ }
+
+      if (window.chrome && window.chrome.webview){
+        window.chrome.webview.addEventListener('message', function(ev){
+          try{
+            var msg = ev && ev.data;
+            if (!msg || msg.type !== 'appConfig:resp') return;
+            var res = pending.get(msg.id);
+            if (!res) return;
+            pending.delete(msg.id);
+            if ('value' in msg) res(msg.value); else res(true);
+          }catch(__){}
+        });
+      }
+    }
+  }catch(__){}
+})();";
+            try { core.AddScriptToExecuteOnDocumentCreatedAsync(helper); } catch { }
+        }
+        catch { }
         try { Wv.CoreWebView2.HistoryChanged += CoreWebView2OnHistoryChanged; } catch { }
         try { Wv.CoreWebView2.WebMessageReceived -= CoreWebView2OnWebMessageReceived; } catch { }
         try { Wv.CoreWebView2.WebMessageReceived += CoreWebView2OnWebMessageReceived; } catch { }
@@ -2041,6 +2440,88 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
             if (root.ValueKind != JsonValueKind.Object) return;
             if (!root.TryGetProperty("type", out var typeEl)) return;
             var type = typeEl.GetString();
+            // Канал конфигурации приложения: appConfig.get/set
+            if (string.Equals(type, "appConfig:get", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var appConfig = App.Services.GetService<IAppConfigService>();
+                    if (appConfig == null) return;
+
+                    var id = root.TryGetProperty("id", out var idEl) ? idEl.GetInt32() : 0;
+                    var key = root.TryGetProperty("key", out var kEl) ? kEl.GetString() : null;
+                    string? value = null;
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        appConfig.TryGetString(key!, out value);
+                    }
+
+                    var valuePart = value ?? "null";
+                    var resp = $"{{\"type\":\"appConfig:resp\",\"id\":{id},\"value\":{valuePart}}}";
+                    try { Wv.CoreWebView2?.PostWebMessageAsJson(resp); } catch { }
+                }
+                catch { }
+                return;
+            }
+            if (string.Equals(type, "appConfig:set", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var appConfig = App.Services.GetService<IAppConfigService>();
+                    if (appConfig == null) return;
+
+                    var id = root.TryGetProperty("id", out var idEl) ? idEl.GetInt32() : 0;
+                    var key = root.TryGetProperty("key", out var kEl) ? kEl.GetString() : null;
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        if (root.TryGetProperty("value", out var vEl))
+                        {
+                            var raw = vEl.GetRawText();
+                            appConfig.SetString(key!, raw);
+                        }
+                        else
+                        {
+                            appConfig.SetString(key!, "null");
+                        }
+                    }
+
+                    var resp = JsonSerializer.Serialize(new { type = "appConfig:resp", id = id, ok = true });
+                    try { Wv.CoreWebView2?.PostWebMessageAsJson(resp); } catch { }
+                    try { _ = appConfig.SaveAsync(); } catch { }
+                }
+                catch { }
+                return;
+            }
+
+            // Диагностический канал логов из JS (promoLog)
+            if (string.Equals(type, "promo_log", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var evName = root.TryGetProperty("event", out var evEl) ? evEl.GetString() : null;
+                    var ts = root.TryGetProperty("ts", out var tsEl) ? tsEl.GetInt64() : 0L;
+                    string? dataStr = null;
+                    if (root.TryGetProperty("data", out var dataEl))
+                    {
+                        try
+                        {
+                            var raw = dataEl.GetRawText();
+                            if (!string.IsNullOrWhiteSpace(raw))
+                            {
+                                dataStr = raw.Length > 500 ? raw.Substring(0, 500) + "..." : raw;
+                            }
+                        }
+                        catch { }
+                    }
+                    try
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[promo_popup] event={evName ?? "(null)"}, ts={ts}, data={dataStr ?? "null"}");
+                    }
+                    catch { }
+                }
+                catch { }
+                return;
+            }
             // Accept diagnostic pings silently
             if (string.Equals(type, "promo_ping", StringComparison.Ordinal) ||
                 string.Equals(type, "promo_ping2", StringComparison.Ordinal))
@@ -2069,6 +2550,10 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                 try { acc.PromoAccInfo = accInfo; } catch { }
                 try { acc.PromoCartItems = cartItems; } catch { }
                 try { acc.PromoLastSubmittedAt = DateTime.Now; } catch { }
+
+                using var db = new AppDbContext();
+                db.Update(acc);
+                db.SaveChanges();
             }
 
             if (!Dispatcher.CheckAccess()) Dispatcher.Invoke(apply); else apply();

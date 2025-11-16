@@ -88,14 +88,12 @@ public class Account : INotifyPropertyChanged
         set => SetField(ref _promoCartItems, value);
     }
 
-    [NotMapped]
     public string PromoAccInfo
     {
         get => _promoAccInfo;
         set => SetField(ref _promoAccInfo, value);
     }
 
-    [NotMapped]
     public DateTime? PromoLastSubmittedAt
     {
         get => _promoLastSubmittedAt;
