@@ -95,6 +95,8 @@ public class ModuleService
                 if (string.IsNullOrWhiteSpace(i.Label)) i.Label = i.Name;
                 if (string.IsNullOrWhiteSpace(i.Type)) i.Type = "string";
                 if (string.IsNullOrWhiteSpace(i.Default)) i.Default = string.Empty;
+                // Гарантируем ненулевой список вариантов для перечислений (обратная совместимость со старыми файлами)
+                i.Options ??= new List<string>();
             }
         }
         return modules.OrderBy(m => m.Name).ToList();

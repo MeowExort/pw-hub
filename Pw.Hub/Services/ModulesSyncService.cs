@@ -105,7 +105,15 @@ public class ModulesSyncService : IModulesSyncService
                     Label = string.IsNullOrWhiteSpace(i.Label) ? i.Name : i.Label,
                     Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
                     Default = string.IsNullOrWhiteSpace(i.Default) ? null : i.Default,
-                    Required = i.Required
+                    Required = i.Required,
+                    // Переносим варианты перечисления (если это enum/"перечисление")
+                    Options = (i.Options == null
+                            ? Array.Empty<string>()
+                            : i.Options)
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .Distinct(StringComparer.Ordinal)
+                        .ToList()
                 }).ToList() ?? new List<ModuleInput>()
             };
 
