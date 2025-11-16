@@ -807,6 +807,297 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         };
                         var unselectByLabelTexts = function(texts) { texts.forEach(function(text){ unselectByLabelText(text); }); };
 
+                        // ================= Items/Chests Grid View (Main page) =================
+                        (function(){
+                            try{
+                                // State: list | grid
+                                var VIEW_KEY = 'promo_items_view_mode';
+                                function saveViewMode(mode){ try{ localStorage.setItem(VIEW_KEY, mode); }catch(e){} }
+                                function loadViewMode(){ try{ return localStorage.getItem(VIEW_KEY) || 'list'; }catch(e){ return 'list'; } }
+
+                                // Create composite host once
+                                var tableCont = document.querySelector('.items_container');
+                                var composite = document.getElementById('promo_items_composite');
+                                if (!composite && tableCont && tableCont.parentElement){
+                                    composite = document.createElement('div');
+                                    composite.id = 'promo_items_composite';
+                                    composite.style = 'display:none; padding:8px 6px; display:flex; flex-direction:column; gap:12px;';
+
+                                    // Section: Предметы
+                                    var secItems = document.createElement('div');
+                                    secItems.id = 'promo_items_section_items';
+                                    secItems.style = 'display:flex; flex-direction:column; gap:8px;';
+                                    var secItemsTitle = document.createElement('div');
+                                    secItemsTitle.textContent = 'Предметы';
+                                    secItemsTitle.title = 'Отображение всех предметов с возможностью выбора';
+                                    secItemsTitle.style = 'color:#2c4a8d; font-weight:700;';
+                                    var gridHost = document.createElement('div');
+                                    gridHost.id = 'promo_items_grid';
+                                    gridHost.style = 'padding:4px 0;';
+                                    secItems.appendChild(secItemsTitle);
+                                    secItems.appendChild(gridHost);
+
+                                    // Section: Сундуки
+                                    var secChests = document.createElement('div');
+                                    secChests.id = 'promo_items_section_chests';
+                                    secChests.style = 'display:flex; flex-direction:column; gap:8px;';
+                                    var secChestsTitle = document.createElement('div');
+                                    secChestsTitle.textContent = 'Сундуки';
+                                    secChestsTitle.title = 'Кликабельные сундуки — переход по ссылке активации';
+                                    secChestsTitle.style = 'color:#2c4a8d; font-weight:700;';
+                                    var chestsHost = document.createElement('div');
+                                    chestsHost.id = 'promo_chests_grid';
+                                    chestsHost.style = 'padding:4px 0;';
+                                    secChests.appendChild(secChestsTitle);
+                                    secChests.appendChild(chestsHost);
+
+                                    composite.appendChild(secItems);
+                                    composite.appendChild(secChests);
+
+                                    // place right after the table container
+                                    tableCont.parentElement.insertBefore(composite, tableCont.nextSibling);
+                                }
+
+                                // Tooltip (single)
+                                var tip = document.getElementById('promo_items_grid_tooltip');
+                                if (!tip){
+                                    tip = document.createElement('div');
+                                    tip.id = 'promo_items_grid_tooltip';
+                                    tip.style = [
+                                        'position: fixed',
+                                        'z-index: 2147483647',
+                                        'pointer-events: none',
+                                        'display: none',
+                                        'max-width: 360px',
+                                        'background: #ffffff',
+                                        'color: #222',
+                                        'border: 1px solid #E2D8C9',
+                                        'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
+                                        'border-radius: 8px',
+                                        'padding: 8px 10px',
+                                        'font-family: Arial, sans-serif',
+                                        'font-size: 13px',
+                                        'line-height: 1.35'
+                                    ].join(';');
+                                    document.body.appendChild(tip);
+                                }
+
+                                // Build maps from table
+                                var __itemsMap = {};
+                                function rebuildItemsMap(){
+                                    try{
+                                        __itemsMap = {};
+                                        var rows = document.querySelectorAll('.items_container tr');
+                                        rows.forEach(function(tr){
+                                            try{
+                                                var label = tr.querySelector('.item_input_block label');
+                                                var input = tr.querySelector('.item_input_block input[type=checkbox]');
+                                                if (!label || !input) return;
+                                                var nameRaw = (label.innerText||'').trim();
+                                                nameRaw = nameRaw.replace(/\(до [^)]+\)/g, '').replace(/\s+/g,' ').trim();
+                                                var img = tr.querySelector('.img_item_cell img');
+                                                var src = img ? img.getAttribute('src') : '';
+                                                if (src && src.startsWith('//')) src = window.location.protocol + src;
+                                                var descSpan = tr.querySelector('.img_item_cont span');
+                                                var desc = '';
+                                                if (descSpan){
+                                                    try{
+                                                        // взять HTML, если есть, иначе текст
+                                                        desc = (descSpan.innerHTML || descSpan.innerText || '').toString();
+                                                    }catch(_){ desc=''; }
+                                                }
+                                                __itemsMap[input.id] = { id: input.id, cb: input, name: nameRaw, img: src, desc: desc };
+                                            }catch(ex){}
+                                        });
+                                    }catch(e){}
+                                }
+
+                                var __chestsMap = {};
+                                function rebuildChestsMap(){
+                                    try{
+                                        __chestsMap = {};
+                                        var rows = document.querySelectorAll('.items_container tr');
+                                        rows.forEach(function(tr, idx){
+                                            try{
+                                                var label = tr.querySelector('.chest_input_block label');
+                                                var link = tr.querySelector('.chest_input_block a.chest_activate_red');
+                                                if (!label || !link) return;
+                                                var nameRaw = (label.innerText||'').trim();
+                                                nameRaw = nameRaw.replace(/\(до [^)]+\)/g, '').replace(/\s+/g,' ').trim();
+                                                var img = tr.querySelector('.img_item_cell img');
+                                                var src = img ? img.getAttribute('src') : '';
+                                                if (src && src.startsWith('//')) src = window.location.protocol + src;
+                                                var descSpan = tr.querySelector('.img_item_cont span');
+                                                var desc = '';
+                                                if (descSpan){
+                                                    try{ desc = (descSpan.innerHTML || descSpan.innerText || '').toString(); }catch(_){ desc=''; }
+                                                }
+                                                var href = link.getAttribute('href') || '';
+                                                // make absolute relative URLs
+                                                try{ if (href && href.startsWith('/')) href = location.origin + href; }catch(_){ }
+                                                var id = label.getAttribute('for') || ('chest_'+idx);
+                                                __chestsMap[id] = { id: id, name: nameRaw, img: src, desc: desc, href: href };
+                                            }catch(ex){}
+                                        });
+                                    }catch(e){}
+                                }
+
+                                // Render grid
+                                var renderTimer = null;
+                                function scheduleGridRender(delay){ try{ if (renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderTimer = setTimeout(function(){ renderItems(); renderChests(); }, typeof delay==='number'? delay: 30); }catch(e){} }
+
+                                function renderItems(){
+                                    try{
+                                        var gridHost = document.getElementById('promo_items_grid');
+                                        if (!gridHost) return;
+                                        gridHost.innerHTML = '';
+                                        var items = []; Object.keys(__itemsMap).forEach(function(id){ var m=__itemsMap[id]; if (m && m.cb) items.push(m); });
+                                        // natural order as in table; fallback to by name
+                                        items.sort(function(a,b){ return a.name.localeCompare(b.name, 'ru'); });
+                                        var wrap = document.createElement('div');
+                                        wrap.style = 'display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start;';
+                                        gridHost.appendChild(wrap);
+
+                                        var itemSize = 56; var cropSize = 30; var cropX = 45, cropY = 25;
+                                        items.forEach(function(m){
+                                            var block = document.createElement('div');
+                                            block.className = 'promo_grid_item';
+                                            block.style = [
+                                                'width:'+itemSize+'px','height:'+itemSize+'px','border-radius:10px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#ffffffCC','display:flex','align-items:center','justify-content:center','cursor:pointer','position:relative',
+                                                (m.cb && m.cb.checked ? 'outline:2px solid #2c4a8d; outline-offset:-2px;' : 'outline:2px solid transparent; outline-offset:-2px;')
+                                            ].join(';');
+
+                                            var crop = document.createElement('div');
+                                            crop.style = [ 'width:'+cropSize+'px','height:'+cropSize+'px','overflow:hidden','border-radius:6px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#fff','position:relative' ].join(';');
+                                            var img = document.createElement('img'); img.src = m.img || ''; img.alt = m.name; img.title = '';
+                                            img.style = [ 'position:absolute','left:-'+cropX+'px','top:-'+cropY+'px','width:auto','height:auto','max-width:none','max-height:none','image-rendering:auto' ].join(';');
+                                            crop.appendChild(img); block.appendChild(crop);
+
+                                            // tooltip handlers
+                                            block.addEventListener('mouseenter', function(e){ try{ tip.innerHTML = '<div style="font-weight:700; margin-bottom:4px;">'+(m.name||'')+'</div>'+((m.desc||'').toString()); tip.style.display='block'; }catch(_){} });
+                                            block.addEventListener('mousemove', function(e){ try{ var x=e.clientX+14, y=e.clientY+14; var w=tip.offsetWidth||320, h=tip.offsetHeight||60; if (x+w>window.innerWidth-8) x = e.clientX - w - 10; if (y+h>window.innerHeight-8) y = e.clientY - h - 10; tip.style.left=x+'px'; tip.style.top=y+'px'; }catch(_){} });
+                                            block.addEventListener('mouseleave', function(){ try{ tip.style.display='none'; }catch(_){} });
+
+                                            // toggle on click
+                                            block.addEventListener('click', function(){ try{ if (m && m.cb){ m.cb.checked = !m.cb.checked; try{ m.cb.dispatchEvent(new Event('change', { bubbles: true })); }catch(__){} // update highlight immediately
+                                                if (m.cb.checked){ block.style.outline = '2px solid #2c4a8d'; block.style.outlineOffset='-2px'; } else { block.style.outline='2px solid transparent'; block.style.outlineOffset='-2px'; } } }catch(ex){} });
+
+                                            wrap.appendChild(block);
+                                        });
+                                    }catch(e){}
+                                }
+
+                                function renderChests(){
+                                    try{
+                                        var chestsHost = document.getElementById('promo_chests_grid');
+                                        if (!chestsHost) return;
+                                        chestsHost.innerHTML = '';
+                                        var items = []; Object.keys(__chestsMap).forEach(function(id){ var m=__chestsMap[id]; if (m) items.push(m); });
+                                        if (items.length === 0){
+                                            // если сундуков нет — скрываем секцию заголовка
+                                            var sec = document.getElementById('promo_items_section_chests');
+                                            if (sec) sec.style.display = 'none';
+                                            return;
+                                        } else {
+                                            var sec = document.getElementById('promo_items_section_chests');
+                                            if (sec) sec.style.display = 'flex';
+                                        }
+                                        items.sort(function(a,b){ return a.name.localeCompare(b.name, 'ru'); });
+                                        var wrap = document.createElement('div');
+                                        wrap.style = 'display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start;';
+                                        chestsHost.appendChild(wrap);
+
+                                        var itemSize = 56; var cropSize = 30; var cropX = 45, cropY = 25;
+                                        items.forEach(function(m){
+                                            var block = document.createElement('a');
+                                            block.className = 'promo_chest_item';
+                                            block.href = m.href || '#';
+                                            block.style = [
+                                                'width:'+itemSize+'px','height:'+itemSize+'px','border-radius:10px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#ffffffCC','display:flex','align-items:center','justify-content:center','cursor:pointer','position:relative','text-decoration:none'
+                                            ].join(';');
+
+                                            var crop = document.createElement('div');
+                                            crop.style = [ 'width:'+cropSize+'px','height:'+cropSize+'px','overflow:hidden','border-radius:6px','box-shadow: inset 0 0 0 1px #E2D8C9','background:#fff','position:relative' ].join(';');
+                                            var img = document.createElement('img'); img.src = m.img || ''; img.alt = m.name; img.title = '';
+                                            img.style = [ 'position:absolute','left:-'+cropX+'px','top:-'+cropY+'px','width:auto','height:auto','max-width:none','max-height:none','image-rendering:auto' ].join(';');
+                                            crop.appendChild(img); block.appendChild(crop);
+
+                                            // tooltip handlers (on anchor)
+                                            block.addEventListener('mouseenter', function(e){ try{ tip.innerHTML = '<div style="font-weight:700; margin-bottom:4px;">'+(m.name||'')+'</div>'+((m.desc||'').toString()); tip.style.display='block'; }catch(_){} });
+                                            block.addEventListener('mousemove', function(e){ try{ var x=e.clientX+14, y=e.clientY+14; var w=tip.offsetWidth||320, h=tip.offsetHeight||60; if (x+w>window.innerWidth-8) x = e.clientX - w - 10; if (y+h>window.innerHeight-8) y = e.clientY - h - 10; tip.style.left=x+'px'; tip.style.top=y+'px'; }catch(_){} });
+                                            block.addEventListener('mouseleave', function(){ try{ tip.style.display='none'; }catch(_){} });
+
+                                            // open link on click (default anchor behavior). Ensure same tab
+                                            block.addEventListener('click', function(e){ try{ if (block.href){ e.preventDefault(); window.location.href = block.href; } }catch(_){} });
+                                            wrap.appendChild(block);
+                                        });
+                                    }catch(e){}
+                                }
+
+                                // React to checkbox changes
+                                if (tableCont && !tableCont.getAttribute('data-grid-listener')){
+                                    tableCont.setAttribute('data-grid-listener','1');
+                                    tableCont.addEventListener('change', function(e){ try{ scheduleGridRender(0); }catch(_){} });
+                                }
+
+                                // Expose scheduler for bulk actions
+                                window.__promoGrid_schedule = scheduleGridRender;
+
+                                // Apply mode show/hide
+                                function applyViewMode(mode){
+                                    try{
+                                        mode = mode || loadViewMode();
+                                        var gridHost = document.getElementById('promo_items_grid');
+                                        var chestsHost = document.getElementById('promo_chests_grid');
+                                        var composite = document.getElementById('promo_items_composite');
+                                        if (!tableCont || !composite) return;
+                                        if (mode === 'grid'){
+                                            // build map and render once visible
+                                            rebuildItemsMap();
+                                            rebuildChestsMap();
+                                            scheduleGridRender(0);
+                                            composite.style.display = 'block';
+                                            tableCont.style.display = 'none';
+                                        } else {
+                                            if (composite) composite.style.display = 'none';
+                                            tableCont.style.display = '';
+                                        }
+                                    }catch(e){}
+                                }
+                                window.__promoGrid_applyMode = applyViewMode;
+
+                                // Init now (respect stored mode)
+                                rebuildItemsMap();
+                                rebuildChestsMap();
+                                scheduleGridRender(0);
+                                applyViewMode(loadViewMode());
+
+                                // Also re-map after small delay to ensure images/DOM ready
+                                setTimeout(function(){ try{ rebuildItemsMap(); rebuildChestsMap(); scheduleGridRender(0); }catch(_){ } }, 200);
+                            }catch(e){}
+                        })();
+
+                        // ================= UI: View mode toggle row =================
+                        (function(){
+                            try{
+                                var row = document.createElement('div'); row.style = rowCss;
+                                var label = document.createElement('div'); label.textContent = 'Режим отображения:'; label.style = 'min-width:max-content; color:#2c4a8d; font-weight:700;';
+                                var btnList = document.createElement('button'); btnList.id='viewModeListBtn'; btnList.textContent='Список'; btnList.style=pillBtnCss;
+                                var btnGrid = document.createElement('button'); btnGrid.id='viewModeGridBtn'; btnGrid.textContent='Плитка'; btnGrid.style=pillBtnCss;
+
+                                function setActive(mode){ try{ if (mode==='grid'){ btnGrid.style.backgroundColor='#C5B0AE'; btnList.style.backgroundColor='#D2C0BE'; } else { btnList.style.backgroundColor='#C5B0AE'; btnGrid.style.backgroundColor='#D2C0BE'; } }catch(_){ } }
+                                function save(mode){ try{ localStorage.setItem('promo_items_view_mode', mode); }catch(_){ } }
+                                function load(){ try{ return localStorage.getItem('promo_items_view_mode')||'list'; }catch(_){ return 'list'; } }
+
+                                btnList.addEventListener('click', function(){ try{ save('list'); setActive('list'); if (window.__promoGrid_applyMode) window.__promoGrid_applyMode('list'); }catch(_){ } });
+                                btnGrid.addEventListener('click', function(){ try{ save('grid'); setActive('grid'); if (window.__promoGrid_applyMode) window.__promoGrid_applyMode('grid'); }catch(_){ } });
+
+                                setActive(load());
+                                row.appendChild(label); row.appendChild(btnList); row.appendChild(btnGrid);
+                                buttonContainer.appendChild(row);
+                            }catch(e){}
+                        })();
+
                         // ================= Selected Items Popup =================
                         (function(){
                             try{
