@@ -320,6 +320,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 popup.style.height = 'auto';
                                 popup.style.minWidth = '0px';
                                 popup.style.minHeight = '0px';
+                                // ВЕРНУЛИ как было ранее: рамку/фон/тень НЕ скрываем у «Управление» в компактном режиме
                                 if (compact) compact.style.display = 'inline-block';
                             } else {
                                 if (compact) compact.style.display = 'none';
@@ -333,6 +334,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 // restore mins to defaults
                                 popup.style.minWidth = '260px';
                                 popup.style.minHeight = '140px';
+                                // рамка/фон/тень и так сохранены — никаких дополнительных правок не требуется
                                 // recalc content height
                                 recalcContentHeight();
                             }
@@ -814,15 +816,18 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                                 // Create popup if missing
                                 var sp = document.getElementById('promo_selected_popup');
-                                var sHeader, sContent, sCompact, sTooltip;
+                                var sHeader, sContent, sCompact, sTooltip, sResizer;
                                 function recalcSelContentHeight(){ try{ if (!sp||!sContent||!sHeader) return; var h = sHeader.offsetHeight; var total = sp.getBoundingClientRect().height; var contentH = Math.max(0, total - h); sContent.style.maxHeight = contentH+'px'; sContent.style.height = contentH+'px'; }catch(e){} }
                                 function setSelCollapsed(c){ try{ var st=loadSelState(); st.collapsed=!!c; if (!!c){
-                                        // hide header/content, show compact with count
-                                        if (sHeader) sHeader.style.display='none'; if (sContent) sContent.style.display='none'; if (sCompact) { sCompact.style.display='inline-block'; }
-                                        // shrink container
+                                        // hide header/content/resizer, show compact with count
+                                        if (sHeader) sHeader.style.display='none'; if (sContent) sContent.style.display='none'; if (sResizer) sResizer.style.display='none'; if (sCompact) { sCompact.style.display='inline-block'; }
+                                        // shrink container and hide frame
                                         sp.style.width='auto'; sp.style.height='auto'; sp.style.minWidth='0'; sp.style.minHeight='0';
+                                        
                                     } else {
-                                        if (sCompact) sCompact.style.display='none'; if (sHeader) sHeader.style.display='flex'; if (sContent) sContent.style.display='block';
+                                        if (sCompact) sCompact.style.display='none'; if (sHeader) sHeader.style.display='flex'; if (sContent) sContent.style.display='block'; if (sResizer) sResizer.style.display='block';
+                                        // restore frame look
+                                        
                                         sp.style.minWidth='220px'; sp.style.minHeight='120px';
                                         // restore saved size
                                         if (st.width) sp.style.width = st.width + 'px'; if (st.height) sp.style.height = st.height + 'px';
@@ -834,7 +839,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                     sp = document.createElement('div'); sp.id='promo_selected_popup'; sp.style = [
                                         'position: fixed',
                                         'left: 16px',
-                                        'bottom: 16px',
+                
                                         'z-index: 2147483646',
                                         'background: #F6F1E7',
                                         'border: 1px solid #E2D8C9',
@@ -852,14 +857,21 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                                     sHeader = document.createElement('div');
                                     sHeader.style = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;cursor:move;user-select:none;';
-                                    var hTitle = document.createElement('div'); hTitle.textContent = 'Выбранные'; hTitle.style='font-weight:700;color:#2c4a8d;';
+                                    var hTitle = document.createElement('div'); hTitle.textContent = 'Предметы'; hTitle.style='font-weight:700;color:#2c4a8d;';
                                     var tgl = document.createElement('button'); tgl.innerText='−'; tgl.title='Свернуть'; tgl.style='border:none;background:#D2C0BE;color:#333;border-radius:16px;padding:2px 8px;cursor:pointer;';
 
                                     sContent = document.createElement('div'); sContent.id='promo_selected_list_wrap'; sContent.style='padding:8px;overflow:auto;';
                                     var list = document.createElement('div'); list.id='promo_selected_list'; list.style='display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;'; sContent.appendChild(list);
 
                                     // compact pill
-                                    sCompact = document.createElement('div'); sCompact.id='promo_selected_compact'; sCompact.style='display:none;margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;'; sCompact.title='Развернуть список';
+                                    sCompact = document.createElement('div'); 
+                                    sCompact.id='promo_selected_compact';
+                                    sCompact.style = 'display:none; margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;'; 
+                                    sCompact.title='Развернуть окно «Предметы»'; sCompact.textContent='Предметы';
+
+                                    // resizer
+                                    sResizer = document.createElement('div'); sResizer.id='promo_selected_resizer'; sResizer.style='position:absolute;width:14px;height:14px;right:2px;bottom:2px;cursor:nwse-resize;background:transparent;';
+                                    sResizer.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" style="display:block"><path d="M2 12 L12 2 L12 12 Z" fill="#00000022"/></svg>';
 
                                     // tooltip (single instance)
                                     sTooltip = document.createElement('div');
@@ -882,7 +894,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                     ].join(';');
 
                                     sHeader.appendChild(hTitle); sHeader.appendChild(tgl);
-                                    sp.appendChild(sHeader); sp.appendChild(sContent); sp.appendChild(sCompact); sp.appendChild(sTooltip);
+                                    sp.appendChild(sHeader); sp.appendChild(sContent); sp.appendChild(sResizer); sp.appendChild(sCompact); sp.appendChild(sTooltip);
                                     document.body.appendChild(sp);
 
                                     tgl.onclick = function(){ var st=loadSelState(); setSelCollapsed(!(st&&st.collapsed)); };
@@ -893,8 +905,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                         var dragging=false, startX=0, startY=0, startLeft=0, startTop=0, moved=false, thr=4;
                                         function onDown(e){ if (e.target && (e.target.tagName==='BUTTON' || e.target.closest('button'))) return; dragging=true; moved=false; if (sHeader){ delete sHeader.dataset.dragMoved; delete sHeader.dataset.dragJustDragged; } if (sCompact){ delete sCompact.dataset.dragMoved; delete sCompact.dataset.dragJustDragged; }
                                             var rect = sp.getBoundingClientRect();
-                                            // ensure left/top coordinates
-                                            if (!sp.style.left && sp.style.right){ sp.style.left = rect.left + 'px'; sp.style.top = rect.top + 'px'; sp.style.right=''; sp.style.bottom = sp.style.bottom || '16px'; }
+                                            // ensure left/top coordinates (и не привязываем к нижнему краю)
+                                            if (!sp.style.left && sp.style.right){ sp.style.left = rect.left + 'px'; sp.style.top = rect.top + 'px'; sp.style.right=''; sp.style.bottom=''; }
                                             startX = e.clientX; startY = e.clientY; startLeft = parseFloat(sp.style.left || rect.left); startTop = parseFloat(sp.style.top || rect.top);
                                             document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); e.preventDefault(); }
                                         function onMove(e){ if (!dragging) return; var dx=e.clientX-startX, dy=e.clientY-startY; if (!moved && (Math.abs(dx)>thr || Math.abs(dy)>thr)){ moved=true; if (sHeader) sHeader.dataset.dragMoved='1'; if (sCompact) sCompact.dataset.dragMoved='1'; }
@@ -906,12 +918,59 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                     })();
 
                                     // restore state
-                                    (function(){ var st=loadSelState(); if (st && (st.left!=null && st.top!=null)){ sp.style.left = st.left + 'px'; sp.style.top = st.top + 'px'; sp.style.right=''; sp.style.bottom= (sp.style.bottom || '16px'); }
+                                    (function(){ var st=loadSelState(); if (st && (st.left!=null && st.top!=null)){ sp.style.left = st.left + 'px'; sp.style.top = st.top + 'px'; sp.style.right=''; sp.style.bottom=''; }
                                         if (st && (st.width||st.height)){ if (st.width) sp.style.width = st.width + 'px'; if (st.height) sp.style.height = st.height + 'px'; }
                                         setSelCollapsed(!!(st&&st.collapsed)); requestAnimationFrame(function(){ recalcSelContentHeight(); }); })();
                                 } else {
-                                    sHeader = sp.firstElementChild; sContent = document.getElementById('promo_selected_list_wrap'); sCompact = document.getElementById('promo_selected_compact'); sTooltip = document.getElementById('promo_selected_tooltip');
+                                    sHeader = sp.firstElementChild; sContent = document.getElementById('promo_selected_list_wrap'); sCompact = document.getElementById('promo_selected_compact'); sTooltip = document.getElementById('promo_selected_tooltip'); sResizer = document.getElementById('promo_selected_resizer');
+                                    // ensure the toggle button style совпадает с «Управление» (без внутренней обводки)
+                                    try{ var __tgl = sHeader ? sHeader.querySelector('button') : null; if (__tgl){ __tgl.style.boxShadow = 'none'; } }catch(__e){}
+                                    if (!sResizer){ sResizer = document.createElement('div'); sResizer.id='promo_selected_resizer'; sResizer.style='position:absolute;width:14px;height:14px;right:2px;bottom:2px;cursor:nwse-resize;background:transparent;'; sResizer.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" style="display:block"><path d="M2 12 L12 2 L12 12 Z" fill="#00000022"/></svg>'; sp.appendChild(sResizer);}            
                                 }
+
+                                // resize logic for selected items popup
+                                (function(){
+                                    if (!sResizer) return;
+                                    if (sp.getAttribute('data-sel-resize-inited')==='1') return;
+                                    sp.setAttribute('data-sel-resize-inited','1');
+                                    var resizing=false, startX=0, startY=0, startW=0, startH=0;
+                                    function onDown(e){
+                                        resizing = true;
+                                        var rect = sp.getBoundingClientRect();
+                                        startX = e.clientX; startY = e.clientY;
+                                        startW = rect.width; startH = rect.height;
+                                        document.addEventListener('mousemove', onMove);
+                                        document.addEventListener('mouseup', onUp);
+                                        e.preventDefault();
+                                    }
+                                    function onMove(e){
+                                        if (!resizing) return;
+                                        var dx = e.clientX - startX;
+                                        var dy = e.clientY - startY;
+                                        var minW = 220, minH = 120;
+                                        var maxW = Math.floor(window.innerWidth * 0.9);
+                                        var maxH = Math.floor(window.innerHeight * 0.9);
+                                        var newW = Math.min(Math.max(minW, startW + dx), maxW);
+                                        var newH = Math.min(Math.max(minH, startH + dy), maxH);
+                                        sp.style.width = newW + 'px';
+                                        sp.style.height = newH + 'px';
+                                        try{ recalcSelContentHeight(); }catch(_){ }
+                                    }
+                                    function onUp(){
+                                        if (!resizing) return;
+                                        resizing = false;
+                                        document.removeEventListener('mousemove', onMove);
+                                        document.removeEventListener('mouseup', onUp);
+                                        var rect = sp.getBoundingClientRect();
+                                        var st = loadSelState();
+                                        st = st || {};
+                                        st.width = rect.width; st.height = rect.height;
+                                        saveSelState(st);
+                                    }
+                                    sResizer.addEventListener('mousedown', onDown);
+                                    // respond to window resize
+                                    window.addEventListener('resize', function(){ try{ recalcSelContentHeight(); }catch(_){ } });
+                                })();
 
                                 // Build mapping (id -> meta)
                                 var __promoSelMap = {};
@@ -1027,7 +1086,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                         list.appendChild(block);
                                     });
                                     // update compact title with count
-                                    try{ if (sCompact){ sCompact.textContent = 'Выбранные (' + selectedCount + ')'; } }catch(e){}
+                                    try{ if (sCompact){ sCompact.textContent = 'Предметы (' + selectedCount + ')'; } }catch(e){}
                                     requestAnimationFrame(function(){ recalcSelContentHeight(); });
                                 }catch(e){}
                                 }
