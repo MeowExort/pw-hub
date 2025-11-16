@@ -330,7 +330,7 @@
                                             <sys:String>squads</sys:String>
                                             <sys:String>account</sys:String>
                                             <sys:String>accounts</sys:String>
-                                            <sys:String>перечисление</sys:String>
+                                            <sys:String>enum</sys:String>
                                         </x:Array>
                                     </DataGridComboBoxColumn.ItemsSource>
                                     <DataGridComboBoxColumn.EditingElementStyle>

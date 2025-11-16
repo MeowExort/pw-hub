@@ -44,7 +44,36 @@ public class UiDialogService : IUiDialogService
             var ok = dlg.ShowDialog();
             if (ok == true)
             {
-                return dlg.Values ?? new Dictionary<string, object>();
+                // Базовые значения с формы
+                var result = dlg.Values != null
+                    ? new Dictionary<string, object>(dlg.Values, StringComparer.Ordinal)
+                    : new Dictionary<string, object>(StringComparer.Ordinal);
+
+                // Дополнительно гарантируем прокидывание enum как строки
+                try
+                {
+                    foreach (var def in inputs)
+                    {
+                        var type = (def?.Type ?? "string").ToLowerInvariant();
+                        if (type == "enum" || type == "перечисление")
+                        {
+                            var name = def?.Name ?? string.Empty;
+                            if (string.IsNullOrWhiteSpace(name)) continue;
+                            var has = result.TryGetValue(name, out var v);
+                            var isEmpty = !has || v == null || (v is string sv && string.IsNullOrWhiteSpace(sv));
+                            if (isEmpty)
+                            {
+                                if (dlg.StringValues != null && dlg.StringValues.TryGetValue(name, out var strVal))
+                                {
+                                    result[name] = strVal ?? string.Empty;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                return result;
             }
             return null; // отмена
         }
@@ -67,7 +96,36 @@ public class UiDialogService : IUiDialogService
             var ok = window.ShowDialog();
             if (ok == true)
             {
-                return window.Values ?? new Dictionary<string, object>();
+                // Базовые значения с формы
+                var result = window.Values != null
+                    ? new Dictionary<string, object>(window.Values, StringComparer.Ordinal)
+                    : new Dictionary<string, object>(StringComparer.Ordinal);
+
+                // Дополнительно гарантируем прокидывание enum как строки
+                try
+                {
+                    foreach (var def in inputs)
+                    {
+                        var type = (def?.Type ?? "string").ToLowerInvariant();
+                        if (type == "enum" || type == "перечисление")
+                        {
+                            var name = def?.Name ?? string.Empty;
+                            if (string.IsNullOrWhiteSpace(name)) continue;
+                            var has = result.TryGetValue(name, out var v);
+                            var isEmpty = !has || v == null || (v is string sv && string.IsNullOrWhiteSpace(sv));
+                            if (isEmpty)
+                            {
+                                if (window.StringValues != null && window.StringValues.TryGetValue(name, out var strVal))
+                                {
+                                    result[name] = strVal ?? string.Empty;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                return result;
             }
             return null; // отмена
         }
