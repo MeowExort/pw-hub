@@ -263,14 +263,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                 if (!hasElement) 
                 {
                     var element = document.createElement('div');
-                    element.innerHTML = '&nbsp;';
-                    element.className = 'top-news';
                     element.id = 'promo_separator';
-                    
-                    var breakLine = document.createElement('br');
-                    
                     $('.promo_container_content_body')[0].after(element);
-                    $('.promo_container_content_body')[0].after(breakLine);
                 }
                 """);
             
@@ -580,6 +574,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 if (e.target && (e.target.tagName==='BUTTON' || e.target.closest('button'))) return;
                                 dragging = true;
                                 moved = false;
+                                // сбрасываем флаги drag у header/compact перед началом
+                                if (header){ delete header.dataset.dragMoved; delete header.dataset.dragJustDragged; }
                                 if (compact){ delete compact.dataset.dragMoved; delete compact.dataset.dragJustDragged; }
                                 var rect = popup.getBoundingClientRect();
                                 // switch to left/top coordinates once dragging starts
@@ -610,6 +606,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 var dy = e.clientY - startY;
                                 if (!moved && (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold)){
                                     moved = true;
+                                    if (header){ header.dataset.dragMoved = '1'; }
                                     if (compact){ compact.dataset.dragMoved = '1'; }
                                 }
                                 var newLeft = startLeft + dx;
@@ -633,13 +630,36 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 st.left = rect.left; st.top = rect.top;
                                 savePopupState(popup, st);
                                 // помечаем, что только что было перетаскивание, чтобы подавить click после mouseup
-                                if (moved && compact){
-                                    compact.dataset.dragJustDragged = '1';
-                                    setTimeout(function(){ delete compact.dataset.dragJustDragged; delete compact.dataset.dragMoved; }, 120);
+                                if (moved){
+                                    if (header){
+                                        header.dataset.dragJustDragged = '1';
+                                        setTimeout(function(){ delete header.dataset.dragJustDragged; delete header.dataset.dragMoved; }, 120);
+                                    }
+                                    if (compact){
+                                        compact.dataset.dragJustDragged = '1';
+                                        setTimeout(function(){ delete compact.dataset.dragJustDragged; delete compact.dataset.dragMoved; }, 120);
+                                    }
                                 }
                             }
                             if (header) header.addEventListener('mousedown', onMouseDown);
                             if (compact) compact.addEventListener('mousedown', onMouseDown);
+                            // Клик по шапке: сворачивать/разворачивать, если это не был drag и не клик по кнопке
+                            if (header){
+                                header.addEventListener('click', function(e){
+                                    try{
+                                        // если клик пришелся на кнопку (toggle), то ничего не делаем — у неё свой обработчик
+                                        if (e.target && (e.target.tagName==='BUTTON' || e.target.closest('button'))) return;
+                                        if (header.dataset.dragMoved === '1' || header.dataset.dragJustDragged === '1'){
+                                            e.preventDefault(); e.stopPropagation();
+                                            return false;
+                                        }
+                                        // переключаем состояние
+                                        var st = loadPopupState() || {};
+                                        var isCollapsed = !!st.collapsed;
+                                        setCollapsed(!isCollapsed);
+                                    }catch(ex){}
+                                });
+                            }
                         })();
 
                         // resize logic (by handle)
@@ -694,13 +714,18 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                     // Build controls only once inside promo_container
                     if (!document.getElementById('selectAllBtn')) {
-                        var buttonContainer = document.createElement('div');
-                        buttonContainer.style = 'display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;';
+                        // Common styles
+                        var pillBtnCss = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 6px 12px; border-radius: 16px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        var rowCss = 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;';
 
+                        var buttonContainer = document.createElement('div');
+                        buttonContainer.style = 'display: flex; flex-direction: column; gap: 10px; margin-top: 8px;';
+
+                        // Helpers: selection by label
                         var selectAll = document.createElement('button');
                         selectAll.innerText = 'Выбрать все';
                         selectAll.id = 'selectAllBtn';
-                        selectAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        selectAll.style = pillBtnCss;
                         selectAll.onclick = function() {
                             var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
                             checkboxes.forEach(function(checkbox) { checkbox.checked = true; });
@@ -708,9 +733,9 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         };
 
                         var clearAll = document.createElement('button');
-                        clearAll.innerText = 'Снять все';
+                        clearAll.innerText = 'Убрать все';
                         clearAll.id = 'clearAllBtn';
-                        clearAll.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
+                        clearAll.style = pillBtnCss;
                         clearAll.onclick = function() {
                             var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]');
                             checkboxes.forEach(function(checkbox) { checkbox.checked = false; });
@@ -749,59 +774,151 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                         var selectByLabelTexts = function(texts) { texts.forEach(function(text){ selectByLabelText(text); }); };
 
-                        var selectAmulets = document.createElement('button');
-                        selectAmulets.innerText = 'Хирки';
-                        selectAmulets.id = 'selectAmuletsBtn';
-                        selectAmulets.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                        selectAmulets.onclick = function() {
+                        // Unselect helpers
+                        var unselectByLabelPattern = function(pattern){
+                            var labels = document.querySelectorAll('.items_container label');
+                            labels.forEach(function(label){
+                                var text = (label.innerText||'').toLowerCase();
+                                if (pattern.test(text)){
+                                    var checkbox = document.getElementById(label.getAttribute('for'));
+                                    if (checkbox && checkbox.type==='checkbox') checkbox.checked = false;
+                                }
+                            });
+                        };
+                        var unselectByLabelPatterns = function(patterns){ patterns.forEach(function(p){ unselectByLabelPattern(p); }); };
+                        var unselectByLabelText = function(text) {
+                            var labels = document.querySelectorAll('.items_container label');
+                            labels.forEach(function(label) {
+                                if ((label.innerText||'').toLowerCase().includes(text.toLowerCase())) {
+                                    var checkboxId = label.getAttribute('for');
+                                    var checkbox = document.getElementById(checkboxId);
+                                    if (checkbox && checkbox.type === 'checkbox') {
+                                        checkbox.checked = false;
+                                    }
+                                }
+                            });
+                        };
+                        var unselectByLabelTexts = function(texts) { texts.forEach(function(text){ unselectByLabelText(text); }); };
+
+                        // Section builders
+                        function mkRow(title){
+                            var row = document.createElement('div');
+                            row.style = rowCss;
+                            var lbl = document.createElement('div');
+                            lbl.innerText = title;
+                            lbl.style = 'min-width: 140px; font-weight:600; color:#2c4a8d;';
+                            row.appendChild(lbl);
+                            return { row: row, label: lbl };
+                        }
+                        function mkBtn(text, id, onClick){
+                            var b = document.createElement('button');
+                            b.innerText = text; if (id) b.id = id; b.style = pillBtnCss; b.onclick = function(){ try{ onClick && onClick(); }catch(e){} return false; };
+                            return b;
+                        }
+
+                        // Row 0: Global actions (in one row with label, like other sections)
+                        var rGlobal = mkRow('Быстрые действия');
+                        rGlobal.row.append(selectAll);
+                        rGlobal.row.append(clearAll);
+
+                        // Row 1: Расходка (ранее «Хирки»)
+                        var rAmu = mkRow('Расходка');
+                        // Подсказка по разделу «Расходка»
+                        try{ rAmu.label.title = 'Будут выбраны/убраны:\n— Амулеты (бронза/серебро/золото/платина)\n— Идолы (бронза/серебро/золото/платина)\n— Королевское особое печенье\n— Королевские особые пирожки'; }catch(e){}
+                        var selectAmulets = mkBtn('Выбрать', 'selectAmuletsBtn', function(){
                             selectByLabelTextRegexes([/платино.* амул.*/, /золот.* амул.*/, /серебр.* амул.*/, /бронзов.* амул.*/]);
                             selectByLabelTextRegexes([/платино.* идол.*/, /золот.* идол.*/, /серебр.* идол.*/, /бронзов.* идол.*/]);
-                            return false;
-                        };
+                            // Дополнительно: печенье/пирожки
+                            selectByLabelTexts(['Королевское особое печенье', 'Королевские особые пирожки']);
+                        });
+                        var unselectAmulets = mkBtn('Убрать', 'unselectAmuletsBtn', function(){
+                            unselectByLabelPatterns([/платино.* амул.*/, /золот.* амул.*/, /серебр.* амул.*/, /бронзов.* амул.*/]);
+                            unselectByLabelPatterns([/платино.* идол.*/, /золот.* идол.*/, /серебр.* идол.*/, /бронзов.* идол.*/]);
+                            // Дополнительно: печенье/пирожки
+                            unselectByLabelTexts(['Королевское особое печенье', 'Королевские особые пирожки']);
+                        });
+                        rAmu.row.append(selectAmulets);
+                        rAmu.row.append(unselectAmulets);
 
-                        var selectPass = document.createElement('button');
-                        selectPass.innerText = 'Проходки';
-                        selectPass.id = 'selectPassBtn';
-                        selectPass.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                        selectPass.onclick = function() { selectByLabelTexts(['Самоцвет грез']); return false; };
+                        // Row 2: Проходки
+                        var rPass = mkRow('Проходки');
+                        try{ rPass.label.title = 'Будут выбраны/убраны:\n— Самоцвет грез'; }catch(e){}
+                        var selectPass = mkBtn('Выбрать', 'selectPassBtn', function(){ selectByLabelTexts(['Самоцвет грез']); });
+                        var unselectPass = mkBtn('Убрать', 'unselectPassBtn', function(){ unselectByLabelTexts(['Самоцвет грез']); });
+                        rPass.row.append(selectPass);
+                        rPass.row.append(unselectPass);
 
+                        // Row 3: Подарки за подписку
+                        var rSub = mkRow('Подарки за подписку');
+                        try{ rSub.label.title = 'Будут выбраны/убраны:\n— Талон на золотой амулет\n— Талон на золотого идола\n— Дар из прошлого x2\n— Королевское особое печенье x200\n— Королевские особые пирожки x200'; }catch(e){}
+                        var selectSubGifts = mkBtn('Выбрать', 'selectSubGiftsBtn', function(){
+                            selectByLabelTexts([
+                                'Талон на золотой амулет',
+                                'Талон на золотого идола',
+                                'Дар из прошлого x2',
+                                'Королевское особое печенье x200',
+                                'Королевские особые пирожки x200'
+                            ]);
+                        });
+                        var removeSubGifts = mkBtn('Убрать', 'removeSubGiftsBtn', function(){
+                            unselectByLabelTexts([
+                                'Талон на золотой амулет',
+                                'Талон на золотого идола',
+                                'Дар из прошлого x2',
+                                'Королевское особое печенье x200',
+                                'Королевские особые пирожки x200'
+                            ]);
+                        });
+                        rSub.row.append(selectSubGifts);
+                        rSub.row.append(removeSubGifts);
+
+                        // Row 4: Пилюли ДЗ
+                        var rDzPills = mkRow('Пилюли ДЗ');
+                        try{ rDzPills.label.title = 'Будут выбраны/убраны:\n— Небесная пилюля'; }catch(e){}
+                        var selectDzPills = mkBtn('Выбрать', 'selectDzPillsBtn', function(){
+                            selectByLabelTexts(['Небесная пилюля']);
+                        });
+                        var unselectDzPills = mkBtn('Убрать', 'unselectDzPillsBtn', function(){
+                            unselectByLabelTexts(['Небесная пилюля']);
+                        });
+                        rDzPills.row.append(selectDzPills);
+                        rDzPills.row.append(unselectDzPills);
+
+                        // Custom search (separate block)
                         var inputCustomSearch = document.createElement('input');
                         inputCustomSearch.type = 'text';
                         inputCustomSearch.id = 'customSearchInput';
-                        inputCustomSearch.placeholder = 'Поиск...';
-                        inputCustomSearch.style = 'padding: 8px 16px; border-radius: 24px; border: 1px solid #ccc; font-size: 14px; line-height: 24px; outline: none; flex-grow: 1;';
-
-                        var selectByCustomSearch = function() {
+                        inputCustomSearch.placeholder = 'Введите название предмета...';
+                        inputCustomSearch.style = 'padding: 8px 12px; border-radius: 12px; border: 1px solid #ccc; font-size: 14px; line-height: 22px; outline: none; flex:1;';
+                        var selectCustom = mkBtn('Выбрать', 'selectCustomBtn', function(){
                             var query = (inputCustomSearch.value||'').trim();
-                            if (query.length > 0) { selectByLabelText(query); }
-                        };
-
-                        var selectCustom = document.createElement('button');
-                        selectCustom.innerText = 'Выбрать';
-                        selectCustom.id = 'selectCustomBtn';
-                        selectCustom.style = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 8px 16px; border-radius: 24px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                        selectCustom.onclick = function() { selectByCustomSearch(); return false; };
-
+                            if (query.length>0) selectByLabelText(query);
+                        });
+                        var unselectCustom = mkBtn('Убрать', 'unselectCustomBtn', function(){
+                            var query = (inputCustomSearch.value||'').trim();
+                            if (query.length>0) unselectByLabelText(query);
+                        });
                         var customContainer = document.createElement('div');
-                        customContainer.style = 'display: flex; gap: 8px; flex-grow: 1;';
+                        customContainer.style = 'display:flex; gap:8px;';
                         customContainer.append(inputCustomSearch);
                         customContainer.append(selectCustom);
+                        customContainer.append(unselectCustom);
 
-                        // Attach buttons
-                        buttonContainer.append(selectAll);
-                        buttonContainer.append(clearAll);
-                        buttonContainer.append(selectAmulets);
-                        buttonContainer.append(selectPass);
+                        // Attach rows
+                        buttonContainer.append(rGlobal.row);
+                        var hr1 = document.createElement('div'); hr1.style='height:1px;background:#E2D8C9;';
+                        buttonContainer.append(hr1);
+                        buttonContainer.append(rAmu.row);
+                        buttonContainer.append(rPass.row);
+                        buttonContainer.append(rSub.row);
+                        buttonContainer.append(rDzPills.row);
+                        var hr2 = document.createElement('div'); hr2.style='height:1px;background:#E2D8C9;';
+                        buttonContainer.append(hr2);
                         buttonContainer.append(customContainer);
 
                         // Mount into popup content container
                         var root = document.getElementById('promo_container');
                         if (root) {
-                            // Optional title inside content for context
-                            var innerTitle = document.createElement('div');
-                            innerTitle.innerHTML = '<b>Быстрые действия</b>';
-                            innerTitle.style = 'margin-top:4px;margin-bottom:4px;color:#2c4a8d;';
-                            root.append(innerTitle);
                             root.append(buttonContainer);
                             // После того как элементы добавлены — автосайз через rAF, чтобы учесть рендер
                             setTimeout(function(){ try{ scheduleAutosize(0); requestAnimationFrame(function(){ applyContentHeight(); }); }catch(e){} }, 0);
