@@ -325,10 +325,12 @@
                                             <sys:String>number</sys:String>
                                             <sys:String>bool</sys:String>
                                             <sys:String>password</sys:String>
+                                            <sys:String>enum</sys:String>
                                             <sys:String>squad</sys:String>
                                             <sys:String>squads</sys:String>
                                             <sys:String>account</sys:String>
                                             <sys:String>accounts</sys:String>
+                                            <sys:String>перечисление</sys:String>
                                         </x:Array>
                                     </DataGridComboBoxColumn.ItemsSource>
                                     <DataGridComboBoxColumn.EditingElementStyle>
@@ -360,6 +362,25 @@
                                             <Setter Property="BorderThickness" Value="0"/>
                                             <Setter Property="Padding" Value="8,6"/>
                                             <Setter Property="MinHeight" Value="32"/>
+                                        </Style>
+                                    </DataGridTextColumn.EditingElementStyle>
+                                </DataGridTextColumn>
+                                <!-- Options for enum type -->
+                                <DataGridTextColumn Header="Options" Width="*" MinWidth="200" Binding="{Binding OptionsCsv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                    <DataGridTextColumn.EditingElementStyle>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
+                                            <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="Padding" Value="8,6"/>
+                                            <Setter Property="MinHeight" Value="32"/>
+                                            <Setter Property="ToolTip" Value="Список вариантов через запятую или точку с запятой"/>
                                         </Style>
                                     </DataGridTextColumn.EditingElementStyle>
                                 </DataGridTextColumn>

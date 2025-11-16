@@ -215,7 +215,13 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
                 Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                 Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
                 Default = i.Default,
-                Required = i.Required
+                Required = i.Required,
+                Options = (i.OptionsCsv ?? string.Empty)
+                    .Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray()
             }).ToArray()
         };
     }
@@ -234,12 +240,17 @@ public class ModulesApiEditorViewModel : INotifyPropertyChanged
         private string _type = "string";
         private string _default = string.Empty;
         private bool _required;
+        private string _optionsCsv = string.Empty;
 
         public string Name { get => _name; set { _name = value ?? string.Empty; OnPropertyChanged(); } }
         public string Label { get => _label; set { _label = value ?? string.Empty; OnPropertyChanged(); } }
         public string Type { get => _type; set { _type = string.IsNullOrWhiteSpace(value) ? "string" : value.Trim(); OnPropertyChanged(); } }
         public string Default { get => _default; set { _default = value ?? string.Empty; OnPropertyChanged(); } }
         public bool Required { get => _required; set { _required = value; OnPropertyChanged(); } }
+        /// <summary>
+        /// Список вариантов для типа enum/"перечисление" в виде CSV (через запятую или точку с запятой).
+        /// </summary>
+        public string OptionsCsv { get => _optionsCsv; set { _optionsCsv = value ?? string.Empty; OnPropertyChanged(); } }
 
         public event PropertyChangedEventHandler PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)

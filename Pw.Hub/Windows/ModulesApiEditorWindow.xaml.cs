@@ -182,7 +182,13 @@ namespace Pw.Hub.Windows
                     Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                     Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
                     Default = i.Default,
-                    Required = i.Required
+                    Required = i.Required,
+                    Options = (i.OptionsCsv ?? string.Empty)
+                        .Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Distinct(StringComparer.Ordinal)
+                        .ToArray()
                 }).ToList();
                 editor.ApiInputs = apiInputs;
 
@@ -240,7 +246,10 @@ namespace Pw.Hub.Windows
                                 Label = string.IsNullOrWhiteSpace(i.Label) ? (i.Name ?? string.Empty) : i.Label,
                                 Type = string.IsNullOrWhiteSpace(i.Type) ? "string" : i.Type,
                                 Default = i.Default,
-                                Required = i.Required
+                                Required = i.Required,
+                                OptionsCsv = i.Options == null || i.Options.Length == 0
+                                    ? string.Empty
+                                    : string.Join(", ", i.Options.Where(s => !string.IsNullOrWhiteSpace(s)))
                             });
                         }
                     }

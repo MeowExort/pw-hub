@@ -7,6 +7,11 @@
         public string Type { get; set; } = string.Empty;
         public string Default { get; set; } = string.Empty;
         public bool Required { get; set; }
+        /// <summary>
+        /// Для типа "enum" ("перечисление"): список допустимых значений.
+        /// Для остальных типов игнорируется.
+        /// </summary>
+        public string[] Options { get; set; } = Array.Empty<string>();
     }
 
     public sealed class CreateModuleRequest

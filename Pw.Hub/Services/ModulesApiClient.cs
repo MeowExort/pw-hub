@@ -298,6 +298,11 @@ namespace Pw.Hub.Services
         public string Type { get; set; } = string.Empty;
         public string Default { get; set; } = string.Empty;
         public bool Required { get; set; }
+        /// <summary>
+        /// For type "enum" ("перечисление"): list of allowed values.
+        /// Ignored for other types.
+        /// </summary>
+        public string[] Options { get; set; } = Array.Empty<string>();
     }
 
     public class CreateOrUpdateModule

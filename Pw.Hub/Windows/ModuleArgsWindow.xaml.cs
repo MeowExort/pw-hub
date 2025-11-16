@@ -82,7 +82,8 @@ public partial class ModuleArgsWindow : Window
                 Label = string.IsNullOrWhiteSpace(dto.Label) ? (dto.Name ?? string.Empty) : dto.Label,
                 Type = string.IsNullOrWhiteSpace(dto.Type) ? "string" : dto.Type,
                 Default = dto.Default,
-                Required = dto.Required
+                Required = dto.Required,
+                Options = dto.Options?.ToList() ?? new List<string>()
             }).ToList()
         };
         Vm = new ModuleArgsViewModel { Module = _module };
@@ -118,6 +119,19 @@ public partial class ModuleArgsWindow : Window
             FrameworkElement editor;
             switch ((input.Type ?? "string").ToLowerInvariant())
             {
+                case "enum":
+                case "перечисление":
+                    var cbEnum = new ComboBox();
+                    if (TryFindResource("ModernComboBox") is Style enumStyle)
+                        cbEnum.Style = enumStyle;
+                    cbEnum.ItemsSource = (input.Options ?? new List<string>());
+                    // Устанавливаем выбор по умолчанию
+                    if (!string.IsNullOrWhiteSpace(input.Default) && (input.Options?.Contains(input.Default) == true))
+                        cbEnum.SelectedItem = input.Default;
+                    else if ((input.Options?.Count ?? 0) > 0)
+                        cbEnum.SelectedIndex = 0;
+                    editor = cbEnum;
+                    break;
                 case "bool":
                 case "boolean":
                     var cb = new CheckBox { IsChecked = bool.TryParse(input.Default, out var b) && b };
@@ -385,7 +399,7 @@ public partial class ModuleArgsWindow : Window
             _inputs[input.Name] = editor;
             sp.Children.Add(editor);
         }
-        
+
         InputsPanel.Children.Add(sp);
     }
 
@@ -423,6 +437,24 @@ public partial class ModuleArgsWindow : Window
                 if (editor is CheckBox cb)
                 {
                     if (bool.TryParse(saved, out var b)) cb.IsChecked = b;
+                }
+                else if (editor is ComboBox enumCb && (type == "enum" || type == "перечисление"))
+                {
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(saved) && enumCb.ItemsSource is System.Collections.IEnumerable items)
+                        {
+                            foreach (var item in items)
+                            {
+                                if (item is string s && string.Equals(s, saved, StringComparison.Ordinal))
+                                {
+                                    enumCb.SelectedItem = item;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
                 }
                 else if (editor is TextBox tb)
                 {
@@ -541,6 +573,12 @@ public partial class ModuleArgsWindow : Window
                 var b = cb.IsChecked == true;
                 value = b;
                 stringValue = b ? "true" : "false";
+            }
+            else if (editor is ComboBox enumCb && (type == "enum" || type == "перечисление"))
+            {
+                var selected = enumCb.SelectedItem as string;
+                value = selected ?? string.Empty;
+                stringValue = selected ?? string.Empty;
             }
             else if (editor is TextBox tb)
             {

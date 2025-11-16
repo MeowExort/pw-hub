@@ -24,4 +24,9 @@ public class ModuleInput
     public string Type { get; set; } = "string"; // string|number|bool|password|squad|squads|account|accounts
     public string Default { get; set; }
     public bool Required { get; set; } = false;
+    /// <summary>
+    /// Для типа "enum" ("перечисление"): список допустимых значений в выпадающем списке.
+    /// Для остальных типов игнорируется.
+    /// </summary>
+    public List<string> Options { get; set; } = new();
 }
