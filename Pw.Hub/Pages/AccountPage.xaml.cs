@@ -13,6 +13,7 @@ using Pw.Hub.Windows;
 using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using System.IO;
 
 namespace Pw.Hub.Pages;
 
@@ -92,6 +93,31 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         catch { }
 
         LuaRunner = new LuaScriptRunner(AccountManager, Browser);
+    }
+
+    private static string? _promoChestsPopupJs;
+
+    private static string? GetPromoChestsPopupJs()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(_promoChestsPopupJs))
+                return _promoChestsPopupJs;
+
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var path = Path.Combine(baseDir, "Scripts", "promo", "promo_chests_popup.js");
+            if (File.Exists(path))
+            {
+                _promoChestsPopupJs = File.ReadAllText(path);
+                return _promoChestsPopupJs;
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return null;
     }
 
 
@@ -1487,8 +1513,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                                 // Also re-map after small delay to ensure images/DOM ready
                                 setTimeout(function(){ try{ rebuildItemsMap(); rebuildChestsMap(); scheduleGridRender(0); }catch(_){ } }, 200);
-                            }catch(e){}
-                        })();
+                    }catch(e){}
+                })();
 
                         // ================= UI: View mode toggle row =================
                         (function(){
@@ -2314,6 +2340,21 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
             }
             catch { }
 
+            
+            
+            // Подключаем расширенный JS для работы с промо‑страницей (в т.ч. всплывающее окно сундуков)
+            try
+            {
+                var chestsJs = GetPromoChestsPopupJs();
+                if (!string.IsNullOrWhiteSpace(chestsJs))
+                {
+                    await Browser.ExecuteScriptAsync(chestsJs);
+                }
+            }
+            catch
+            {
+                // игнорируем ошибки загрузки вспомогательного скрипта
+            }
             // await Browser.ExecuteScriptAsync("$('.description-items').remove();");
         }
     }
