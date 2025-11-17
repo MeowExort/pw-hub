@@ -244,6 +244,22 @@
         // Кнопки справа: Сворачивать и Обновить
         var headerBtns = document.createElement('div');
         headerBtns.style = 'display:flex;gap:6px;align-items:center;';
+        // Dock toggle button (встроить/отделить)
+        var dockBtn = document.createElement('button');
+        dockBtn.id = 'promo_history_dock_btn';
+        dockBtn.textContent = 'Встроить';
+        dockBtn.title = 'Вставить окно в правый блок страницы';
+        dockBtn.style = [
+          'border:none',
+          'background:#D2C0BE',
+          'color:#333',
+          'border-radius:12px',
+          'padding:3px 10px',
+          'cursor:pointer',
+          'font-size:12px',
+          'line-height:16px',
+          'font-weight:700'
+        ].join(';');
         var collapseBtn = document.createElement('button');
         collapseBtn.id = 'promo_history_collapse_btn';
         collapseBtn.textContent = '−';
@@ -289,6 +305,7 @@
         body.appendChild(iframe);
         body.appendChild(cover);
         header.appendChild(title);
+        headerBtns.appendChild(dockBtn);
         headerBtns.appendChild(refreshBtn);
         headerBtns.appendChild(collapseBtn);
         header.appendChild(headerBtns);
@@ -364,21 +381,45 @@
               sessionStorage.setItem('promo_history_collapsed','1');
               promoLog('collapsed_set', { value: true });
             } else {
-              // Вернуть полноценный вид и базовые размеры
+              // Вернуть полноценный вид; размеры зависят от режима (док или плавающий)
               if (compact) compact.style.display = 'none';
               if (header) header.style.display = 'flex';
               if (body) body.style.display = 'block';
-              popup.style.minWidth = '240px';
-              popup.style.minHeight = '120px';
-              popup.style.width = DEFAULT_W + 'px';
-              popup.style.height = DEFAULT_H + 'px';
+
+              if (typeof isDocked === 'function' && isDocked()){
+                // В док-режиме ширина/высота управляются setDockVisual и зависят от родителя —
+                // не переопределяем ширину здесь, чтобы окно не выезжало за правый край,
+                // но задаём минимальную высоту, чтобы список истории был хорошо виден
+                popup.style.minWidth = '';
+                popup.style.minHeight = '400px';
+              } else {
+                // Плавающий режим: восстанавливаем базовые размеры
+                popup.style.minWidth = '240px';
+                popup.style.minHeight = '120px';
+                popup.style.width = DEFAULT_W + 'px';
+                popup.style.height = DEFAULT_H + 'px';
+              }
+
               collapseBtn.textContent = '−';
               sessionStorage.setItem('promo_history_collapsed','0');
-              promoLog('collapsed_set', { value: false });
+              promoLog('collapsed_set', { value: false, docked: (typeof isDocked === 'function' ? isDocked() : null) });
             }
           }catch(__){}
         }
         collapseBtn.addEventListener('click', function(){ try{ setCollapsed(!getCollapsed()); }catch(__){} });
+
+        // Сворачивание по клику на заголовок/шапку (кроме кликов по кнопкам)
+        header.addEventListener('click', function(e){
+          try{
+            var t = e.target;
+            // Игнорируем клики по интерактивам справа
+            if (t && (t === collapseBtn || t === refreshBtn || t === dockBtn || (t.closest && t.closest('#promo_history_collapse_btn,#promo_history_refresh_btn,#promo_history_dock_btn')))) return;
+            // Защита от клика сразу после перетаскивания
+            if (header && (header.dataset.dragMoved === '1' || header.dataset.dragJustDragged === '1')){ e.preventDefault(); e.stopPropagation(); return; }
+            promoLog('header_click_collapse', { collapsed: !getCollapsed() });
+            setCollapsed(!getCollapsed());
+          }catch(__){}
+        });
 
         // Клик по компактному виду — разворачиваем (если это не окончание перетаскивания)
         compact.addEventListener('click', function(e){
@@ -424,6 +465,121 @@
         }
         refreshBtn.addEventListener('click', function(){ try{ promoLog('refresh_click', null); doRefresh(); }catch(__){} });
 
+        // Dock/Undock: helpers
+        function getDockHost(){
+          try{
+            var host = document.querySelector('.pagecontent_table_right');
+            if (!host) return null;
+            var dockWrap = host.querySelector('#promo_history_dock_host');
+            if (!dockWrap){
+              dockWrap = document.createElement('div');
+              dockWrap.id = 'promo_history_dock_host';
+              // Хост для док-режима: тянемся на всю ширину правой колонки и не выезжаем за её пределы
+              dockWrap.style = 'margin:8px 0;width:100%;box-sizing:border-box;';
+              host.appendChild(dockWrap);
+            } else {
+              // На всякий случай обновим базовые стили, если они были перезаписаны
+              try{ dockWrap.style.width = '100%'; dockWrap.style.boxSizing = 'border-box'; }catch(__){}
+            }
+            return dockWrap;
+          }catch(__){ return null; }
+        }
+
+        function mergeState(extra){
+          try{
+            var cur = loadHistState() || {};
+            var st = {};
+            for (var k in cur){ if (Object.prototype.hasOwnProperty.call(cur,k)) st[k]=cur[k]; }
+            if (extra && typeof extra === 'object'){
+              for (var k2 in extra){ if (Object.prototype.hasOwnProperty.call(extra,k2)) st[k2]=extra[k2]; }
+            }
+            return st;
+          }catch(__){ return extra||{}; }
+        }
+
+        function setDockVisual(docked){
+          try{
+            popup.dataset.docked = docked ? '1' : '0';
+            if (docked){
+              // Встроенный режим: убираем фиксированное позиционирование, растягиваем по ширине
+              popup.style.position = 'static';
+              popup.style.width = '100%';
+              popup.style.height = 'auto';
+              popup.style.maxWidth = 'none';
+              popup.style.maxHeight = 'none';
+              popup.style.boxShadow = 'none';
+              popup.style.borderRadius = '8px';
+              // Встроенный режим: учитываем границы в общей ширине, чтобы окно не выезжало за пределы правого блока
+              popup.style.boxSizing = 'border-box';
+              popup.style.margin = '0';
+              try{ var hdr = document.getElementById('promo_history_popup_header'); if (hdr) hdr.style.cursor='default'; }catch(__){}
+              // Встроенный режим — перетаскивание не нужно, компактная кнопка скрыта
+              compact.style.display = 'none';
+            } else {
+              popup.style.position = 'fixed';
+              popup.style.width = DEFAULT_W + 'px';
+              popup.style.height = DEFAULT_H + 'px';
+              popup.style.maxWidth = '90vw';
+              popup.style.maxHeight = '85vh';
+              popup.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+              try{ var hdr2 = document.getElementById('promo_history_popup_header'); if (hdr2) hdr2.style.cursor='move'; }catch(__){}
+              // Компактная кнопка отображается только когда свёрнуто
+              if (getCollapsed()) compact.style.display = 'block';
+            }
+          }catch(__){}
+        }
+
+        function isDocked(){ try{ return popup && popup.dataset && popup.dataset.docked === '1'; }catch(__){ return false; } }
+
+        function applyDock(docked){
+          try{
+            var wantDock = !!docked;
+            if (wantDock === isDocked()) return;
+            if (wantDock){
+              var host = getDockHost();
+              if (!host){
+                promoLog('dock_host_missing', null);
+                return;
+              }
+              host.appendChild(popup);
+              setDockVisual(true);
+              dockBtn.textContent = 'Отделить';
+              dockBtn.title = 'Вынести окно из правого блока';
+              // При доке лучше развернуть окно
+              try{ setCollapsed(false); }catch(__){}
+              // Сохранить состояние
+              saveHistState(mergeState({ docked:true }));
+              promoLog('dock_applied', null);
+              // Перестроим содержимое под режим списка
+              try{ doRefresh(); }catch(__){}
+            } else {
+              // Возвращаем во float-режим в body
+              document.body.appendChild(popup);
+              setDockVisual(false);
+              dockBtn.textContent = 'Встроить';
+              dockBtn.title = 'Вставить окно в правый блок страницы';
+              // Применим сохранённые координаты, если были
+              var s2 = loadHistState() || {};
+              if (s2 && s2.useLeftTop){
+                applyHistState(popup, s2);
+              } else {
+                // если координат нет — откроем в правом нижнем углу
+                popup.style.right = '12px';
+                popup.style.bottom = '12px';
+                popup.style.left = 'auto';
+                popup.style.top = 'auto';
+              }
+              saveHistState(mergeState({ docked:false }));
+              promoLog('undock_done', null);
+              // Перестроим содержимое обратно в таблицу
+              try{ doRefresh(); }catch(__){}
+            }
+          }catch(__){}
+        }
+
+        // Кнопка докинга
+        dockBtn.addEventListener('click', function(){ try{ applyDock(!isDocked()); }catch(__){} });
+
         // Drag helper — подключаем к header и compact
         (function(){
           try{
@@ -433,7 +589,8 @@
               handle.addEventListener('mousedown', function(e){
                 try{
                   dragging = true;
-                  if (isCompact){ handle.dataset.dragMoved = '0'; }
+                  // Флаги для защиты от клика после перетаскивания
+                  handle.dataset.dragMoved = '0';
                   var rect = popup.getBoundingClientRect();
                   sx = e.clientX; sy = e.clientY; sl = rect.left; st = rect.top;
                   document.addEventListener('mousemove', onMove);
@@ -444,13 +601,15 @@
               function onMove(e){
                 try{
                   if (!dragging) return;
+                  // Если окно в доке — перетаскивание запрещено
+                  if (isDocked()) return;
                   var dx = e.clientX - sx, dy = e.clientY - sy;
                   var left = sl + dx, top = st + dy;
                   popup.style.left = left + 'px';
                   popup.style.top = top + 'px';
                   popup.style.right = 'auto';
                   popup.style.bottom = 'auto';
-                  if (isCompact){ handle.dataset.dragMoved = '1'; }
+                  handle.dataset.dragMoved = '1';
                 }catch(__){}
               }
               function onUp(){
@@ -458,18 +617,19 @@
                   dragging = false;
                   document.removeEventListener('mousemove', onMove);
                   var rect = popup.getBoundingClientRect();
-                  var cl = clampToViewport(popup, rect.left, rect.top);
-                  popup.style.left = cl.left + 'px';
-                  popup.style.top = cl.top + 'px';
-                  popup.style.right = 'auto';
-                  popup.style.bottom = 'auto';
-                  saveHistState({ useLeftTop:true, left: cl.left, top: cl.top });
-                  if (isCompact){
-                    // защитим от клика сразу после перетаскивания
-                    if (handle.dataset.dragMoved === '1'){
-                      handle.dataset.dragJustDragged = '1';
-                      setTimeout(function(){ try{ handle.dataset.dragJustDragged = '0'; handle.dataset.dragMoved = '0'; }catch(__){} }, 60);
-                    }
+                  // Если мы в доке — координаты не сохраняем
+                  if (!isDocked()){
+                    var cl = clampToViewport(popup, rect.left, rect.top);
+                    popup.style.left = cl.left + 'px';
+                    popup.style.top = cl.top + 'px';
+                    popup.style.right = 'auto';
+                    popup.style.bottom = 'auto';
+                    saveHistState(mergeState({ useLeftTop:true, left: cl.left, top: cl.top }));
+                  }
+                  // защитим от клика сразу после перетаскивания
+                  if (handle.dataset.dragMoved === '1'){
+                    handle.dataset.dragJustDragged = '1';
+                    setTimeout(function(){ try{ handle.dataset.dragJustDragged = '0'; handle.dataset.dragMoved = '0'; }catch(__){} }, 60);
                   }
                 }catch(__){}
               }
@@ -511,6 +671,33 @@
             setCollapsed(false);
             clearFlag();
             promoLog('expand_on_flag', null);
+          }
+        }catch(__){}
+
+        // Если в bootstrap/appConfig указано, что окно должно быть встроено — применим докинг без миганий
+        try{
+          var boot2 = getBootstrapState();
+          var st0 = loadHistState();
+          var needDock = (boot2 && boot2.docked === true) || (st0 && st0.docked === true);
+          if (needDock){
+            // Попробуем найти хост сразу, иначе подождём немного
+            var host = getDockHost();
+            if (host){
+              applyDock(true);
+            } else {
+              promoLog('dock_wait_host', null);
+              var waited = 0;
+              var docObs = new MutationObserver(function(muts){
+                try{
+                  if (getDockHost()){
+                    docObs.disconnect();
+                    applyDock(true);
+                  }
+                }catch(__){}
+              });
+              docObs.observe(document.body || document.documentElement, { childList:true, subtree:true });
+              setTimeout(function(){ try{ docObs.disconnect(); if (!isDocked()) promoLog('dock_host_missing', { timeout:true }); }catch(__){} }, 2000);
+            }
           }
         }catch(__){}
 
@@ -640,76 +827,115 @@
           }catch(__){ return { text: exact, exact: exact }; }
         }
 
-        // Перестраиваем документ: убираем все стили/скрипты, рисуем свою таблицу (без внутренних кнопок)
+        // Перестраиваем документ: список (в доке) или таблица (во float)
+        var isDocked = false;
+        try{
+          var parentPopup = document.getElementById('promo_history_popup');
+          isDocked = !!(parentPopup && parentPopup.dataset && parentPopup.dataset.docked === '1');
+        }catch(__){ isDocked = false; }
+
         doc.head.innerHTML = '';
         doc.body.innerHTML = '';
         var style2 = doc.createElement('style');
-        style2.textContent = [
-          'html,body{height:100%}',
-          'body{margin:0;font-family:Arial,sans-serif;background:#fff;color:#333}',
-          '.hist_root{height:100%;display:flex;flex-direction:column}',
-          '.hist_table_wrap{flex:1 1 auto;overflow:auto;padding:0 8px 8px 8px}',
-          'table.hist{width:100%;border-collapse:separate;border-spacing:0;background:#fff}',
-          'table.hist thead th{position:sticky;top:0;background:#EDE4D6;color:#2c4a8d;text-align:left;font-size:12px;padding:8px;border-bottom:1px solid #E2D8C9;z-index:2}',
-          'table.hist tbody td{padding:8px;border-bottom:1px solid #F0E8DC;vertical-align:top;font-size:13px}',
-          'table.hist tbody tr:nth-child(odd){background:#FAF7F1}',
-          '.name_main{font-weight:700}',
-          '.name_note{display:none}',
-          '.status_badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700}',
-          '.status_ok{background:#d7f5d7;color:#146c2e;border:1px solid #b6e4b6}',
-          '.status_proc{background:#fff1c2;color:#8a6c0a;border:1px solid #f0d98a}',
-          '.status_other{background:#e7ecff;color:#2c4a8d;border:1px solid #c6d1ff}',
-          '.to_block{display:none}',
-          '.to_compact{color:#444;font-size:12px}',
-          '.date_rel{color:#666;font-size:12px}'
-        ].join('\n');
-        doc.head.appendChild(style2);
-        var root = doc.createElement('div'); root.className = 'hist_root';
-        var wrap = doc.createElement('div'); wrap.className = 'hist_table_wrap';
-        var tbl = doc.createElement('table'); tbl.className = 'hist';
-        var thead = doc.createElement('thead');
-        var thr = doc.createElement('tr');
-        ['Название','Кому передан','Статус','Дата'].forEach(function(h){ var th = doc.createElement('th'); th.textContent = h; thr.appendChild(th); });
-        thead.appendChild(thr);
-        var tbody = doc.createElement('tbody');
-        var compacted = 0;
-        for (var r=0;r<rows.length;r++){
-          var row = rows[r];
-          var tr = doc.createElement('tr');
-          // Колонка 1: только название
-          var td1 = doc.createElement('td');
-          var nm = doc.createElement('div'); nm.className = 'name_main'; nm.textContent = row.name || '';
-          td1.appendChild(nm);
-
-          // Колонка 2: "Сервер - Персонаж"
-          var td2 = doc.createElement('td');
-          var compactTo = parseToCompact(row.to || '');
-          var toComp = doc.createElement('div'); toComp.className = 'to_compact'; toComp.textContent = compactTo;
-          td2.appendChild(toComp);
-
-          // Колонка 3: статус (без изменений)
-          var td3 = doc.createElement('td'); var st = doc.createElement('span');
-          var s = (row.status||'').toLowerCase();
-          var cls = 'status_other';
-          if (s.indexOf('передан') !== -1) cls = 'status_ok';
-          else if (s.indexOf('обработ') !== -1) cls = 'status_proc';
-          st.className = 'status_badge ' + cls; st.textContent = row.status || '';
-          td3.appendChild(st);
-
-          // Колонка 4: человеко‑читаемая дата с тултипом
-          var td4 = doc.createElement('td');
-          var rel = humanizeDate(row.date || '');
-          var dspan = doc.createElement('span'); dspan.className = 'date_rel'; dspan.textContent = rel.text; dspan.title = rel.exact;
-          td4.appendChild(dspan);
-
-          tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
-          tbody.appendChild(tr);
-          compacted++;
+        if (isDocked){
+          style2.textContent = [
+            'html,body{height:100%}',
+            'body{margin:0;font-family:Arial,sans-serif;background:#fff;color:#333;font-size:12px;line-height:1.35}',
+            '.hist_list_root{height:100%;display:flex;flex-direction:column}',
+            '.hist_list_wrap{flex:1 1 auto;overflow:auto;padding:6px 8px 8px 8px}',
+            '.hist_item{border:1px solid #E2D8C9;background:#FAF7F1;border-radius:8px;padding:6px 8px;margin:0 0 6px 0}',
+            '.hist_item:nth-child(even){background:#FDFBF7}',
+            '.hist_item_header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}',
+            '.hist_item .li_name{font-weight:700;color:#333;flex:1 1 auto;min-width:0;font-size:13px}',
+            '.hist_item .li_status{margin-left:8px;white-space:nowrap;flex:0 0 auto}',
+            '.status_badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}',
+            '.status_ok{background:#d7f5d7;color:#146c2e;border:1px solid #b6e4b6}',
+            '.status_proc{background:#fff1c2;color:#8a6c0a;border:1px solid #f0d98a}',
+            '.status_other{background:#e7ecff;color:#2c4a8d;border:1px solid #c6d1ff}',
+            '.hist_item .li_date{color:#666;font-size:11px}'
+          ].join('\n');
+          doc.head.appendChild(style2);
+          var rootL = doc.createElement('div'); rootL.className = 'hist_list_root';
+          var wrapL = doc.createElement('div'); wrapL.className = 'hist_list_wrap';
+          var built = 0;
+          for (var r1=0;r1<rows.length;r1++){
+            var row1 = rows[r1];
+            var item = doc.createElement('div'); item.className = 'hist_item';
+            var headerRow = doc.createElement('div'); headerRow.className = 'hist_item_header';
+            var nm1 = doc.createElement('div'); nm1.className = 'li_name'; nm1.textContent = row1.name || '';
+            var stc = doc.createElement('div'); stc.className = 'li_status';
+            var s1 = (row1.status||'').toLowerCase(); var cls1='status_other';
+            if (s1.indexOf('передан') !== -1) cls1 = 'status_ok'; else if (s1.indexOf('обработ') !== -1) cls1 = 'status_proc';
+            var badge = doc.createElement('span'); badge.className = 'status_badge ' + cls1; badge.textContent = row1.status || '';
+            stc.appendChild(badge);
+            var d1 = humanizeDate(row1.date || '');
+            var dt1 = doc.createElement('div'); dt1.className = 'li_date'; dt1.textContent = d1.text; dt1.title = d1.exact;
+            headerRow.appendChild(nm1);
+            headerRow.appendChild(stc);
+            item.appendChild(headerRow);
+            item.appendChild(dt1);
+            wrapL.appendChild(item); built++;
+          }
+          rootL.appendChild(wrapL); doc.body.appendChild(rootL);
+          try{ promoLog('list_built', { rows: built }); }catch(__){}
+        } else {
+          style2.textContent = [
+            'html,body{height:100%}',
+            'body{margin:0;font-family:Arial,sans-serif;background:#fff;color:#333}',
+            '.hist_root{height:100%;display:flex;flex-direction:column}',
+            '.hist_table_wrap{flex:1 1 auto;overflow:auto;padding:0 8px 8px 8px}',
+            'table.hist{width:100%;border-collapse:separate;border-spacing:0;background:#fff}',
+            'table.hist thead th{position:sticky;top:0;background:#EDE4D6;color:#2c4a8d;text-align:left;font-size:12px;padding:8px;border-bottom:1px solid #E2D8C9;z-index:2}',
+            'table.hist tbody td{padding:8px;border-bottom:1px solid #F0E8DC;vertical-align:top;font-size:13px}',
+            'table.hist tbody tr:nth-child(odd){background:#FAF7F1}',
+            '.name_main{font-weight:700}',
+            '.status_badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700}',
+            '.status_ok{background:#d7f5d7;color:#146c2e;border:1px solid #b6e4b6}',
+            '.status_proc{background:#fff1c2;color:#8a6c0a;border:1px solid #f0d98a}',
+            '.status_other{background:#e7ecff;color:#2c4a8d;border:1px solid #c6d1ff}',
+            '.to_compact{color:#444;font-size:12px}',
+            '.date_rel{color:#666;font-size:12px}'
+          ].join('\n');
+          doc.head.appendChild(style2);
+          var root = doc.createElement('div'); root.className = 'hist_root';
+          var wrap = doc.createElement('div'); wrap.className = 'hist_table_wrap';
+          var tbl = doc.createElement('table'); tbl.className = 'hist';
+          var thead = doc.createElement('thead');
+          var thr = doc.createElement('tr');
+          ['Название','Кому передан','Статус','Дата'].forEach(function(h){ var th = doc.createElement('th'); th.textContent = h; thr.appendChild(th); });
+          thead.appendChild(thr);
+          var tbody = doc.createElement('tbody');
+          var compacted = 0;
+          for (var r=0;r<rows.length;r++){
+            var row = rows[r];
+            var tr = doc.createElement('tr');
+            var td1 = doc.createElement('td');
+            var nm = doc.createElement('div'); nm.className = 'name_main'; nm.textContent = row.name || '';
+            td1.appendChild(nm);
+            var td2 = doc.createElement('td');
+            var compactTo = parseToCompact(row.to || '');
+            var toComp = doc.createElement('div'); toComp.className = 'to_compact'; toComp.textContent = compactTo;
+            td2.appendChild(toComp);
+            var td3 = doc.createElement('td'); var st = doc.createElement('span');
+            var s = (row.status||'').toLowerCase();
+            var cls = 'status_other';
+            if (s.indexOf('передан') !== -1) cls = 'status_ok';
+            else if (s.indexOf('обработ') !== -1) cls = 'status_proc';
+            st.className = 'status_badge ' + cls; st.textContent = row.status || '';
+            td3.appendChild(st);
+            var td4 = doc.createElement('td');
+            var rel = humanizeDate(row.date || '');
+            var dspan = doc.createElement('span'); dspan.className = 'date_rel'; dspan.textContent = rel.text; dspan.title = rel.exact;
+            td4.appendChild(dspan);
+            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+            tbody.appendChild(tr);
+            compacted++;
+          }
+          tbl.appendChild(thead); tbl.appendChild(tbody); wrap.appendChild(tbl);
+          root.appendChild(wrap); doc.body.appendChild(root);
+          try{ promoLog('table_rebuilt', { rows: rows.length }); }catch(__){}
+          try{ promoLog('table_compacted', { rows: compacted }); }catch(__){}
         }
-        tbl.appendChild(thead); tbl.appendChild(tbody); wrap.appendChild(tbl);
-        root.appendChild(wrap); doc.body.appendChild(root);
-        try{ promoLog('table_rebuilt', { rows: rows.length }); }catch(__){}
-        try{ promoLog('table_compacted', { rows: compacted }); }catch(__){}
         // Успешная саниция — скрыть плейсхолдер и плавно показать iframe
         try{ var cv = document.getElementById('promo_history_loading_cover'); if (cv){ cv.style.display='none'; promoLog('cover_hide', { reason:'sanitized' }); } }catch(__){}
         try{ var ifr = document.getElementById('promo_history_popup_iframe'); if (ifr){ ifr.style.opacity='1'; promoLog('iframe_show', { reason:'sanitized' }); } }catch(__){}
