@@ -623,8 +623,8 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                     if (s2.width) popup.style.width = s2.width + 'px';
                                     if (s2.height) popup.style.height = s2.height + 'px';
                                     // restore mins to defaults
-                                    popup.style.minWidth = '260px';
-                                    popup.style.minHeight = '140px';
+                                    popup.style.minWidth = '240px';
+                                    popup.style.minHeight = '120px';
                                     // рамка/фон/тень и так сохранены — никаких дополнительных правок не требуется
                                     // recalc content height
                                     recalcContentHeight();
@@ -639,39 +639,40 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             popup.id = 'promo_popup';
                             popup.style = [
                                 'position: fixed',
-                                'right: 16px', // default placement
-                                'bottom: 16px',
+                                'right: 12px', // чуть ближе к краю
+                                'bottom: 12px',
                                 'z-index: 2147483647',
                                 'background: #F6F1E7',
                                 'border: 1px solid #E2D8C9',
-                                'border-radius: 12px',
+                                'border-radius: 10px',
                                 'box-shadow: 0 8px 24px rgba(0,0,0,0.25)',
                                 'overflow: hidden',
                                 'color: #333',
                                 'font-family: Arial, sans-serif',
-                                'width: 380px',
-                                'min-width: 260px',
-                            'max-width: 50vw',
-                            'min-height: 140px',
-                            'max-height: 80vh'
-                        ].join(';');
+                                // более компактная базовая ширина
+                                'width: 300px',
+                                'min-width: 220px',
+                                // жёсткий предел по ширине, чтобы окно не занимало полэкрана
+                                'max-width: 340px',
+                                'min-height: 120px',
+                                'max-height: 70vh'
+                            ].join(';');
 
                         header = document.createElement('div');
-                        header.style = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;cursor:move;user-select:none;';
+                        header.style = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#EDE4D6;border-bottom:1px solid #E2D8C9;cursor:move;user-select:none;';
                         var hTitle = document.createElement('div');
                         hTitle.innerHTML = 'У<span class="lower">правление</span>';
-                        hTitle.style = 'font-weight:700;color:#2c4a8d;';
+                        hTitle.style = 'font-weight:700;color:#2c4a8d;font-size:13px;letter-spacing:0.2px;';
                         var toggleBtn = document.createElement('button');
                         toggleBtn.innerText = '−';
                         toggleBtn.title = 'Свернуть';
-                        toggleBtn.style = 'border:none;background:#D2C0BE;color:#333;border-radius:16px;padding:2px 8px;cursor:pointer;';
+                        toggleBtn.style = 'border:none;background:#D2C0BE;color:#333;border-radius:12px;padding:1px 6px;cursor:pointer;font-size:12px;line-height:16px;';
 
                         contentWrap = document.createElement('div');
                         contentWrap.id = 'promo_popup_content';
-                        contentWrap.style = 'padding:10px;overflow:auto;';
+                        contentWrap.style = 'padding:8px;overflow:auto;font-size:12px;';
 
                         var container = document.createElement('div');
-                        container.className = 'promo_container_content_body';
                         container.id = 'promo_container';
 
                         // legacy resize handle (теперь скрыт, чтобы убрать пользовательский ресайз)
@@ -684,7 +685,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         // compact view (as a tiny movable button)
                         compact = document.createElement('div');
                         compact.id = 'promo_popup_compact';
-                        compact.style = 'display:none; margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;';
+                        compact.style = 'display:none; margin:4px; padding:4px 10px; background:#EDE4D6; color:#2c4a8d; font-weight:700; font-size:12px; border-radius:14px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;';
                         compact.title = 'Развернуть панель управления';
                         compact.innerText = 'Управление';
 
@@ -717,7 +718,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         if (!compact){
                             compact = document.createElement('div');
                             compact.id = 'promo_popup_compact';
-                            compact.style = 'display:none; margin:6px; padding:6px 12px; background:#EDE4D6; color:#2c4a8d; font-weight:700; border-radius:16px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;';
+                            compact.style = 'display:none; margin:4px; padding:4px 10px; background:#EDE4D6; color:#2c4a8d; font-weight:700; font-size:12px; border-radius:14px; cursor:move; user-select:none; box-shadow: inset 0 0 0 1px #E2D8C9; width:max-content;';
                             compact.title = 'Развернуть панель управления';
                             compact.innerText = 'Управление';
                             popup.appendChild(compact);
@@ -994,12 +995,35 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
 
                     // Build controls only once inside promo_container
                     if (!document.getElementById('selectAllBtn')) {
-                        // Common styles
-                        var pillBtnCss = 'margin: 0; font-size: 14px; line-height: 24px; font-weight: 500; border: none; cursor: pointer; padding: 6px 12px; border-radius: 16px; -webkit-appearance: button; text-rendering: auto; display: inline-block; text-align: center; white-space: nowrap; background-color: #D2C0BE;';
-                        var rowCss = 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;';
+                        // Common styles (компактный helper-виджет)
+                        var pillBtnCss = [
+                            'margin:0',
+                            'font-size:12px',
+                            'line-height:18px',
+                            'font-weight:500',
+                            'border:none',
+                            'cursor:pointer',
+                            'padding:2px 10px',
+                            'border-radius:999px',
+                            '-webkit-appearance:button',
+                            'text-rendering:auto',
+                            'display:inline-block',
+                            'text-align:center',
+                            'white-space:nowrap',
+                            'background-color:#D2C0BE',
+                            'color:#2c2c2c'
+                        ].join(';');
+                        var rowCss = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:3px;';
 
                         var buttonContainer = document.createElement('div');
-                        buttonContainer.style = 'display: flex; flex-direction: column; gap: 10px; margin-top: 8px;';
+                        // компактный вертикальный стек секций
+                        buttonContainer.style = 'display:flex; flex-direction:column; gap:6px; margin-top:2px;';
+
+                        // Заголовок панели управления как у helper-виджета
+                        var panelTitle = document.createElement('div');
+                        panelTitle.textContent = 'Быстрый выбор предметов';
+                        panelTitle.style = 'font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:#7a6a54; margin:0 0 2px 2px;';
+                        buttonContainer.append(panelTitle);
 
                         // Helpers: selection by label
                         var selectAll = document.createElement('button');
@@ -1212,6 +1236,11 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                 // Build maps from table
                                 var __MS_PER_DAY = 24 * 60 * 60 * 1000;
                                 var __itemsMap = {};
+                                // Режим сортировки плиток в гриде предметов: default | name | expiry
+                                // По умолчанию сортируем по дате сгорания
+                                var __promoItemsSortMode = 'expiry';
+                                // Признак группировки по типам
+                                var __promoItemsGroupByType = true;
 
                                 // Вспомогательная функция: вытащить из текста ровно фрагмент даты/времени
                                 function extractExpiryText(text){
@@ -1265,12 +1294,34 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                                 if (src && src.startsWith('//')) src = window.location.protocol + src;
                                                 var descSpan = tr.querySelector('.img_item_cont span');
                                                 var desc = '';
+                                                var descPlain = '';
                                                 if (descSpan){
                                                     try{
-                                                        // взять HTML, если есть, иначе текст
+                                                        // HTML используется для тултипа, plain-text — для парсинга типа
                                                         desc = (descSpan.innerHTML || descSpan.innerText || '').toString();
                                                     }catch(_){ desc=''; }
+                                                    try{
+                                                        descPlain = (descSpan.innerText || descSpan.textContent || '').toString();
+                                                    }catch(_){ descPlain = ''; }
                                                 }
+
+                                                // Тип предмета из описания (строка вида "Тип: Расходник")
+                                                var itemType = '';
+                                                try{
+                                                    var srcText = descPlain || desc;
+                                                    if (srcText){
+                                                        // режем только по строке с "Тип:" (до перевода строки)
+                                                        // пример: "Описание: ...\nТип: Расходник\nПривязка: Да"
+                                                        var mLine = srcText.match(/Тип\s*:[^\n\r]*/i);
+                                                        var line = mLine ? mLine[0] : '';
+                                                        if (line){
+                                                            var mType = line.match(/Тип\s*:\s*(.+)$/i);
+                                                            if (mType && mType[1]){
+                                                                itemType = (mType[1]||'').replace(/\s+/g,' ').trim();
+                                                            }
+                                                        }
+                                                    }
+                                                }catch(__){ itemType = ''; }
 
                                                 var expiryMs = null;
                                                 var expiryText = null;
@@ -1283,7 +1334,18 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                                     }
                                                 }catch(_){ expiryMs = null; expiryText = null; }
 
-                                                __itemsMap[input.id] = { id: input.id, cb: input, name: nameRaw, img: src, desc: desc, expiryMs: expiryMs, expiryText: expiryText };
+                                                var idx = Object.keys(__itemsMap).length;
+                                                __itemsMap[input.id] = {
+                                                    id: input.id,
+                                                    cb: input,
+                                                    name: nameRaw,
+                                                    img: src,
+                                                    desc: desc,
+                                                    expiryMs: expiryMs,
+                                                    expiryText: expiryText,
+                                                    type: itemType,
+                                                    index: idx
+                                                };
                                             }catch(ex){}
                                         });
                                     }catch(e){}
@@ -1340,16 +1402,15 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                         var gridHost = document.getElementById('promo_items_grid');
                                         if (!gridHost) return;
                                         gridHost.innerHTML = '';
-                                        var items = []; Object.keys(__itemsMap).forEach(function(id){ var m=__itemsMap[id]; if (m && m.cb) items.push(m); });
-                                        // natural order as in table; fallback to by name
-                                        items.sort(function(a,b){ return a.name.localeCompare(b.name, 'ru'); });
-                                        var wrap = document.createElement('div');
-                                        wrap.style = 'display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start;';
-                                        gridHost.appendChild(wrap);
+
+                                        var all = [];
+                                        Object.keys(__itemsMap).forEach(function(id){ var m=__itemsMap[id]; if (m && m.cb) all.push(m); });
+                                        if (!all.length) return;
 
                                         var itemSize = 56; var cropSize = 30; var cropX = 45, cropY = 25;
                                         var nowTs = Date.now();
-                                        items.forEach(function(m){
+
+                                        function makeBlock(m){
                                             var block = document.createElement('div');
                                             block.className = 'promo_grid_item';
                                             block.style = [
@@ -1398,7 +1459,182 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                                             block.addEventListener('click', function(){ try{ if (m && m.cb){ m.cb.checked = !m.cb.checked; try{ m.cb.dispatchEvent(new Event('change', { bubbles: true })); }catch(__){} // update highlight immediately
                                                 if (m.cb.checked){ block.style.outline = '2px solid #2c4a8d'; block.style.outlineOffset='-2px'; } else { block.style.outline='2px solid transparent'; block.style.outlineOffset='-2px'; } } }catch(ex){} });
 
-                                            wrap.appendChild(block);
+                                            return block;
+                                        }
+
+                                        // Подготовка групп (по типам или одна общая группа)
+                                        var groups = {};
+                                        var order = [];
+                                        if (__promoItemsGroupByType){
+                                            all.forEach(function(m){
+                                                var key = (m.type || '').toString();
+                                                if (!key) key = 'Прочее';
+                                                if (!groups[key]){ groups[key] = []; order.push(key); }
+                                                groups[key].push(m);
+                                            });
+                                        } else {
+                                            var keyAll = 'Все предметы';
+                                            groups[keyAll] = all.slice(0);
+                                            order.push(keyAll);
+                                        }
+
+                                        function compareItems(a,b){
+                                            try{
+                                                if (__promoItemsSortMode === 'name'){
+                                                    var an = (a.name||'').toLowerCase();
+                                                    var bn = (b.name||'').toLowerCase();
+                                                    if (an < bn) return -1;
+                                                    if (an > bn) return 1;
+                                                    return (a.index||0) - (b.index||0);
+                                                }
+                                                if (__promoItemsSortMode === 'expiry'){
+                                                    // Сначала по "зоне" истечения (красный/жёлтый/белый/без даты), затем по названию
+                                                    function bucket(m){
+                                                        if (typeof m.expiryMs !== 'number' || !m.expiryMs) return 3; // без даты — последними
+                                                        var diffDays = (m.expiryMs - nowTs) / __MS_PER_DAY;
+                                                        if (diffDays < 0) diffDays = 0;
+                                                        if (diffDays < 2) return 0; // красный
+                                                        if (diffDays < 5) return 1; // жёлтый
+                                                        return 2; // белый (остальное)
+                                                    }
+
+                                                    var ba = bucket(a);
+                                                    var bb = bucket(b);
+                                                    if (ba !== bb) return ba - bb;
+
+                                                    // внутри одной зоны сортируем по названию
+                                                    var aen = (a.name||'').toLowerCase();
+                                                    var ben = (b.name||'').toLowerCase();
+                                                    if (aen < ben) return -1;
+                                                    if (aen > ben) return 1;
+
+                                                    return (a.index||0) - (b.index||0);
+                                                }
+                                            }catch(_){ }
+                                            // По умолчанию — как на сайте (исходный порядок)
+                                            return (a.index||0) - (b.index||0);
+                                        }
+
+                                        // Корневая обёртка: панель сортировки/группировки + контейнер для групп
+                                        var root = document.createElement('div');
+                                        root.style = 'display:flex; flex-direction:column; gap:6px;';
+                                        gridHost.appendChild(root);
+
+                                        // Панель сортировки и группировки
+                                        try{
+                                            var sortBar = document.createElement('div');
+                                            sortBar.style = 'display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:#444;';
+
+                                            // Блок сортировки
+                                            var sortLabel = document.createElement('span');
+                                            sortLabel.textContent = 'Сортировка:';
+                                            sortBar.appendChild(sortLabel);
+
+                                            function mkSortBtn(text, mode){
+                                                var b = document.createElement('button');
+                                                b.type = 'button';
+                                                b.textContent = text;
+                                                // Визуальная индикация активного режима сортировки
+                                                if (mode === __promoItemsSortMode){
+                                                    b.style = 'padding:2px 6px; border-radius:4px; border:1px solid #2c4a8d; background:#e0ecff; cursor:pointer; font-size:12px; font-weight:600;';
+                                                } else {
+                                                    b.style = 'padding:2px 6px; border-radius:4px; border:1px solid #C6B9A4; background:#f9f5ee; cursor:pointer; font-size:12px;';
+                                                }
+                                                b.addEventListener('click', function(){ try{ __promoItemsSortMode = mode; renderItems(); }catch(_){ } });
+                                                return b;
+                                            }
+
+                                            sortBar.appendChild(mkSortBtn('как на сайте', 'default'));
+                                            sortBar.appendChild(mkSortBtn('по названию', 'name'));
+                                            sortBar.appendChild(mkSortBtn('по дате сгорания', 'expiry'));
+
+                                            // Разделитель
+                                            var sep = document.createElement('span');
+                                            sep.textContent = '·';
+                                            sep.style = 'opacity:0.6;';
+                                            sortBar.appendChild(sep);
+
+                                            // Переключатель группировки по типу
+                                            var groupLabel = document.createElement('label');
+                                            groupLabel.style = 'display:flex; align-items:center; gap:4px; cursor:pointer;';
+                                            var groupChk = document.createElement('input');
+                                            groupChk.type = 'checkbox';
+                                            groupChk.checked = !!__promoItemsGroupByType;
+                                            groupChk.addEventListener('change', function(){
+                                                try{
+                                                    __promoItemsGroupByType = !!groupChk.checked;
+                                                    renderItems();
+                                                }catch(_){ }
+                                            });
+                                            var groupText = document.createElement('span');
+                                            groupText.textContent = 'Группировать по типу';
+                                            groupLabel.appendChild(groupChk);
+                                            groupLabel.appendChild(groupText);
+                                            sortBar.appendChild(groupLabel);
+
+                                            root.appendChild(sortBar);
+                                        }catch(_){ }
+
+                                        // Контейнер для групп
+                                        var groupsHost = document.createElement('div');
+                                        groupsHost.style = 'display:flex; flex-direction:column; gap:4px;';
+                                        root.appendChild(groupsHost);
+
+                                        // Рендер групп
+                                        order.forEach(function(key){
+                                            var items = groups[key] || [];
+                                            if (!items.length) return;
+
+                                            // Заголовок группы + быстрые действия для группы
+                                            var headerRow = document.createElement('div');
+                                            headerRow.style = 'width:100%; display:flex; align-items:center; justify-content:space-between; margin:4px 0 2px 2px; gap:4px;';
+
+                                            var header = document.createElement('div');
+                                            header.textContent = key;
+                                            header.style = 'font-weight:700; font-size:13px; color:#2c4a8d;';
+                                            headerRow.appendChild(header);
+
+                                            // Кнопки "Выбрать все" / "Убрать все" для группы
+                                            var groupActions = document.createElement('div');
+                                            // небольшой отступ справа, чтобы не наезжать на разметку
+                                            groupActions.style = 'display:flex; gap:4px; margin-right:12px;';
+
+                                            function mkGroupBtn(text, action){
+                                                var b = document.createElement('button');
+                                                b.type = 'button';
+                                                b.textContent = text;
+                                                b.style = 'padding:1px 5px; border-radius:4px; border:1px solid #C6B9A4; background:#fdf9f1; cursor:pointer; font-size:11px;';
+                                                b.addEventListener('click', function(){
+                                                    try{
+                                                        items.forEach(function(m){
+                                                            if (!m || !m.cb) return;
+                                                            var desired = action === 'select';
+                                                            if (m.cb.checked !== desired){
+                                                                m.cb.checked = desired;
+                                                                try{ m.cb.dispatchEvent(new Event('change', { bubbles:true })); }catch(_){ }
+                                                            }
+                                                        });
+                                                    }catch(_){ }
+                                                    // после изменения чекбоксов грид перерисуется через scheduleGridRender
+                                                });
+                                                return b;
+                                            }
+
+                                            groupActions.appendChild(mkGroupBtn('Выбрать все', 'select'));
+                                            groupActions.appendChild(mkGroupBtn('Убрать все', 'unselect'));
+                                            headerRow.appendChild(groupActions);
+
+                                            groupsHost.appendChild(headerRow);
+
+                                            var wrap = document.createElement('div');
+                                            wrap.style = 'display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start;';
+                                            groupsHost.appendChild(wrap);
+
+                                            try{ items.sort(compareItems); }catch(_){ }
+                                            items.forEach(function(m){
+                                                var blk = makeBlock(m);
+                                                wrap.appendChild(blk);
+                                            });
                                         });
                                     }catch(e){}
                                 }
@@ -1861,7 +2097,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             row.style = rowCss;
                             var lbl = document.createElement('div');
                             lbl.innerText = title;
-                            lbl.style = 'min-width: 140px; font-weight:600; color:#2c4a8d;';
+                            lbl.style = 'min-width:120px; font-size:12px; font-weight:600; color:#705d4a;';
                             row.appendChild(lbl);
                             return { row: row, label: lbl };
                         }
@@ -1944,7 +2180,7 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                         inputCustomSearch.type = 'text';
                         inputCustomSearch.id = 'customSearchInput';
                         inputCustomSearch.placeholder = 'Введите название предмета...';
-                        inputCustomSearch.style = 'padding: 8px 12px; border-radius: 12px; border: 1px solid #ccc; font-size: 14px; line-height: 22px; outline: none; flex:1;';
+                        inputCustomSearch.style = 'padding:4px 8px; border-radius:10px; border:1px solid #C6B9A4; font-size:12px; line-height:18px; outline:none; flex:1; background:#FBF7EF; color:#333;';
                         var selectCustom = mkBtn('Выбрать', 'selectCustomBtn', function(){
                             var query = (inputCustomSearch.value||'').trim();
                             if (query.length>0) selectByLabelText(query);
@@ -1954,20 +2190,20 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
                             if (query.length>0) unselectByLabelText(query);
                         });
                         var customContainer = document.createElement('div');
-                        customContainer.style = 'display:flex; gap:8px;';
+                        customContainer.style = 'display:flex; gap:6px; align-items:center;';
                         customContainer.append(inputCustomSearch);
                         customContainer.append(selectCustom);
                         customContainer.append(unselectCustom);
 
                         // Attach rows
                         buttonContainer.append(rGlobal.row);
-                        var hr1 = document.createElement('div'); hr1.style='height:1px;background:#E2D8C9;';
+                        var hr1 = document.createElement('div'); hr1.style='height:1px;background:#E2D8C9;margin:2px 0 3px 0;';
                         buttonContainer.append(hr1);
                         buttonContainer.append(rAmu.row);
                         buttonContainer.append(rPass.row);
                         buttonContainer.append(rSub.row);
                         buttonContainer.append(rDzPills.row);
-                        var hr2 = document.createElement('div'); hr2.style='height:1px;background:#E2D8C9;';
+                        var hr2 = document.createElement('div'); hr2.style='height:1px;background:#E2D8C9;margin:4px 0 3px 0;';
                         buttonContainer.append(hr2);
                         buttonContainer.append(customContainer);
 
