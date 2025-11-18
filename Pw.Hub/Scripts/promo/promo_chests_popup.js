@@ -651,6 +651,39 @@
                 }catch(__){}
               }
 
+              // Группа чекбоксов — поддержка select-all/clear-all
+              var hasCheckboxGroup = (function(){
+                try{
+                  for (var i = 0; i < tileItems.length; i++){ if (tileItems[i] && !tileItems[i].isRadio) return true; }
+                }catch(__){}
+                return false;
+              })();
+
+              function setAllCheckboxes(checked){
+                try{
+                  for (var i = 0; i < tileItems.length; i++){
+                    var it = tileItems[i];
+                    if (!it || it.isRadio || !it.input) continue;
+                    it.input.checked = !!checked;
+                    try{ it.input.dispatchEvent(new Event('change', { bubbles:true })); }catch(__){}
+                  }
+                  syncSelection();
+                }catch(__){}
+              }
+
+              function areAllCheckboxesSelected(){
+                try{
+                  var any = false, all = true;
+                  for (var i = 0; i < tileItems.length; i++){
+                    var it = tileItems[i];
+                    if (!it || it.isRadio || !it.input) continue;
+                    any = true;
+                    if (!it.input.checked) { all = false; break; }
+                  }
+                  return any && all;
+                }catch(__){ return false; }
+              }
+
               // Клик по плитке — меняем состояние исходного radio/checkbox
               (function(){
                 for (var i = 0; i < tileItems.length; i++){
@@ -668,11 +701,20 @@
                             }
                           }
                           it.input.checked = true;
+                          try{ it.input.dispatchEvent(new Event('change', { bubbles:true })); }catch(__){}
+                          syncSelection();
                         } else {
-                          it.input.checked = !it.input.checked;
+                          // Чекбоксы: при клике по любому — выбрать все, если не все выбраны; иначе — снять все
+                          if (hasCheckboxGroup){
+                            var wantAll = !areAllCheckboxesSelected();
+                            setAllCheckboxes(wantAll);
+                            try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(JSON.stringify({ type:'promo_log', event: 'chest_multi_toggle_all', data: { on: !!wantAll }, ts: Date.now() })); } }catch(__){}
+                          } else {
+                            it.input.checked = !it.input.checked;
+                            try{ it.input.dispatchEvent(new Event('change', { bubbles:true })); }catch(__){}
+                            syncSelection();
+                          }
                         }
-                        try{ it.input.dispatchEvent(new Event('change', { bubbles:true })); }catch(__){}
-                        syncSelection();
                       }catch(__){}
                     });
                   })(tileItems[i]);
@@ -690,8 +732,14 @@
                 });
               }catch(__){}
 
-              // Начальная подсветка
-              syncSelection();
+              // Начальная инициализация: для групп чекбоксов — отметить все по умолчанию
+              if (hasCheckboxGroup){
+                setAllCheckboxes(true);
+                try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(JSON.stringify({ type:'promo_log', event:'chest_multi_init_all_checked', data:null, ts:Date.now() })); } }catch(__){}
+              } else {
+                // Начальная подсветка
+                syncSelection();
+              }
 
               // Вставляем контейнер плиток перед кнопкой сабмита (или в конец формы)
               var inserted = false;

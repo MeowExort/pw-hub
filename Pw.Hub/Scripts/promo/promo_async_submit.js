@@ -58,6 +58,57 @@
       }catch(_){ }
     }
 
+    function isInsideManagePopup(el){
+      try{ return !!(el && el.closest && el.closest('#promo_popup')); }catch(_){ return false; }
+    }
+
+    // Частичное обновление списка предметов только в попапе «Управление»
+    function refreshItemsInPopup(btn){
+      try{
+        var popup = document.getElementById('promo_popup');
+        if (!popup){ promoLog('refresh_items_skip_no_popup', null); return; }
+        var container = popup.querySelector('#promo_container') || popup;
+        var currentForm = (container.querySelector('form.js-transfer-form') || container.querySelector('form'));
+        promoLog('refresh_items_start', { hasForm: !!currentForm });
+        fetch(location.href, { credentials: 'same-origin' })
+          .then(function(r){ return r.text(); })
+          .then(function(html){
+            try{
+              var dp = new DOMParser();
+              var doc = dp.parseFromString(html, 'text/html');
+              if (!doc){ throw new Error('no document'); }
+              // Найти форму с товарами (ищем input[name='cart_items[]'])
+              var forms = doc.getElementsByTagName('form');
+              var foundForm = null;
+              for (var i=0;i<forms.length;i++){
+                var f = forms[i];
+                try{
+                  if (f.querySelector("input[name='cart_items[]']") || f.querySelector("input[name='cart_items']")){
+                    foundForm = f; break;
+                  }
+                }catch(__){}
+              }
+              if (!foundForm){ throw new Error('new form not found'); }
+
+              // Заменяем содержимое текущей формы, если она есть; иначе — вставляем новую форму
+              var newForm = foundForm.cloneNode(true);
+              if (currentForm && currentForm.parentNode){
+                currentForm.parentNode.replaceChild(newForm, currentForm);
+              } else {
+                container.appendChild(newForm);
+              }
+
+              // Обновлённые элементы появились — наши глобальные обработчики кликов по .js-transfer-go уже активны
+              // Наблюдатель из promo_submit_ui переоформит внешний вид кнопки (если есть внутри попапа)
+              promoLog('refresh_items_ok', { replaced: true });
+            }catch(ex){
+              promoLog('refresh_items_fail', { message: (ex && (ex.message||ex)) || 'unknown' });
+            }
+          })
+          .catch(function(err){ promoLog('refresh_items_err', { message: (err && (err.message||err)) || 'unknown' }); });
+      }catch(__){}
+    }
+
     function submitAsync(btn){
       try{
         var form = findPromoForm(btn);
@@ -77,10 +128,28 @@
 
         function handleSuccess(meta){
           try{ promoLog('resp', meta || null); }catch(__){}
-          // Перезагрузим страницу, чтобы обновить список предметов, и откроем историю после reload по флагу
+          // Всегда показываем историю через флаг + немедленный вызов
           try{ sessionStorage.setItem('__pwShowTransferHistory','1'); }catch(__){}
-          try{ promoLog('reload', null); }catch(__){}
-          try{ location.reload(); }catch(__){}
+          try{
+            if (window.PromoTransferHistoryPopup && window.PromoTransferHistoryPopup.openNow){
+              window.PromoTransferHistoryPopup.openNow();
+              promoLog('open_history_direct', null);
+            } else {
+              document.dispatchEvent(new CustomEvent('pw:openTransferHistory'));
+              promoLog('open_history_event', null);
+            }
+          }catch(__){}
+
+          // Если мы внутри окна «Управление» — частично обновим только список предметов без перезагрузки страницы
+          if (isInsideManagePopup(btn)){
+            promoLog('context_popup', null);
+            markBusy(btn, false);
+            refreshItemsInPopup(btn);
+          } else {
+            // На основной странице — оставляем прежнее поведение с reload
+            promoLog('context_page', null);
+            try{ location.reload(); }catch(__){}
+          }
         }
 
         fetch(action, {
@@ -104,7 +173,7 @@
           }
         }).catch(function(err){
           // В WebView2 fetch может завершиться ошибкой на 302/CORS (opaqueredirect), хотя перевод успешен.
-          // Трактуем это как успех и выполняем перезагрузку.
+          // Трактуем это как успех и продолжаем по успешному сценарию (reload только вне попапа)
           try{ promoLog('fallback_success', { message: (err && (err.message||err)) || 'unknown' }); }catch(__){}
           handleSuccess({ status: 0, redirected: true, type: 'opaqueredirect', ok: true });
         });

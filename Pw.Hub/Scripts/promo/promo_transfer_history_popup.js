@@ -244,7 +244,7 @@
         // Кнопки справа: Сворачивать и Обновить
         var headerBtns = document.createElement('div');
         headerBtns.style = 'display:flex;gap:6px;align-items:center;';
-        // Dock toggle button (встроить/отделить)
+        // Dock toggle button (встроить/отделить) — скрыт, т.к. теперь док/андок через Drag&Drop
         var dockBtn = document.createElement('button');
         dockBtn.id = 'promo_history_dock_btn';
         dockBtn.textContent = 'Встроить';
@@ -260,6 +260,9 @@
           'line-height:16px',
           'font-weight:700'
         ].join(';');
+        // Скрываем кнопку, док/андок выполняется перетаскиванием
+        dockBtn.style.display = 'none';
+        try{ promoLog('dock_btn_hidden', null); }catch(__){}
         var collapseBtn = document.createElement('button');
         collapseBtn.id = 'promo_history_collapse_btn';
         collapseBtn.textContent = '−';
@@ -475,11 +478,15 @@
               dockWrap = document.createElement('div');
               dockWrap.id = 'promo_history_dock_host';
               // Хост для док-режима: тянемся на всю ширину правой колонки и не выезжаем за её пределы
-              dockWrap.style = 'margin:8px 0;width:100%;box-sizing:border-box;';
+              dockWrap.style = 'margin:8px 0;width:100%;box-sizing:border-box;min-height:400px;';
               host.appendChild(dockWrap);
             } else {
               // На всякий случай обновим базовые стили, если они были перезаписаны
-              try{ dockWrap.style.width = '100%'; dockWrap.style.boxSizing = 'border-box'; }catch(__){}
+              try{
+                dockWrap.style.width = '100%';
+                dockWrap.style.boxSizing = 'border-box';
+                if (!dockWrap.style.minHeight || parseInt(dockWrap.style.minHeight,10) < 400){ dockWrap.style.minHeight = '400px'; }
+              }catch(__){}
             }
             return dockWrap;
           }catch(__){ return null; }
@@ -509,12 +516,20 @@
               popup.style.maxHeight = 'none';
               popup.style.boxShadow = 'none';
               popup.style.borderRadius = '8px';
+              // Цвет фона окна в док-режиме
+              try{ popup.style.background = '#F6F1E7'; }catch(__){}
               // Встроенный режим: учитываем границы в общей ширине, чтобы окно не выезжало за пределы правого блока
               popup.style.boxSizing = 'border-box';
               popup.style.margin = '0';
               try{ var hdr = document.getElementById('promo_history_popup_header'); if (hdr) hdr.style.cursor='default'; }catch(__){}
               // Встроенный режим — перетаскивание не нужно, компактная кнопка скрыта
               compact.style.display = 'none';
+              // Минимальная высота в доке (для хорошей видимости списка)
+              try{ popup.style.minHeight = '400px'; }catch(__){}
+              // Фон тела в док-режиме тоже делаем #F6F1E7
+              try{ body.style.background = '#F6F1E7'; }catch(__){}
+              // Пересчитать высоты тела/iframe
+              try{ recalcDockHeights(); }catch(__){}
             } else {
               popup.style.position = 'fixed';
               popup.style.width = DEFAULT_W + 'px';
@@ -522,17 +537,23 @@
               popup.style.maxWidth = '90vw';
               popup.style.maxHeight = '85vh';
               popup.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+              // Возвращаем фон тела к белому во float-режиме
+              try{ body.style.background = '#fff'; }catch(__){}
               try{ var hdr2 = document.getElementById('promo_history_popup_header'); if (hdr2) hdr2.style.cursor='move'; }catch(__){}
               // Компактная кнопка отображается только когда свёрнуто
               if (getCollapsed()) compact.style.display = 'block';
+              // Сброс специальных ограничений дока
+              try{ body.style.minHeight = ''; }catch(__){}
             }
           }catch(__){}
         }
 
         function isDocked(){ try{ return popup && popup.dataset && popup.dataset.docked === '1'; }catch(__){ return false; } }
 
-        function applyDock(docked){
+        function applyDock(docked, opts){
           try{
+            opts = opts || {};
+            var silent = !!opts.silent; // не трогать контент (refresh) при временном undock во время drag
             var wantDock = !!docked;
             if (wantDock === isDocked()) return;
             if (wantDock){
@@ -551,7 +572,7 @@
               saveHistState(mergeState({ docked:true }));
               promoLog('dock_applied', null);
               // Перестроим содержимое под режим списка
-              try{ doRefresh(); }catch(__){}
+              if (!silent){ try{ doRefresh(); }catch(__){} }
             } else {
               // Возвращаем во float-режим в body
               document.body.appendChild(popup);
@@ -560,79 +581,354 @@
               dockBtn.title = 'Вставить окно в правый блок страницы';
               // Применим сохранённые координаты, если были
               var s2 = loadHistState() || {};
-              if (s2 && s2.useLeftTop){
-                applyHistState(popup, s2);
+              // Если пришёл отрезок fromRect (временный undock во время drag) — применим текущие экранные координаты,
+              // чтобы окно не «прыгало» при начале перетаскивания
+              var fr = opts && opts.fromRect;
+              if (fr && typeof fr.left === 'number' && typeof fr.top === 'number'){
+                popup.style.left = Math.round(fr.left) + 'px';
+                popup.style.top = Math.round(fr.top) + 'px';
+                popup.style.right = 'auto';
+                popup.style.bottom = 'auto';
+                saveHistState(mergeState({ useLeftTop:true, left: Math.round(fr.left), top: Math.round(fr.top) }));
               } else {
-                // если координат нет — откроем в правом нижнем углу
-                popup.style.right = '12px';
-                popup.style.bottom = '12px';
-                popup.style.left = 'auto';
-                popup.style.top = 'auto';
+                if (s2 && s2.useLeftTop){
+                  applyHistState(popup, s2);
+                } else {
+                  // если координат нет — откроем в правом нижнем углу
+                  popup.style.right = '12px';
+                  popup.style.bottom = '12px';
+                  popup.style.left = 'auto';
+                  popup.style.top = 'auto';
+                }
               }
               saveHistState(mergeState({ docked:false }));
               promoLog('undock_done', null);
               // Перестроим содержимое обратно в таблицу
-              try{ doRefresh(); }catch(__){}
+              if (!silent){ try{ doRefresh(); }catch(__){} }
             }
           }catch(__){}
         }
 
-        // Кнопка докинга
-        dockBtn.addEventListener('click', function(){ try{ applyDock(!isDocked()); }catch(__){} });
+        // Подсветка зоны докинга (.pagecontent_table_right)
+        var dockHighlight = null;
+        function getDockAcceptRect(){
+          try{
+            // Рисуем подсветку ровно там, где реально будет расположен док‑хост
+            var host = getDockHost();
+            if (host){
+              var r = host.getBoundingClientRect();
+              // Если по каким‑то причинам высота 0 — принудительно выставим minHeight и перечитаем
+              if (!r.height || r.height < 1){
+                try{ host.style.minHeight = host.style.minHeight || '400px'; }catch(__){}
+                r = host.getBoundingClientRect();
+              }
+              try{ promoLog('dock_accept_host_rect', { left:r.left, top:r.top, width:r.width, height:r.height }); }catch(__){}
+              return { left:r.left, top:r.top, right:r.right, bottom:r.bottom, width:r.width, height:r.height };
+            }
+            // Fallback: верх правой колонки высотой 400px
+            var col = document.querySelector('.pagecontent_table_right');
+            if (col){
+              var b = col.getBoundingClientRect();
+              var h = Math.min(400, Math.max(0, b.height));
+              return { left:b.left, top:b.top, right:b.right, bottom:b.top + h, width:b.width, height:h };
+            }
+            return null;
+          }catch(__){ return null; }
+        }
+        function showDockHighlight(){
+          try{
+            var r = getDockAcceptRect();
+            if (!r) return;
+            if (!dockHighlight){
+              dockHighlight = document.createElement('div');
+              dockHighlight.id = 'promo_history_dock_highlight';
+              dockHighlight.style = [
+                'position:fixed','z-index:2147483646','pointer-events:none',
+                'border:2px dashed #2c4a8d','background:rgba(44,74,141,0.08)'
+              ].join(';');
+              document.body.appendChild(dockHighlight);
+            }
+            dockHighlight.style.left = r.left + 'px';
+            dockHighlight.style.top = r.top + 'px';
+            dockHighlight.style.width = r.width + 'px';
+            var h = r.height; if (!h || h < 140) h = 140; // гарантированная минимальная высота (визуал подсветки)
+            dockHighlight.style.height = h + 'px';
+            dockHighlight.style.display = 'block';
+            promoLog('dock_highlight_on', { rect: { left: r.left, top: r.top, width: r.width, height: h } });
+          }catch(__){}
+        }
+        function hideDockHighlight(){
+          try{ if (dockHighlight){ dockHighlight.style.display='none'; promoLog('dock_highlight_off', null); } }catch(__){}
+        }
 
-        // Drag helper — подключаем к header и compact
+        function pointInDockHost(x, y){
+          try{
+            var r = getDockAcceptRect();
+            if (!r) return false;
+            var tol = 4; // меньший допуск от края, чтобы было проще «вытащить» окно
+            return x >= (r.left - tol) && x <= (r.right + tol) && y >= (r.top - tol) && y <= (r.bottom + tol);
+          }catch(__){ return false; }
+        }
+
+        // Пересчёт высот в док-режиме
+        function recalcDockHeights(){
+          try{
+            if (!isDocked()) return;
+            var hdr = document.getElementById('promo_history_popup_header');
+            var hdrH = hdr ? hdr.offsetHeight : 0;
+            // Общая минимальная высота попапа уже 400px — тело не меньше 400 - headerH
+            var minBody = Math.max(200, 400 - hdrH);
+            body.style.minHeight = minBody + 'px';
+            // Попробуем выставить явную высоту тела, чтобы iframe занял всю область док-хоста
+            try{
+              var host = getDockHost();
+              var hostRect = host ? host.getBoundingClientRect() : null;
+              var hostH = hostRect && hostRect.height ? hostRect.height : 0;
+              // fallback — по высоте правой колонки
+              if (!hostH){
+                var col = document.querySelector('.pagecontent_table_right');
+                if (col){ var cr = col.getBoundingClientRect(); hostH = cr && cr.height ? cr.height : 0; }
+              }
+              // Если удалось измерить — выставим явную высоту тела
+              if (hostH && hostH > 0){
+                var targetH = Math.max(minBody, Math.floor(hostH - hdrH));
+                body.style.height = targetH + 'px';
+              } else {
+                // иначе сбросим явную высоту — останется minHeight
+                body.style.height = '';
+              }
+            }catch(__){ body.style.height = ''; }
+            // На всякий случай проверим высоту iframe
+            try{ var ifr = document.getElementById('promo_history_popup_iframe'); if (ifr){ ifr.style.height = '100%'; } }catch(__){}
+            promoLog('dock_recalc_done', { headerH: hdrH, minBody: minBody, bodyH: body && body.offsetHeight });
+          }catch(__){ }
+        }
+
+        // Drag helper — подключаем к header и compact (с порогом, чтобы клик по заголовку в доке не запускал DnD)
         (function(){
           try{
             function attachDrag(handle, isCompact){
               if (!handle) return;
-              var dragging = false, sx=0, sy=0, sl=0, st=0;
-              handle.addEventListener('mousedown', function(e){
+              var THRESH = 8; // пикселей до активации drag
+              var leftZoneOnce = false; // помечаем выход из зоны после первого входа
+              var everInside = false;   // были ли мы когда‑нибудь внутри зоны в рамках текущего drag
+
+              if (window.PointerEvent){
+                // Реализация на Pointer Events с pointer capture — устойчиво при быстром выходе курсора за пределы заголовка
+                var dragging = false, activated = false, sx=0, sy=0, sl=0, st=0, wasDocked=false, pid=null;
+
+                function onPointerDown(e){
+                  try{
+                    // Только ЛКМ/pen/touch — игнорируем вторичные кнопки мыши
+                    if (e.button != null && e.button !== 0) return;
+                    dragging = true; activated = false; pid = e.pointerId;
+                    // Сбрасываем флаг выхода из зоны на начало каждого drag
+                    leftZoneOnce = false;
+                    everInside = false;
+                    // Флаги для защиты от клика после перетаскивания
+                    handle.dataset.dragMoved = '0';
+                    var rect = popup.getBoundingClientRect();
+                    sx = e.clientX; sy = e.clientY; sl = rect.left; st = rect.top;
+                    wasDocked = isDocked();
+                    try{ handle.setPointerCapture(pid); promoLog('drag_capture_set', { pid: pid }); }catch(__){}
+                    handle.addEventListener('pointermove', onPointerMove);
+                    handle.addEventListener('pointerup', onPointerUp);
+                    handle.addEventListener('pointercancel', onPointerCancel);
+                    handle.addEventListener('lostpointercapture', onLostCapture);
+                    e.preventDefault();
+                  }catch(__){}
+                }
+
+                function onPointerMove(e){
+                  try{
+                    if (!dragging) return;
+                    var dx = e.clientX - sx, dy = e.clientY - sy;
+                    var dist = Math.max(Math.abs(dx), Math.abs(dy));
+                    if (!activated){
+                      if (dist >= THRESH){
+                        activated = true;
+                        // Если окно было встроено — временно переведём во float для перетаскивания
+                        wasDocked = isDocked();
+                        if (wasDocked){
+                          promoLog('undock_drag_start', null);
+                          // Снимем текущие экранные координаты до undock
+                          var r0 = popup.getBoundingClientRect();
+                          applyDock(false, { silent:true, fromRect: r0 });
+                          // Явное намерение вынести окно: в рамках текущего drag не выполнять док
+                          leftZoneOnce = true;
+                          try{ promoLog('drag_undock_intent', null); }catch(__){}
+                          // Перехват указателя может потеряться при перепривязке — перепробуем захватить ещё раз
+                          try{
+                            handle.setPointerCapture(pid);
+                            promoLog('drag_capture_reacquire', { pid: pid });
+                          }catch(__){}
+                        }
+                        // Подсветим зону докинга
+                        showDockHighlight();
+                        promoLog('drag_threshold_reached', { thresh: THRESH });
+                      } else {
+                        return; // ещё не активировали перетаскивание
+                      }
+                    }
+                    // Трекинг выхода из зоны приёма (для наглядности и логики)
+                    var inside = pointInDockHost(e.clientX, e.clientY);
+                    if (inside){
+                      everInside = true;
+                    } else if (everInside){
+                      leftZoneOnce = true;
+                    }
+                    var left = sl + dx, top = st + dy;
+                    popup.style.left = left + 'px';
+                    popup.style.top = top + 'px';
+                    popup.style.right = 'auto';
+                    popup.style.bottom = 'auto';
+                    handle.dataset.dragMoved = '1';
+                  }catch(__){}
+                }
+
+                function finishDrag(ev){
+                  try{
+                    if (!dragging) return;
+                    dragging = false;
+                    try{ handle.releasePointerCapture(pid); }catch(__){}
+                    try{ handle.removeEventListener('pointermove', onPointerMove); }catch(__){}
+                    try{ handle.removeEventListener('pointerup', onPointerUp); }catch(__){}
+                    try{ handle.removeEventListener('pointercancel', onPointerCancel); }catch(__){}
+                    try{ handle.removeEventListener('lostpointercapture', onLostCapture); }catch(__){}
+                    if (!activated){
+                      // Не было реального перетаскивания — не меняем режим и не показываем подсветку
+                      hideDockHighlight();
+                      return;
+                    }
+                    var mx = ev && (ev.clientX||0), my = ev && (ev.clientY||0);
+                    var forceUndock = !!(ev && (ev.altKey || ev.ctrlKey || ev.shiftKey));
+                    var droppedInHost = pointInDockHost(mx, my);
+                    // Докать только если курсор внутри зоны И за время текущего drag мы ни разу из неё не выходили
+                    if (droppedInHost && !forceUndock && (!wasDocked ? true : !leftZoneOnce)){
+                      applyDock(true);
+                      promoLog('dock_drop_in', { x: mx, y: my });
+                    } else {
+                      if (droppedInHost && leftZoneOnce && !forceUndock){
+                        // Курсор вернулся в зону к моменту отпускания, но пользователь уже уводил его из зоны — трактуем как желание вынести окно
+                        promoLog('dock_drop_suppressed', { x: mx, y: my, reason: 'leftZoneOnce' });
+                      }
+                      var rect = popup.getBoundingClientRect();
+                      var cl = clampToViewport(popup, rect.left, rect.top);
+                      popup.style.left = cl.left + 'px';
+                      popup.style.top = cl.top + 'px';
+                      popup.style.right = 'auto';
+                      popup.style.bottom = 'auto';
+                      saveHistState(mergeState({ useLeftTop:true, left: cl.left, top: cl.top }));
+                      promoLog('dock_drop_out', { x: mx, y: my, forceUndock: forceUndock, leftZoneOnce: leftZoneOnce });
+                    }
+                    hideDockHighlight();
+                    if (handle.dataset.dragMoved === '1'){
+                      handle.dataset.dragJustDragged = '1';
+                      setTimeout(function(){ try{ handle.dataset.dragJustDragged = '0'; handle.dataset.dragMoved = '0'; }catch(__){} }, 60);
+                    }
+                    if (wasDocked) promoLog('undock_drag_end', null);
+                  }catch(__){}
+                }
+
+                function onPointerUp(e){ finishDrag(e); }
+                function onPointerCancel(e){ finishDrag(e); }
+                function onLostCapture(e){
+                  try{
+                    promoLog('drag_capture_lost', null);
+                    if (dragging){
+                      try{ handle.setPointerCapture(pid); promoLog('drag_capture_reacquire', { pid: pid }); return; }catch(__){}
+                    }
+                  }catch(__){}
+                  // если не удалось — завершим как обычно
+                  finishDrag(e);
+                }
+
+                handle.addEventListener('pointerdown', onPointerDown);
+                return; // не подключаем мышиные события, если есть Pointer Events
+              }
+
+              // Fallback для старых движков: мышиные события с обработкой на window
+              var dragging = false, activated = false, sx=0, sy=0, sl=0, st=0, wasDocked=false;
+              function onMouseDown(e){
                 try{
-                  dragging = true;
-                  // Флаги для защиты от клика после перетаскивания
+                  if (e.button !== 0) return;
+                  dragging = true; activated = false;
+                  // Сбрасываем флаг выхода из зоны на начало каждого drag
+                  leftZoneOnce = false; everInside = false;
                   handle.dataset.dragMoved = '0';
                   var rect = popup.getBoundingClientRect();
                   sx = e.clientX; sy = e.clientY; sl = rect.left; st = rect.top;
-                  document.addEventListener('mousemove', onMove);
-                  document.addEventListener('mouseup', onUp, { once:true });
+                  wasDocked = isDocked();
+                  window.addEventListener('mousemove', onMouseMove);
+                  window.addEventListener('mouseup', onMouseUp, { once:true });
+                  window.addEventListener('blur', onMouseCancel, { once:true });
                   e.preventDefault();
                 }catch(__){}
-              });
-              function onMove(e){
+              }
+              function onMouseMove(e){
                 try{
                   if (!dragging) return;
-                  // Если окно в доке — перетаскивание запрещено
-                  if (isDocked()) return;
                   var dx = e.clientX - sx, dy = e.clientY - sy;
-                  var left = sl + dx, top = st + dy;
-                  popup.style.left = left + 'px';
-                  popup.style.top = top + 'px';
+                  var dist = Math.max(Math.abs(dx), Math.abs(dy));
+                  if (!activated){
+                    if (dist >= THRESH){
+                      activated = true;
+                      wasDocked = isDocked();
+                      if (wasDocked){
+                        promoLog('undock_drag_start', null);
+                        var r0 = popup.getBoundingClientRect();
+                        applyDock(false, { silent:true, fromRect: r0 });
+                        // Явное намерение вынести окно в этом drag — запретим докинг по отпусканию
+                        leftZoneOnce = true;
+                        try{ promoLog('drag_undock_intent', null); }catch(__){}
+                      }
+                      showDockHighlight();
+                      promoLog('drag_threshold_reached', { thresh: THRESH });
+                    } else { return; }
+                  }
+                  var inside2 = pointInDockHost(e.clientX, e.clientY);
+                  if (inside2){ everInside = true; } else if (everInside){ leftZoneOnce = true; }
+                  popup.style.left = (sl + dx) + 'px';
+                  popup.style.top = (st + dy) + 'px';
                   popup.style.right = 'auto';
                   popup.style.bottom = 'auto';
                   handle.dataset.dragMoved = '1';
                 }catch(__){}
               }
-              function onUp(){
+              function finishMouse(ev){
                 try{
-                  dragging = false;
-                  document.removeEventListener('mousemove', onMove);
-                  var rect = popup.getBoundingClientRect();
-                  // Если мы в доке — координаты не сохраняем
-                  if (!isDocked()){
+                  window.removeEventListener('mousemove', onMouseMove);
+                  if (!dragging) return; dragging = false;
+                  if (!activated){ hideDockHighlight(); return; }
+                  var mx = ev && (ev.clientX||0), my = ev && (ev.clientY||0);
+                  var forceUndock = !!(ev && (ev.altKey || ev.ctrlKey || ev.shiftKey));
+                  var droppedInHost = pointInDockHost(mx, my);
+                  if (droppedInHost && !forceUndock && (!wasDocked ? true : !leftZoneOnce)){
+                    applyDock(true); promoLog('dock_drop_in', { x: mx, y: my });
+                  } else {
+                    if (droppedInHost && leftZoneOnce && !forceUndock){
+                      promoLog('dock_drop_suppressed', { x: mx, y: my, reason: 'leftZoneOnce' });
+                    }
+                    var rect = popup.getBoundingClientRect();
                     var cl = clampToViewport(popup, rect.left, rect.top);
                     popup.style.left = cl.left + 'px';
                     popup.style.top = cl.top + 'px';
-                    popup.style.right = 'auto';
-                    popup.style.bottom = 'auto';
+                    popup.style.right = 'auto'; popup.style.bottom = 'auto';
                     saveHistState(mergeState({ useLeftTop:true, left: cl.left, top: cl.top }));
+                    promoLog('dock_drop_out', { x: mx, y: my, forceUndock: forceUndock, leftZoneOnce: leftZoneOnce });
                   }
-                  // защитим от клика сразу после перетаскивания
+                  hideDockHighlight();
                   if (handle.dataset.dragMoved === '1'){
-                    handle.dataset.dragJustDragged = '1';
-                    setTimeout(function(){ try{ handle.dataset.dragJustDragged = '0'; handle.dataset.dragMoved = '0'; }catch(__){} }, 60);
+                    handle.dataset.dragJustDragged='1';
+                    setTimeout(function(){ try{ handle.dataset.dragJustDragged='0'; handle.dataset.dragMoved='0'; }catch(__){} }, 60);
                   }
+                  if (wasDocked) promoLog('undock_drag_end', null);
                 }catch(__){}
               }
+              function onMouseUp(e){ finishMouse(e); }
+              function onMouseCancel(){ finishMouse({ clientX:0, clientY:0 }); }
+
+              handle.addEventListener('mousedown', onMouseDown);
             }
             attachDrag(header, false);
             attachDrag(compact, true);
@@ -646,16 +942,19 @@
               try{
                 var p = document.getElementById('promo_history_popup');
                 if (!p) return;
+                // Пересчёт высот в доке
+                try{ recalcDockHeights(); }catch(__){}
+                // Если окно во float и у него сохранённая позиция — удержим в вьюпорте
                 var st = loadHistState();
-                // если пользователь не двигал окно — state может отсутствовать; ничего не делаем
-                if (!st || !st.useLeftTop) return;
-                var rect = p.getBoundingClientRect();
-                var cl = clampToViewport(p, rect.left, rect.top);
-                p.style.left = cl.left + 'px';
-                p.style.top = cl.top + 'px';
-                p.style.right = 'auto';
-                p.style.bottom = 'auto';
-                saveHistState({ useLeftTop:true, left: cl.left, top: cl.top });
+                if (st && st.useLeftTop && !isDocked()){
+                  var rect = p.getBoundingClientRect();
+                  var cl = clampToViewport(p, rect.left, rect.top);
+                  p.style.left = cl.left + 'px';
+                  p.style.top = cl.top + 'px';
+                  p.style.right = 'auto';
+                  p.style.bottom = 'auto';
+                  saveHistState({ useLeftTop:true, left: cl.left, top: cl.top });
+                }
               }catch(__){}
             });
             window.__pwHistResizeHandler = true;

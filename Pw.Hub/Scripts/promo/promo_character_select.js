@@ -190,12 +190,16 @@
               characterContainer.className = 'characterContainer';
               root.appendChild(characterContainer);
               try { createCharacterSelect(data, characterContainer, root); } catch(e) {}
-              // Добавим кнопку отправки, если её нет (совместимо с прежней логикой)
+              // Добавим кнопку отправки ТОЛЬКО внутри окна «Управление» (popup)
+              // На основной странице (режим «Список») кнопку не создаём и не меняем
               try{
-                if (!root.querySelector('.js-transfer-go')){
+                var insidePopup = !!(root.closest && root.closest('#promo_popup'));
+                if (insidePopup && !root.querySelector('.js-transfer-go')){
                   var submitButton = document.createElement('div');
-                  submitButton.className = 'go_items js-transfer-go';
+                  // В попапе не используем класс go_items, чтобы не получать принудительную высоту 32px
+                  submitButton.className = 'js-transfer-go';
                   root.appendChild(submitButton);
+                  try{ promoLog('fallback_submit_added', { insidePopup: !!insidePopup }); }catch(_){ }
                 }
               }catch(__){}
               try{ promoLog('fallback_build_ok', null); }catch(_){ }
@@ -470,11 +474,14 @@
                 try { createCharacterSelect(data, characterContainer, root); } catch(e) {}
                 try{
                   var insidePopup = !!(root.closest && root.closest('#promo_popup'));
-                  if (!root.querySelector('.js-transfer-go')){
+                  if (insidePopup && !root.querySelector('.js-transfer-go')){
                     var submitButton = document.createElement('div');
-                    submitButton.className = 'go_items js-transfer-go';
+                    // Не добавляем класс go_items, чтобы не навешивалась фиксированная высота 32px от сайта
+                    submitButton.className = 'js-transfer-go';
                     root.appendChild(submitButton);
-                    try{ promoLog('module_submit_added', { insidePopup: !!insidePopup }); }catch(_){ }
+                    try{ promoLog('module_submit_added', { insidePopup: true }); }catch(_){ }
+                  } else {
+                    try{ promoLog('module_submit_skip', { insidePopup: !!insidePopup }); }catch(_){ }
                   }
                 }catch(__){}
                 try{ promoLog('module_build_ok', null); }catch(_){ }
