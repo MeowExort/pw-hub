@@ -1398,9 +1398,12 @@
                 function applyViewMode(mode){
                     try{
                         mode = mode || loadViewMode();
+                        promoLog('applyViewMode', { mode });
+                                                
                         var gridHost = document.getElementById('promo_items_grid');
                         var chestsHost = document.getElementById('promo_chests_grid');
                         var composite = document.getElementById('promo_items_composite');
+                        tableCont = document.querySelector('.items_container');
                         if (!tableCont || !composite) return;
                         if (mode === 'grid'){
                             // build map and render once visible
