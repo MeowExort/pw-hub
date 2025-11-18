@@ -243,6 +243,7 @@
         title.style = 'font-weight:700;color:#2c4a8d;font-size:13px;letter-spacing:0.2px;';
         // Кнопки справа: Сворачивать и Обновить
         var headerBtns = document.createElement('div');
+        headerBtns.id = 'promo_history_header_buttons';
         headerBtns.style = 'display:flex;gap:6px;align-items:center;';
         // Dock toggle button (встроить/отделить) — скрыт, т.к. теперь док/андок через Drag&Drop
         var dockBtn = document.createElement('button');
@@ -416,7 +417,7 @@
           try{
             var t = e.target;
             // Игнорируем клики по интерактивам справа
-            if (t && (t === collapseBtn || t === refreshBtn || t === dockBtn || (t.closest && t.closest('#promo_history_collapse_btn,#promo_history_refresh_btn,#promo_history_dock_btn')))) return;
+            if (t && (t === collapseBtn || t === refreshBtn || t === dockBtn || (t.closest && t.closest('#promo_history_collapse_btn,#promo_history_refresh_btn,#promo_history_dock_btn,#promo_history_header_buttons')))) return;
             // Защита от клика сразу после перетаскивания
             if (header && (header.dataset.dragMoved === '1' || header.dataset.dragJustDragged === '1')){ e.preventDefault(); e.stopPropagation(); return; }
             promoLog('header_click_collapse', { collapsed: !getCollapsed() });
@@ -466,7 +467,7 @@
             }
           }catch(__){ }
         }
-        refreshBtn.addEventListener('click', function(){ try{ promoLog('refresh_click', null); doRefresh(); }catch(__){} });
+        refreshBtn.addEventListener('click', function(e){ try{ if (e && e.stopPropagation) e.stopPropagation(); promoLog('refresh_click', null); doRefresh(); }catch(__){} });
 
         // Dock/Undock: helpers
         function getDockHost(){
@@ -721,6 +722,9 @@
                   try{
                     // Только ЛКМ/pen/touch — игнорируем вторичные кнопки мыши
                     if (e.button != null && e.button !== 0) return;
+                    // Не начинаем перетаскивание при кликах по кнопкам в хедере
+                    var t = e.target;
+                    if (t && (t === collapseBtn || t === refreshBtn || t === dockBtn || (t.closest && t.closest('#promo_history_collapse_btn,#promo_history_refresh_btn,#promo_history_dock_btn,#promo_history_header_buttons')))) return;
                     dragging = true; activated = false; pid = e.pointerId;
                     // Сбрасываем флаг выхода из зоны на начало каждого drag
                     leftZoneOnce = false;
@@ -852,6 +856,9 @@
               function onMouseDown(e){
                 try{
                   if (e.button !== 0) return;
+                  // Не начинаем перетаскивание при кликах по кнопкам в хедере
+                  var t = e.target;
+                  if (t && (t === collapseBtn || t === refreshBtn || t === dockBtn || (t.closest && t.closest('#promo_history_collapse_btn,#promo_history_refresh_btn,#promo_history_dock_btn,#promo_history_header_buttons')))) return;
                   dragging = true; activated = false;
                   // Сбрасываем флаг выхода из зоны на начало каждого drag
                   leftZoneOnce = false; everInside = false;
