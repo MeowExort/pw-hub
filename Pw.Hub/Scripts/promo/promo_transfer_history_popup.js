@@ -93,11 +93,33 @@
         promoLog('pos_fetch_start', null);
         appCfg.get(HIST_STATE_KEY, null).then(function(st){
           try{
-            __hist_state = st && typeof st === 'object' ? st : null;
-            promoLog('pos_fetch_ok', __hist_state);
-            if (__hist_state && popup){
-              applyHistState(popup, __hist_state);
-              try{ if (typeof onApplied === 'function') onApplied('fetched'); }catch(__){}
+            var s = st && typeof st === 'object' ? st : null;
+            // Обратная совместимость: если нет поля docked — читаем read-only флаг promo_history_docked
+            var applyAndCb = function(finalState){
+              try{
+                __hist_state = finalState && typeof finalState === 'object' ? finalState : null;
+                promoLog('pos_fetch_ok', __hist_state);
+                if (__hist_state && popup){
+                  // Позицию применяем сразу, но показывать попап должен вызывающий код после возможного докинга
+                  applyHistState(popup, __hist_state);
+                }
+                try{ if (typeof onApplied === 'function') onApplied('fetched'); }catch(__){}
+              }catch(__){}
+            };
+
+            if (!s || (typeof s.docked === 'undefined')){
+              try{
+                appCfg.get('promo_history_docked', null)
+                  .then(function(legacy){
+                    try{
+                      if (!s) s = {};
+                      if (legacy === true) s.docked = true;
+                    }catch(__){}
+                  })
+                  .finally(function(){ applyAndCb(s); });
+              }catch(__){ applyAndCb(s); }
+            } else {
+              applyAndCb(s);
             }
           }catch(__){}
         }).catch(function(err){ try{ promoLog('pos_fetch_err', (err && (err.message||err))||'unknown'); }catch(__){} });
@@ -328,40 +350,100 @@
 
         // Подготовим shim и подтянем сохранённую позицию из appConfig/Bootstrap
         try{ ensurePwHubAppConfigShim(); }catch(__){}
+        // Фича-флаг ожидания док-хоста при необходимости
+        var WAIT_DOCK_HOST = true;
+
+        // Хелпер: применить док из состояния, ожидая появления хоста при необходимости
+        function applyDockFromState(st, onDone){
+          try{
+            if (!st || st.docked !== true){ try{ if (typeof onDone === 'function') onDone(false, 'not_docked'); }catch(__){} return; }
+            window.__pwHistDockAttempted = true;
+            var host = getDockHost();
+            if (host){
+              applyDock(true);
+              try{ promoLog('dock_from_state_done', null); }catch(__){}
+              try{ if (typeof onDone === 'function') onDone(true, 'done'); }catch(__){}
+              return;
+            }
+            if (!WAIT_DOCK_HOST){ try{ if (typeof onDone === 'function') onDone(false, 'no_wait'); }catch(__){} return; }
+            try{ promoLog('dock_from_state_wait_host', null); }catch(__){}
+            window.__pwHistDockPending = '1';
+            var docObs = new MutationObserver(function(){
+              try{
+                if (getDockHost()){
+                  try{ docObs.disconnect(); }catch(__){}
+                  window.__pwHistDockPending = '0';
+                  applyDock(true);
+                  try{ promoLog('dock_from_state_done', { delayed:true }); }catch(__){}
+                  try{ if (typeof onDone === 'function') onDone(true, 'delayed'); }catch(__){}
+                }
+              }catch(__){}
+            });
+            try{ docObs.observe(document.body || document.documentElement, { childList:true, subtree:true }); }catch(__){}
+            setTimeout(function(){
+              try{
+                try{ docObs.disconnect(); }catch(__){}
+                window.__pwHistDockPending = '0';
+                if (!isDocked()){
+                  try{ promoLog('dock_from_state_timeout', null); }catch(__){}
+                  try{ if (typeof onDone === 'function') onDone(false, 'timeout'); }catch(__){}
+                }
+              }catch(__){}
+            }, 2000);
+          }catch(__){ try{ if (typeof onDone === 'function') onDone(false, 'error'); }catch(__){} }
+        }
+
         try{
           var boot = getBootstrapState();
           if (boot){
             promoLog('pos_bootstrap_used', boot);
-            applyHistState(popup, boot);
-            // Сразу покажем попап — координаты уже применены
-            popup.style.visibility = 'visible';
-            promoLog('pos_show_after_bootstrap', null);
+            if (boot.docked === true){
+              applyDockFromState(boot, function(){ try{ popup.style.visibility = 'visible'; }catch(__){} });
+            } else {
+              applyHistState(popup, boot);
+              popup.style.visibility = 'visible';
+              promoLog('pos_show_after_bootstrap', null);
+            }
           } else {
             promoLog('pos_bootstrap_absent', null);
             // Попробуем взять из in-memory кэша (на случай ранней инициализации)
             var s0 = loadHistState();
             if (s0){
-              applyHistState(popup, s0);
-              popup.style.visibility = 'visible';
-              promoLog('pos_show_after_cache', null);
+              if (s0.docked === true){
+                applyDockFromState(s0, function(){ try{ popup.style.visibility = 'visible'; }catch(__){} });
+              } else {
+                applyHistState(popup, s0);
+                popup.style.visibility = 'visible';
+                promoLog('pos_show_after_cache', null);
+              }
             } else {
-              // Ждём appConfig и показываем после применения
+              // Ждём appConfig и после получения пытаемся применить док; показываем только после попытки
               fetchHistStateAsyncAndApply(popup, function(){
-                try{ popup.style.visibility = 'visible'; promoLog('pos_show_after_fetch', null); }catch(__){}
-              });
-              // Сторожевой фоллбек: если конфиг долго не приходит — покажем в правом нижнем углу через ~900мс
-              setTimeout(function(){
                 try{
-                  if (popup.style.visibility !== 'visible'){
+                  var st = loadHistState();
+                  applyDockFromState(st, function(){ try{ popup.style.visibility = 'visible'; promoLog('pos_show_after_fetch', null); }catch(__){} });
+                }catch(__){}
+              });
+              // Сторожевой фоллбек: показывать только если не ждём док-хост
+              function scheduleShowFallback(delay){
+                setTimeout(function(){
+                  try{
+                    if (popup.style.visibility === 'visible') return;
+                    if (window.__pwHistDockPending === '1'){
+                      // всё ещё ждём док — попробуем позже
+                      scheduleShowFallback(700);
+                      return;
+                    }
                     popup.style.right = '12px';
                     popup.style.bottom = '12px';
                     popup.style.left = 'auto';
                     popup.style.top = 'auto';
                     popup.style.visibility = 'visible';
                     promoLog('pos_show_fallback', null);
-                  }
-                }catch(__){}
-              }, 900);
+                  }catch(__){}
+                }, delay);
+              }
+              scheduleShowFallback(900);
             }
           }
         }catch(__){}
@@ -982,28 +1064,11 @@
 
         // Если в bootstrap/appConfig указано, что окно должно быть встроено — применим докинг без миганий
         try{
-          var boot2 = getBootstrapState();
-          var st0 = loadHistState();
-          var needDock = (boot2 && boot2.docked === true) || (st0 && st0.docked === true);
-          if (needDock){
-            // Попробуем найти хост сразу, иначе подождём немного
-            var host = getDockHost();
-            if (host){
-              applyDock(true);
-            } else {
-              promoLog('dock_wait_host', null);
-              var waited = 0;
-              var docObs = new MutationObserver(function(muts){
-                try{
-                  if (getDockHost()){
-                    docObs.disconnect();
-                    applyDock(true);
-                  }
-                }catch(__){}
-              });
-              docObs.observe(document.body || document.documentElement, { childList:true, subtree:true });
-              setTimeout(function(){ try{ docObs.disconnect(); if (!isDocked()) promoLog('dock_host_missing', { timeout:true }); }catch(__){} }, 2000);
-            }
+          var stAgain = getBootstrapState() || loadHistState();
+          if (!window.__pwHistDockAttempted && stAgain && stAgain.docked === true){
+            applyDockFromState(stAgain);
+          } else {
+            if (window.__pwHistDockAttempted){ try{ promoLog('dock_attempt_skip', null); }catch(__){} }
           }
         }catch(__){}
 
