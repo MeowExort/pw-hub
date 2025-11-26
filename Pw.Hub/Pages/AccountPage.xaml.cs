@@ -1246,6 +1246,21 @@ public partial class AccountPage : IWebViewHost, INotifyPropertyChanged
         }
     }
 
+    private void BtnZoglo_OnClick(object sender, RoutedEventArgs e)
+    {
+        const string url = "https://pwonline.ru/static/lp/playnewpw1/?mt_sub1=8356541&mt_click_id=mt-rihxx9-1762538013-2465897769";
+        try
+        {
+            if (Wv?.CoreWebView2 != null)
+                Wv.CoreWebView2.Navigate(url);
+            else
+                Wv.Source = new Uri(url);
+        }
+        catch
+        {
+        }
+    }
+
     private void AddressBox_OnKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;

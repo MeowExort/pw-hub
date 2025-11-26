@@ -50,7 +50,11 @@
 
                         <Button Style="{StaticResource ModernButton}" x:Name="BtnHome" Height="24" Padding="8,0" Margin="6,0,4,0" ToolTip="Главная (pwonline.ru)" Click="BtnHome_OnClick">🏠 Главная</Button>
                         <Button Style="{StaticResource ModernButton}" x:Name="BtnPromo" Height="24" Padding="8,0" Margin="0,0,4,0" ToolTip="Перевод (promo_items)" Click="BtnPromo_OnClick">💱 Перевод</Button>
-                        <Button Style="{StaticResource ModernButton}" x:Name="BtnMdm" Height="24" Padding="8,0" ToolTip="МДМ (chests2)" Click="BtnMdm_OnClick">🎁 МДМ</Button>
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnMdm" Height="24" Padding="8,0" Margin="0,0,4,0" ToolTip="МДМ (chests2)" Click="BtnMdm_OnClick">🎁 МДМ</Button>
+                        
+                        <Separator Margin="2,0" Width="1" Background="#3A3F47"/>
+                        
+                        <Button Style="{StaticResource ModernButton}" x:Name="BtnZoglo" Height="24" Padding="8,0" ToolTip="Переход по реферальной ссылке Zoglo" Click="BtnZoglo_OnClick">🚀 Zoglo</Button>
                     </StackPanel>
                 </Border>
 

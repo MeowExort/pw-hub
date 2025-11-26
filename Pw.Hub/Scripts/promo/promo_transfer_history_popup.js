@@ -94,7 +94,8 @@
         appCfg.get(HIST_STATE_KEY, null).then(function(st){
           try{
             var s = st && typeof st === 'object' ? st : null;
-            // Обратная совместимость: если нет поля docked — читаем read-only флаг promo_history_docked
+            // Обратная совместимость: если нет поля docked — читаем read-only флаг promo_history_docked;
+            // по умолчанию теперь считаем окно ДОКИРОВАННЫМ (docked=true).
             var applyAndCb = function(finalState){
               try{
                 __hist_state = finalState && typeof finalState === 'object' ? finalState : null;
@@ -113,7 +114,11 @@
                   .then(function(legacy){
                     try{
                       if (!s) s = {};
-                      if (legacy === true) s.docked = true;
+                      if (typeof s.docked === 'undefined'){
+                        if (legacy === true) s.docked = true;      // унаследованное «в доке»
+                        else if (legacy === false) s.docked = false; // унаследованное «в попапе»
+                        else s.docked = true;                        // новое поведение по умолчанию — док
+                      }
                     }catch(__){}
                   })
                   .finally(function(){ applyAndCb(s); });
