@@ -179,8 +179,7 @@ public partial class BrowserView : UserControl, IWebViewHost, INotifyPropertyCha
     {
         try
         {
-            var allowed = e.Uri.StartsWith("https://pwonline.ru") || e.Uri.StartsWith("http://pwonline.ru") ||
-                          e.Uri.StartsWith("https://pw.mail.ru") || e.Uri.StartsWith("http://pw.mail.ru");
+            var allowed = IsAllowedHost(new Uri(e.Uri).Host);
             if (!allowed)
             {
                 e.Cancel = true;
@@ -191,6 +190,26 @@ public partial class BrowserView : UserControl, IWebViewHost, INotifyPropertyCha
             IsLoading = true;
         }
         catch { }
+    }
+    
+    bool IsAllowedHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return false;
+        // Базовые домены
+        if (host.Equals("pwonline.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.Equals("2ip.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.Equals("vkplay.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.Equals("vk.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.Equals("vk.com", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.Equals("astrum-play.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        // Поддомены
+        if (host.EndsWith(".pwonline.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.EndsWith(".2ip.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.EndsWith(".vkplay.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.EndsWith(".vk.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.EndsWith(".vk.com", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.EndsWith(".astrum-play.ru", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     // Обновление адресной строки/кнопок по завершению навигации

@@ -1091,6 +1091,8 @@ public class LuaIntegration
             {
                 var startUrl = t["StartUrl"] as string;
                 if (!string.IsNullOrWhiteSpace(startUrl)) opts.StartUrl = startUrl;
+                var proxy = t["Proxy"] as string;
+                if (!string.IsNullOrWhiteSpace(proxy)) opts.Proxy = proxy;
             }
         }
         catch { }

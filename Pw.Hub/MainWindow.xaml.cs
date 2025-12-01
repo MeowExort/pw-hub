@@ -18,6 +18,7 @@ using Pw.Hub.Pages;
 using Pw.Hub.Services;
 using Pw.Hub.Tools;
 using Pw.Hub.ViewModels;
+using Pw.Hub.Windows;
 
 namespace Pw.Hub;
 
@@ -982,5 +983,34 @@ public partial class MainWindow
             }
         }
         catch { }
+    }
+
+    // ПКМ: Зарегистрировать новый аккаунт… (доступно на узле отряда)
+    private void RegisterNewAccountMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Берём выбранный узел из дерева навигации
+            var selected = NavigationTree?.SelectedItem;
+            if (selected is Models.Squad squad)
+            {
+                var wnd = new RegistrationWindow(squad);
+                wnd.Owner = this;
+                wnd.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+                wnd.Show();
+            }
+            else
+            {
+                MessageBox.Show(this,
+                    "Пожалуйста, выберите отряд в списке слева и повторите.",
+                    "Регистрация аккаунта",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Не удалось открыть мастер регистрации: " + ex.Message,
+                "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 }

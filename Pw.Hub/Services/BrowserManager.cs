@@ -50,6 +50,11 @@ public class BrowserManager
         /// Начальный URL, на который перейти сразу после создания (опционально).
         /// </summary>
         public string StartUrl { get; set; } = null;
+        /// <summary>
+        /// Прокси в формате "login:password@ip:port" либо "ip:port" (без авторизации). Опционально.
+        /// Применяется на уровне профиля WebView2, используется только для данного инстанса браузера.
+        /// </summary>
+        public string Proxy { get; set; } = null;
     }
 
     /// <summary>
@@ -73,6 +78,15 @@ public class BrowserManager
         // 2) Создаём движок браузера и менеджер аккаунтов, привязанный к нему
         // Для v2 используем отдельные профили (каждый браузер — своя папка профиля)
         var browser = new WebCoreBrowser(view, BrowserSessionIsolationMode.SeparateProfile);
+        // Применяем прокси до создания первой сессии
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(options?.Proxy))
+            {
+                browser.SetProxyFromString(options.Proxy);
+            }
+        }
+        catch { }
         var am = new AccountManager(browser);
         // ВНИМАНИЕ: В Lua API v2 смена аккаунта НЕ создаёт новую сессию.
         // Новая сессия на смену аккаунта разрешена только для legacy Lua API v1.

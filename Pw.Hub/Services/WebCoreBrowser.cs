@@ -19,6 +19,12 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
     // Текущая папка пользовательских данных (профиль) для данного инстанса браузера
     private string _userDataDir;
 
+    // Прокси-настройки для текущего инстанса (применяются при создании новой сессии)
+    private string _proxyHost;
+    private int _proxyPort;
+    private string _proxyUser;
+    private string _proxyPassword;
+
     /// <summary>
     /// Папка профиля WebView2, используемая текущим инстансом. Нужна для диагностики/очистки.
     /// </summary>
@@ -69,7 +75,26 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
         return OnUiAsync(async () =>
         {
             var uri = new Uri(url);
-            if (uri.Host != "pwonline.ru")
+            // Разрешаем навигацию только на доверенные домены
+            bool IsAllowedHost(string host)
+            {
+                if (string.IsNullOrWhiteSpace(host)) return false;
+                // Базовые домены
+                if (host.Equals("pwonline.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.Equals("2ip.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.Equals("vkplay.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.Equals("vk.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.Equals("vk.com", StringComparison.OrdinalIgnoreCase)) return true;
+                // Поддомены
+                if (host.EndsWith(".pwonline.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.EndsWith(".2ip.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.EndsWith(".vkplay.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.EndsWith(".vk.ru", StringComparison.OrdinalIgnoreCase)) return true;
+                if (host.EndsWith(".vk.com", StringComparison.OrdinalIgnoreCase)) return true;
+                return false;
+            }
+
+            if (!IsAllowedHost(uri.Host))
                 return;
             await EnsureCoreAndSetBackgroundAsync();
             _webView.CoreWebView2.Navigate(url);
@@ -173,6 +198,18 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
                     CreationProperties = creationProps
                 };
 
+                // Если задан прокси — передадим его через аргументы запуска браузера
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(_proxyHost) && _proxyPort > 0)
+                    {
+                        var arg = $"--proxy-server={_proxyHost}:{_proxyPort}";
+                        var existing = creationProps.AdditionalBrowserArguments;
+                        creationProps.AdditionalBrowserArguments = string.IsNullOrWhiteSpace(existing) ? arg : (existing + " " + arg);
+                    }
+                }
+                catch { }
+
                 // Готовим новый контрол скрытым и с тёмным фоном до показа
                 try { newWv.Visibility = Visibility.Hidden; } catch { }
                 try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
@@ -183,6 +220,54 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
                 // Инициализируем ядро и ещё раз страхуем фон
                 try { await newWv.EnsureCoreWebView2Async(); } catch { }
                 try { newWv.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 30, 30, 30); } catch { }
+
+                // Перехватываем открытие новых окон (window.open / target=_blank) и
+                // перенаправляем в текущем экземпляре вместо создания отдельного окна.
+                try
+                {
+                    newWv.CoreWebView2.NewWindowRequested += (s, e) =>
+                    {
+                        try
+                        {
+                            var targetUrl = e.Uri; // может быть пустым
+                            e.Handled = true; // не создавать новое окно
+                            if (!string.IsNullOrWhiteSpace(targetUrl))
+                            {
+                                // Используем существующую навигацию с allow‑list фильтром
+                                _ = NavigateAsync(targetUrl);
+                            }
+                        }
+                        catch { }
+                    };
+                }
+                catch { }
+
+                // Обработчик базовой аутентификации — используем для прокси-логина/пароля
+                try
+                {
+                    newWv.CoreWebView2.BasicAuthenticationRequested += (s, e) =>
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrWhiteSpace(_proxyUser))
+                            {
+                                // Для прокси-аутентификации Uri указывает на прокси-сервер
+                                try
+                                {
+                                    var uri = new Uri(e.Uri);
+                                    if (!string.IsNullOrWhiteSpace(_proxyHost) && !uri.Host.Equals(_proxyHost, StringComparison.OrdinalIgnoreCase))
+                                        return;
+                                }
+                                catch { }
+
+                                e.Response.UserName = _proxyUser;
+                                e.Response.Password = _proxyPassword ?? string.Empty;
+                            }
+                        }
+                        catch { }
+                    };
+                }
+                catch { }
 
                 newWv.Source = previousUri;
 
@@ -227,6 +312,56 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
                     _ = TryDeleteDirWithRetries(oldDir);
                 }
             });
+    }
+
+    /// <summary>
+    /// Установить прокси-подключение из строки формата "login:password@ip:port" или "ip:port".
+    /// Вызывать до CreateNewSessionAsync, чтобы прокси применился к профилю/процессу.
+    /// </summary>
+    public void SetProxyFromString(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) { _proxyHost = null; _proxyPort = 0; _proxyUser = null; _proxyPassword = null; return; }
+        try
+        {
+            var s = value.Trim();
+            string credsPart = null;
+            string hostPart = s;
+            var atIdx = s.LastIndexOf('@');
+            if (atIdx > 0)
+            {
+                credsPart = s.Substring(0, atIdx);
+                hostPart = s.Substring(atIdx + 1);
+            }
+
+            var hp = hostPart.Split(':');
+            if (hp.Length >= 2 && int.TryParse(hp[1], out var port))
+            {
+                _proxyHost = hp[0];
+                _proxyPort = port;
+            }
+            else
+            {
+                // Невалидно — сбрасываем
+                _proxyHost = null;
+                _proxyPort = 0;
+            }
+
+            _proxyUser = null;
+            _proxyPassword = null;
+            if (!string.IsNullOrWhiteSpace(credsPart))
+            {
+                var cp = credsPart.Split(':');
+                _proxyUser = cp.ElementAtOrDefault(0);
+                _proxyPassword = cp.Length > 1 ? string.Join(":", cp.Skip(1)) : null; // допускаем двоеточия в пароле
+            }
+        }
+        catch
+        {
+            _proxyHost = null;
+            _proxyPort = 0;
+            _proxyUser = null;
+            _proxyPassword = null;
+        }
     }
 
     public async Task ApplyAntiDetectAsync(FingerprintProfile profile)

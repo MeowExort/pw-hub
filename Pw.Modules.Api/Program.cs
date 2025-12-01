@@ -77,8 +77,8 @@ builder.Services.AddOpenIddict()
             "claner:events:manage"
         );
 
-        options.AddDevelopmentEncryptionCertificate()
-            .AddDevelopmentSigningCertificate();
+        options.AddEphemeralEncryptionKey()
+            .AddEphemeralSigningKey();
 
         options.DisableAccessTokenEncryption();
 

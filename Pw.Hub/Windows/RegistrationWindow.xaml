@@ -1,0 +1,82 @@
+﻿<Window x:Class="Pw.Hub.Windows.RegistrationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:Pw.Hub.Models"
+        mc:Ignorable="d"
+        Title="Регистрация нового аккаунта" Height="640" Width="900"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Параметры запуска -->
+        <GroupBox Header="Параметры" Padding="10" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="150"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Реферальная ссылка:" VerticalAlignment="Center"/>
+                <TextBox x:Name="RefUrlBox" Grid.Column="1" Margin="8,0,0,0"/>
+
+                <TextBlock Grid.Row="1" Text="Прокси (по одному на строке):"/>
+                <TextBox x:Name="ProxiesBox" Grid.Row="1" Grid.Column="1" Margin="8,0,0,0" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Лимит успехов на прокси:"/>
+                    <TextBox x:Name="LimitPerProxyBox" Width="60" Margin="8,0,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Шаблон e‑mail:"/>
+                    <TextBox x:Name="EmailTemplateBox" Width="260" Margin="8,0,0,0"/>
+                    <TextBlock Text="Пример:" Margin="12,0,0,0"/>
+                    <TextBlock x:Name="EmailPreviewText" FontWeight="SemiBold" Margin="6,0,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Orientation="Horizontal">
+                    <CheckBox x:Name="Precheck2ipBox" Content="Проверять прокси на 2ip.ru"/>
+                    <CheckBox x:Name="PauseOnHumanStepsBox" Margin="18,0,0,0" Content="Пауза на капчу/код (ручной шаг)"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="4" Orientation="Horizontal">
+                    <TextBlock Text="Отряд:"/>
+                    <TextBlock x:Name="SquadNameText" FontWeight="SemiBold" Margin="6,0,0,0"/>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <!-- Лог -->
+        <GroupBox Grid.Row="1" Header="Журнал" Padding="6">
+            <Grid>
+                <TextBox x:Name="LogBox" IsReadOnly="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Кнопки управления -->
+        <DockPanel Grid.Row="2" LastChildFill="False" Margin="0,8,0,0">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button x:Name="BtnStart" Content="Старт" Width="100" Click="BtnStart_OnClick"/>
+                <Button x:Name="BtnPause" Content="Пауза" Width="100" Margin="8,0,0,0" Click="BtnPause_OnClick" IsEnabled="False"/>
+                <Button x:Name="BtnResume" Content="Продолжить" Width="110" Margin="8,0,0,0" Click="BtnResume_OnClick" IsEnabled="False"/>
+                <Button x:Name="BtnStop" Content="Остановить" Width="110" Margin="8,0,0,0" Click="BtnStop_OnClick" IsEnabled="False"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button x:Name="BtnExport" Content="Экспорт CSV" Width="120" Click="BtnExport_OnClick"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>
