@@ -24,7 +24,7 @@ dotnet run -p Pw.Modules.Api
 - `/healthz` — Health Checks.
 
 ## CORS
-- Для группы `/api/app` применена политика `PwHelper` (разрешён домен pw-helper.ru).
+- Для группы `/api/app` применена политика `PwHub` (разрешён домен pw-hub.ru).
 
 ## Docker
 - В корне репозитория есть `Dockerfile` (многоступенчатая сборка API).

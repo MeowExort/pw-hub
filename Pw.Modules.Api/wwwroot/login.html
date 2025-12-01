@@ -1,0 +1,197 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{APP_NAME}} - Вход</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f1014; /* Very dark background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #ffffff;
+        }
+        .login-card {
+            background-color: #16171d; /* Card background */
+            padding: 32px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 340px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        .login-header {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            text-align: left;
+            color: #e0e0e0;
+        }
+        .input-group {
+            margin-bottom: 12px;
+        }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            box-sizing: border-box;
+            background-color: #0f1014;
+            border: 1px solid #3a3b40;
+            border-radius: 6px;
+            color: #a0a0a0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field:focus {
+            border-color: #6c8cff;
+            color: #fff;
+        }
+        .input-field::placeholder {
+            color: #606060;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background-color: #6c8cff; /* Blueish button */
+            color: black;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #5a7ce0;
+        }
+        .btn-primary:disabled {
+            background-color: #4a5c80;
+            cursor: not-allowed;
+        }
+        .toggle-link {
+            display: block;
+            margin-top: 16px;
+            color: #e0e0e0;
+            font-size: 13px;
+            text-decoration: none;
+            cursor: pointer;
+            text-align: center;
+            font-weight: 600;
+        }
+        .toggle-link:hover {
+            text-decoration: underline;
+        }
+        .error-msg {
+            color: #ff5252;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-header" id="formTitle">PW Hub - {{APP_NAME}} - Вход</div>
+        <div id="errorMsg" class="error-msg"></div>
+        
+        <form id="authForm">
+            <div class="input-group">
+                <input type="text" id="username" name="username" class="input-field" placeholder="Имя пользователя" required autocomplete="username">
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" name="password" class="input-field" placeholder="Пароль" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn-primary" id="submitBtn">Войти</button>
+        </form>
+
+        <a class="toggle-link" id="toggleBtn">Нет аккаунта? Регистрация</a>
+    </div>
+
+    <script>
+        const form = document.getElementById('authForm');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const formTitle = document.getElementById('formTitle');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        const appName = '{{APP_NAME}}';
+        let isLogin = true;
+
+        function getReturnUrl() {
+            const params = new URLSearchParams(window.location.search);
+            // Default to root if not present. Check both cases as ASP.NET defaults to PascalCase ReturnUrl
+            return params.get('ReturnUrl') || params.get('returnUrl') || '/';
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            isLogin = !isLogin;
+            if (isLogin) {
+                formTitle.textContent = appName + ' - Вход';
+                submitBtn.textContent = 'Войти';
+                toggleBtn.textContent = 'Нет аккаунта? Регистрация';
+                document.getElementById('password').autocomplete = 'current-password';
+            } else {
+                formTitle.textContent = appName + ' - Регистрация';
+                submitBtn.textContent = 'Зарегистрироваться';
+                toggleBtn.textContent = 'Уже есть аккаунт? Вход';
+                document.getElementById('password').autocomplete = 'new-password';
+            }
+            errorMsg.style.display = 'none';
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const returnUrl = getReturnUrl();
+
+            submitBtn.disabled = true;
+            errorMsg.style.display = 'none';
+
+            try {
+                const url = isLogin ? '/login' : '/login/register';
+                // Include returnUrl in the body just in case backend wants it for redirect calculation
+                const body = JSON.stringify({ username, password, returnUrl });
+                
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    // Backend should return { redirectUrl: "..." }
+                    if (data.redirectUrl) {
+                        window.location.href = data.redirectUrl;
+                    } else {
+                        // Fallback
+                        window.location.href = returnUrl;
+                    }
+                } else {
+                    let message = 'Произошла ошибка';
+                    try {
+                        const errData = await res.json();
+                        if (errData.message) message = errData.message;
+                    } catch {}
+                    errorMsg.textContent = message;
+                    errorMsg.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                errorMsg.textContent = 'Ошибка сети';
+                errorMsg.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

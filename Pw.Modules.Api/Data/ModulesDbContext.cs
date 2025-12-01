@@ -13,6 +13,7 @@ namespace Pw.Modules.Api.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.UseOpenIddict();
             modelBuilder.HasPostgresExtension("uuid-ossp");
 
             modelBuilder.Entity<Module>(b =>

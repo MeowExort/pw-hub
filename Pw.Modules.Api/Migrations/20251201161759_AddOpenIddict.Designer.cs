@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pw.Modules.Api.Data;
@@ -11,9 +12,11 @@ using Pw.Modules.Api.Data;
 namespace Pw.Modules.Api.Migrations
 {
     [DbContext(typeof(ModulesDbContext))]
-    partial class ModulesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251201161759_AddOpenIddict")]
+    partial class AddOpenIddict
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
