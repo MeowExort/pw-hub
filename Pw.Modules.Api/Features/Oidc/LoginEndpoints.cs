@@ -21,8 +21,17 @@ public static class LoginEndpoints
 
     private static async Task<IResult> LoginGet(HttpContext context, IWebHostEnvironment env, IOpenIddictApplicationManager manager)
     {
-        var path = Path.Combine(env.WebRootPath, "login.html");
-        if (!File.Exists(path)) return Results.Content("Login page not found", "text/plain");
+        var webRoot = env.WebRootPath;
+        if (string.IsNullOrEmpty(webRoot))
+        {
+            webRoot = Path.Combine(env.ContentRootPath, "wwwroot");
+        }
+
+        var path = Path.Combine(webRoot, "login.html");
+        if (!File.Exists(path)) 
+        {
+            return Results.Content($"Login page not found at {path}. WebRoot: {env.WebRootPath}, ContentRoot: {env.ContentRootPath}", "text/plain");
+        }
         var html = await File.ReadAllTextAsync(path);
 
         string appName = "PW Hub";
