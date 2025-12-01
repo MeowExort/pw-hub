@@ -231,7 +231,8 @@ await using (var scope = app.Services.CreateAsyncScope())
         {
             new Uri("http://localhost:3000/api/auth/callback/claner"),
             new Uri("https://oauth.pstmn.io/v1/callback"),
-            new Uri("https://oidcdebugger.com/debug")
+            new Uri("https://oidcdebugger.com/debug"),
+            new Uri(" http://localhost:5173")
         },
         Permissions =
         {
