@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Http.Features;
@@ -29,6 +30,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Pw Modules API", Version = "v1" });
+});
+
+// Configure Forwarded Headers for reverse proxy support (Nginx/Docker)
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.All;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 // Built-in health checks and HTTP logging
@@ -175,6 +184,8 @@ if (OtlpEndpoint != null)
 }
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 // Apply pending migrations (ensures schema is up to date)
 await using (var scope = app.Services.CreateAsyncScope())
