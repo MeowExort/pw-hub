@@ -123,6 +123,10 @@ builder.Services.AddCors(options =>
     // Policy for pw-hup.ru
     options.AddPolicy("PwHub", p =>
         p.WithOrigins(
+                "http://localhost:5173",
+                "https://localhost:5173",
+                "http://www.localhost:5173",
+                "https://www.localhost:5173",
                 "https://pw-hub.ru",
                 "https://www.pw-hub.ru"
             )
