@@ -265,11 +265,11 @@ await using (var scope = app.Services.CreateAsyncScope())
         DisplayName = "База знаний",
         RedirectUris =
         {
-            new Uri("http://localhost:5301/api/auth/callback/claner"),
+            new Uri("http://localhost:5300/api/auth/callback/pw-hub"),
             new Uri("https://oauth.pstmn.io/v1/callback"),
             new Uri("https://oidcdebugger.com/debug"),
             new Uri("http://localhost:5300"),
-            new Uri("https://guides.pw-hub.ru"),
+            new Uri("https://guides.pw-hub.ru/api/auth/callback/pw-hub"),
         },
         Permissions =
         {
