@@ -298,7 +298,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     }
     else
     {
-        await manager.UpdateAsync(guidesClient, descriptor);
+        await manager.UpdateAsync(guidesClient, guidesDescriptor);
     }
 
     if (client is null)
