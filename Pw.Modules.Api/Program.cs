@@ -256,9 +256,49 @@ await using (var scope = app.Services.CreateAsyncScope())
         }
     };
 
+    var guidesClient = await manager.FindByClientIdAsync("guides");
+    var guidesDescriptor = new OpenIddictApplicationDescriptor
+    {
+        ClientId = "guides",
+        ClientType = OpenIddictConstants.ClientTypes.Public,
+        ClientSecret = null, // ClientSecret is null to make it a Public Client
+        DisplayName = "База знаний",
+        RedirectUris =
+        {
+            new Uri("http://localhost:5301/api/auth/callback/claner"),
+            new Uri("https://oauth.pstmn.io/v1/callback"),
+            new Uri("https://oidcdebugger.com/debug"),
+            new Uri("http://localhost:5300"),
+            new Uri("https://guides.pw-hub.ru"),
+        },
+        Permissions =
+        {
+            OpenIddictConstants.Permissions.Endpoints.Authorization,
+            OpenIddictConstants.Permissions.Endpoints.EndSession,
+            OpenIddictConstants.Permissions.Endpoints.Introspection,
+            OpenIddictConstants.Permissions.Endpoints.Revocation,
+            OpenIddictConstants.Permissions.Endpoints.Token,
+            OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+            OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+            OpenIddictConstants.Permissions.ResponseTypes.Code,
+            OpenIddictConstants.Permissions.Scopes.Email,
+            OpenIddictConstants.Permissions.Scopes.Profile,
+            OpenIddictConstants.Permissions.Scopes.Roles
+        }
+    };
+
     foreach (var scopeName in scopes)
     {
         descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scopeName);
+    }
+
+    if (guidesClient is null)
+    {
+        await manager.CreateAsync(guidesDescriptor);
+    }
+    else
+    {
+        await manager.UpdateAsync(guidesClient, descriptor);
     }
 
     if (client is null)
