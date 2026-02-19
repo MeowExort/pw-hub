@@ -78,6 +78,25 @@ public static class OidcEndpoints
         var oidcRequest = context.GetOpenIddictServerRequest();
         if (oidcRequest == null) return Results.BadRequest();
 
+        if (oidcRequest.IsClientCredentialsGrantType())
+        {
+            // Client credentials flow: create a principal for the application itself.
+            var identity = new ClaimsIdentity(
+                authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                nameType: OpenIddictConstants.Claims.Name,
+                roleType: OpenIddictConstants.Claims.Role);
+
+            // Add the client_id as the subject claim.
+            var clientIdClaim = new Claim(OpenIddictConstants.Claims.Subject, oidcRequest.ClientId ?? string.Empty);
+            clientIdClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(clientIdClaim);
+
+            var principal = new ClaimsPrincipal(identity);
+            principal.SetScopes(oidcRequest.GetScopes());
+
+            return Results.SignIn(principal, properties: null, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
         if (oidcRequest.IsAuthorizationCodeGrantType() || oidcRequest.IsRefreshTokenGrantType())
         {
              // Retrieve the claims principal stored in the authorization code/refresh token.
