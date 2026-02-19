@@ -71,7 +71,8 @@ builder.Services.AddOpenIddict()
             //.SetUserinfoEndpointUris("/connect/userinfo");
 
         options.AllowAuthorizationCodeFlow()
-            .AllowRefreshTokenFlow();
+            .AllowRefreshTokenFlow()
+            .AllowClientCredentialsFlow();
 
         options.RegisterScopes(OpenIddictConstants.Scopes.Email, OpenIddictConstants.Scopes.Profile, OpenIddictConstants.Scopes.Roles);
         options.RegisterScopes(
@@ -83,7 +84,9 @@ builder.Services.AddOpenIddict()
             "claner:clans:manage",
             "claner:events:read",
             "claner:events:participate",
-            "claner:events:manage"
+            "claner:events:manage",
+            "relics:read",
+            "relics:write"
         );
 
         options.AddEphemeralEncryptionKey()
@@ -210,7 +213,9 @@ await using (var scope = app.Services.CreateAsyncScope())
         "claner:clans:manage",
         "claner:events:read",
         "claner:events:participate",
-        "claner:events:manage"
+        "claner:events:manage",
+        "relics:read",
+        "relics:write"
     };
 
     foreach (var scopeName in scopes)
@@ -287,7 +292,7 @@ await using (var scope = app.Services.CreateAsyncScope())
         }
     };
 
-    foreach (var scopeName in scopes)
+    foreach (var scopeName in scopes.Where(x=> x.StartsWith("claner")))
     {
         descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scopeName);
     }
@@ -309,6 +314,72 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         // Update existing client to match the descriptor (ensures it is Public and has no secret)
         await manager.UpdateAsync(client, descriptor);
+    }
+
+    // Relics client (Public, frontend)
+    var relicsClient = await manager.FindByClientIdAsync("relics");
+    var relicsDescriptor = new OpenIddictApplicationDescriptor
+    {
+        ClientId = "relics",
+        ClientType = OpenIddictConstants.ClientTypes.Public,
+        ClientSecret = null,
+        DisplayName = "Реликвии",
+        RedirectUris =
+        {
+            new Uri("https://relics.pw-hub.ru"),
+            new Uri("http://localhost:3100"),
+        },
+        Permissions =
+        {
+            OpenIddictConstants.Permissions.Endpoints.Authorization,
+            OpenIddictConstants.Permissions.Endpoints.EndSession,
+            OpenIddictConstants.Permissions.Endpoints.Introspection,
+            OpenIddictConstants.Permissions.Endpoints.Revocation,
+            OpenIddictConstants.Permissions.Endpoints.Token,
+            OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+            OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+            OpenIddictConstants.Permissions.ResponseTypes.Code,
+            OpenIddictConstants.Permissions.Scopes.Email,
+            OpenIddictConstants.Permissions.Scopes.Profile,
+            OpenIddictConstants.Permissions.Scopes.Roles,
+            OpenIddictConstants.Permissions.Prefixes.Scope + "relics:read"
+        }
+    };
+
+    if (relicsClient is null)
+    {
+        await manager.CreateAsync(relicsDescriptor);
+    }
+    else
+    {
+        await manager.UpdateAsync(relicsClient, relicsDescriptor);
+    }
+
+    // Relics-bot client (Confidential, service/bot with client_credentials)
+    var relicsBotClient = await manager.FindByClientIdAsync("relics-bot");
+    var relicsBotDescriptor = new OpenIddictApplicationDescriptor
+    {
+        ClientId = "relics-bot",
+        ClientType = OpenIddictConstants.ClientTypes.Confidential,
+        ClientSecret = Environment.GetEnvironmentVariable("RELICS_BOT_SECRET") ?? "relics-bot-secret",
+        DisplayName = "Реликвии Бот",
+        Permissions =
+        {
+            OpenIddictConstants.Permissions.Endpoints.Token,
+            OpenIddictConstants.Permissions.Endpoints.Introspection,
+            OpenIddictConstants.Permissions.Endpoints.Revocation,
+            OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+            OpenIddictConstants.Permissions.Prefixes.Scope + "relics:write"
+        }
+    };
+
+    if (relicsBotClient is null)
+    {
+        await manager.CreateAsync(relicsBotDescriptor);
+    }
+    else
+    {
+        await manager.UpdateAsync(relicsBotClient, relicsBotDescriptor);
     }
 }
 
