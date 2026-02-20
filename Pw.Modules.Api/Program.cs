@@ -327,7 +327,9 @@ await using (var scope = app.Services.CreateAsyncScope())
         RedirectUris =
         {
             new Uri("https://relics.pw-hub.ru/callback"),
+            new Uri("https://relics.pw-hub.ru"),
             new Uri("http://localhost:5173/callback"),
+            new Uri("http://localhost:5173"),
         },
         Permissions =
         {
