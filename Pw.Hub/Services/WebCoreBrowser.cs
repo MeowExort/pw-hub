@@ -223,6 +223,7 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
 
                 // Перехватываем открытие новых окон (window.open / target=_blank) и
                 // перенаправляем в текущем экземпляре вместо создания отдельного окна.
+                /*
                 try
                 {
                     newWv.CoreWebView2.NewWindowRequested += (s, e) =>
@@ -241,6 +242,7 @@ public class WebCoreBrowser(IWebViewHost host, BrowserSessionIsolationMode mode 
                     };
                 }
                 catch { }
+                */
 
                 // Обработчик базовой аутентификации — используем для прокси-логина/пароля
                 try

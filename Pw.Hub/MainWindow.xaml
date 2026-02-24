@@ -191,9 +191,10 @@
                                               CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                     <Separator Style="{StaticResource ModernSeparator}" />
                                     <!-- Регистрация нового аккаунта по ПКМ на отряде -->
-                                    <MenuItem x:Name="RegisterNewAccountMenuItem"
+                                    <!-- <MenuItem x:Name="RegisterNewAccountMenuItem"
                                               Header="🧭 Зарегистрировать новый аккаунт…"
                                               Click="RegisterNewAccountMenuItem_OnClick" />
+                                              -->
                                 </ContextMenu>
                             </TreeView.ContextMenu>
                             <TreeView.Resources>

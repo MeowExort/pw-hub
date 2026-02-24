@@ -43,6 +43,8 @@ public class AuthService
             await using var db = new AppDbContext();
             var accounts = await db.Accounts
                 .Where(x => x.LastVisit <= threshold)
+                .OrderBy(x => x.LastVisit)
+                .Take(10)
                 .AsNoTracking()
                 .ToListAsync();
             

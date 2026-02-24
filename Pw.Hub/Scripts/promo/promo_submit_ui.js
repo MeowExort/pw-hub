@@ -25,7 +25,6 @@
           '  display:inline-flex !important;',
           '  align-items:center !important;',
           '  justify-content:center !important;',
-          '  margin:12px auto 0 !important;',
           '  float:none !important;',
           '}',
           // ВАЖНО: Стили применяются ТОЛЬКО внутри окна «Управление» (#promo_popup),
@@ -35,7 +34,6 @@
           '  align-items:center !important;',
           '  justify-content:center !important;',
           '  width:max-content !important;',
-          '  margin:12px auto 0 !important;', // центрирование по горизонтали
           '  padding:4px 10px !important;', // компактнее по высоте
           '  background:#2c4a8d;',
           '  color:#fff;',
@@ -54,7 +52,31 @@
           '}',
           '#promo_popup .js-transfer-go:hover{ filter: brightness(1.05); }',
           '#promo_popup .js-transfer-go:active{ transform: translateY(1px); }',
-          '#promo_popup .js-transfer-go[aria-busy="true"], #promo_popup .js-transfer-go.is-busy{ opacity:0.7; pointer-events:none; }'
+          '#promo_popup .js-transfer-go[aria-busy="true"], #promo_popup .js-transfer-go.is-busy{ opacity:0.7; pointer-events:none; }',
+          '',
+          '#promo_popup .pw-selected-wrap {',
+          '  display: flex !important;',
+          '  flex-direction: row !important;',
+          '  align-items: center !important;',
+          '  justify-content: flex-start !important;',
+          '  gap: 12px !important;',
+          '  width: 100% !important;',
+          '  flex-wrap: wrap !important;',
+          '}',
+          '#promo_popup .pw-selected-counter {',
+          '  display: inline-block;',
+          '  font-size: 12px;',
+          '  color: #7a6a54;',
+          '  font-weight: bold;',
+          '  white-space: nowrap;',
+          '  cursor: help;',
+          '}',
+          '#promo_popup .pw-selected-counter.pw-has-warning {',
+          '  color: #d9534f !important;',
+          '}',
+          '#promo_popup .pw-selected-warning {',
+          '  display: none !important;',
+          '}'
         ].join('\n');
         var style = document.createElement('style');
         style.id = id;
@@ -64,6 +86,53 @@
       }catch(_){ }
     }
 
+    function updateSelectedCount(){
+      try{
+        // Ищем чекбоксы по всему документу, так как они могут быть вне #promo_popup (например, в основном списке)
+        // Но приоритет отдаем тем, что в контейнерах предметов
+        var count = 0;
+        try {
+          // Ищем только чекбоксы предметов: 
+          // 1. С классом js-item-checkbox (наш класс для унификации)
+          // 2. Внутри .items_container (стандартный список сайта)
+          // 3. Внутри #promo_items_composite (наша плитка/сетка)
+          // При этом исключаем те, что могут попасть в общие селекторы, но не являются предметами (например, "Группировать по типу")
+          var checkboxes = document.querySelectorAll('.items_container input[type=checkbox]:checked, #promo_items_composite input[type=checkbox]:checked, input[type=checkbox].js-item-checkbox:checked');
+          
+          // Дополнительная фильтрация для исключения технических чекбоксов, если они вдруг попали в выборку
+          var finalCount = 0;
+          for (var k=0; k<checkboxes.length; k++) {
+            var cb = checkboxes[k];
+            // Исключаем чекбокс "Группировать по типу", если он вдруг попал (хотя по селекторам выше не должен)
+            if (cb.nextSibling && cb.nextSibling.textContent === 'Группировать по типу') continue;
+            // На сайте MyGames/VKPlay чекбоксы предметов обычно имеют определенную структуру, 
+            // но мы полагаемся на контейнеры .items_container и #promo_items_composite
+            finalCount++;
+          }
+          count = finalCount;
+        } catch(e) {
+          // Fallback на случай ошибки в сложных селекторах
+          count = document.querySelectorAll('.items_container input[type=checkbox]:checked, #promo_items_composite input[type=checkbox]:checked').length;
+        }
+        
+        var host = document.getElementById('promo_popup') || document;
+        var counters = host.querySelectorAll('.pw-selected-counter');
+        var warnings = host.querySelectorAll('.pw-selected-warning');
+        
+        for (var i=0; i<counters.length; i++) {
+          var c = counters[i];
+          c.textContent = 'Выбрано предметов: ' + count;
+          if (count > 40) {
+            c.classList.add('pw-has-warning');
+            c.setAttribute('title', 'Внимание: выбрано более 40 предметов. Часть может не дойти из-за лимита почты.');
+          } else {
+            c.classList.remove('pw-has-warning');
+            c.removeAttribute('title');
+          }
+        }
+      }catch(_){}
+    }
+
     function normalizeBtn(el){
       try{
         if (!el) return false;
@@ -71,6 +140,22 @@
         if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
         var txt = (el.textContent||'').trim();
         if (!txt) el.textContent = 'Передать';
+
+        // Инжектим счетчик под кнопку, если его еще нет
+        if (el.parentNode && !el.parentNode.querySelector('.pw-selected-counter')){
+          var wrap = document.createElement('div');
+          wrap.className = 'pw-selected-wrap';
+          
+          el.parentNode.insertBefore(wrap, el);
+          wrap.appendChild(el);
+
+          var counter = document.createElement('div');
+          counter.className = 'pw-selected-counter';
+          counter.textContent = 'Выбрано предметов: 0';
+          wrap.appendChild(counter);
+          
+          updateSelectedCount();
+        }
         return true;
       }catch(_){ return false; }
     }
@@ -81,6 +166,10 @@
         // Работать только внутри окна «Управление»
         var host = document.getElementById('promo_popup');
         if (!host){ try{ promoLog('skipped_page', null); }catch(__){}; return; }
+        
+        // Сразу принудительно обновим счетчик в начале, чтобы "0" не висело долго
+        updateSelectedCount();
+
         // Если на странице уже есть «родная» .go_items в попапе — добавим ей наш класс для унификации
         try{
           var rawBtns = host.querySelectorAll('.go_items');
@@ -97,6 +186,10 @@
             try{ if (normalizeBtn(btns[i])) total++; }catch(__){}
           }
         }
+        
+        // Повторный вызов после нормализации кнопок
+        updateSelectedCount();
+        
         try{ promoLog('applied_popup', { count: total }); }catch(_){ }
       }catch(_){ }
     }
@@ -106,6 +199,23 @@
         if (window.__pwSubmitUiObserver) return;
         var host = document.getElementById('promo_popup');
         if (!host){ try{ promoLog('observer_skipped_no_popup', null); }catch(__){}; return; }
+
+        // Добавим обработчик кликов для отслеживания чекбоксов
+        // Слушаем на document, так как элементы могут перемещаться
+        document.addEventListener('change', function(e){
+          if (e.target && e.target.type === 'checkbox') {
+            updateSelectedCount();
+          }
+        }, true);
+
+        // Также слушаем клики
+        document.addEventListener('click', function(e){
+          if (e.target && (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('button') || e.target.classList.contains('js-item-checkbox'))) {
+            setTimeout(updateSelectedCount, 50);
+            setTimeout(updateSelectedCount, 250); // Повторный вызов для случаев с анимацией или задержкой скриптов
+          }
+        }, true);
+
         var obs = new MutationObserver(function(muts){
           try{
             for (var mi=0; mi<muts.length; mi++){
@@ -119,6 +229,7 @@
                 if (n.classList){
                   if (n.classList.contains('go_items')){ try{ n.classList.add('js-transfer-go'); }catch(__){} }
                   if (n.classList.contains('js-transfer-go')){ normalizeBtn(n); continue; }
+                  if (n.classList.contains('items_container')){ setTimeout(updateSelectedCount, 100); continue; }
                 }
                 var found = n.querySelectorAll ? n.querySelectorAll('.js-transfer-go') : [];
                 for (var fi=0; fi<found.length; fi++) normalizeBtn(found[fi]);
@@ -126,6 +237,15 @@
                 var foundRaw = n.querySelectorAll ? n.querySelectorAll('.go_items') : [];
                 for (var fj=0; fj<foundRaw.length; fj++){
                   try{ foundRaw[fj].classList.add('js-transfer-go'); normalizeBtn(foundRaw[fj]); }catch(__){}
+                }
+                // Если добавились чекбоксы
+                if (n.querySelectorAll && n.querySelectorAll('input[type=checkbox]').length > 0) {
+                  setTimeout(updateSelectedCount, 100);
+                }
+
+                // Доп. проверка: если пришел узел items_container или promo_items_composite в любом виде
+                if (n.nodeType === 1 && (n.classList.contains('items_container') || n.querySelector('.items_container') || n.id === 'promo_items_composite' || n.querySelector('#promo_items_composite'))){
+                  setTimeout(updateSelectedCount, 100);
                 }
               }
             }
