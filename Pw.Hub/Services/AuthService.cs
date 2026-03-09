@@ -16,7 +16,7 @@ public class AuthService
     {
         _dispatcherTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMinutes(1),
+            Interval = TimeSpan.FromMinutes(10),
         };
         _dispatcherTimer.Tick += DispatcherTimerOnTick;
 

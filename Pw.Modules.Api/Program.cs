@@ -215,7 +215,8 @@ await using (var scope = app.Services.CreateAsyncScope())
         "claner:events:participate",
         "claner:events:manage",
         "relics:read",
-        "relics:write"
+        "relics:write",
+        "tracker:sync"
     };
 
     foreach (var scopeName in scopes)
@@ -385,6 +386,33 @@ await using (var scope = app.Services.CreateAsyncScope())
     else
     {
         await manager.UpdateAsync(relicsBotClient, relicsBotDescriptor);
+    }
+
+    // Tracker-sync client (Confidential, service/bot with client_credentials)
+    var trackerSyncBotClient = await manager.FindByClientIdAsync("tracker-sync");
+    var trackerSyncBotDescriptor = new OpenIddictApplicationDescriptor
+    {
+        ClientId = "tracker-sync",
+        ClientType = OpenIddictConstants.ClientTypes.Confidential,
+        ClientSecret = Environment.GetEnvironmentVariable("TRACKER_SYNC_SECRET") ?? "tracker-sync-secret",
+        DisplayName = "Трекер Бот",
+        Permissions =
+        {
+            OpenIddictConstants.Permissions.Endpoints.Token,
+            OpenIddictConstants.Permissions.Endpoints.Introspection,
+            OpenIddictConstants.Permissions.Endpoints.Revocation,
+            OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+            OpenIddictConstants.Permissions.Prefixes.Scope + "tracker:sync"
+        }
+    };
+
+    if (trackerSyncBotClient is null)
+    {
+        await manager.CreateAsync(trackerSyncBotDescriptor);
+    }
+    else
+    {
+        await manager.UpdateAsync(trackerSyncBotClient, trackerSyncBotDescriptor);
     }
 }
 
